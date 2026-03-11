@@ -368,7 +368,7 @@ export default function Analytics() {
               <div key={d.key} className="activity-bar-col">
                 <div className="activity-bar" style={{ height: Math.max((d.count / data.maxAct) * 60, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.85 }} title={`${d.count} touchpoints`} />
                 <div className="activity-bar" style={{ height: Math.max((d.added / data.maxAdded) * 24, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.5 }} title={`${d.added} added`} />
-                {i % 5 === 0 && <div className="mono" style={{ fontSize: 14, color: "#374151", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
+                {i % 5 === 0 && <div className="mono" style={{ fontSize: 13, color: "var(--text-sec)", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
               </div>
             ))}
           </div>

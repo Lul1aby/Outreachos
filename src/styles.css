@@ -9,9 +9,9 @@
   --border:      #1a1a2e;
   --border-hover:#3b3b5e;
   --text:        #e8eaf0;
-  --text-sec:    #9ca3af;
-  --text-muted:  #6b7280;
-  --text-dim:    #4b5563;
+  --text-sec:    #c4c9d4;
+  --text-muted:  #9ca3af;
+  --text-dim:    #6b7280;
   --primary:     #6366f1;
   --primary-dark:#4338ca;
   --primary-light:#a5b4fc;
@@ -538,10 +538,11 @@ a { color: inherit; text-decoration: none; }
 .analytics-kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 20px; }
 .analytics-kpi {
   background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; padding: 12px 14px;
+  border-radius: 10px; padding: 14px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
 }
-.analytics-kpi-val { font-size: 23px; font-weight: 700; letter-spacing: -0.03em; }
-.analytics-kpi-label { font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-family: var(--mono); margin-top: 4px; }
+.analytics-kpi-val { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
+.analytics-kpi-label { font-size: 12px; color: var(--text-sec); text-transform: uppercase; letter-spacing: .05em; font-family: var(--mono); margin-top: 6px; line-height: 1.3; }
 
 .funnel-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .funnel-label { width: 90px; font-size: 14px; color: var(--text-sec); text-align: right; flex-shrink: 0; }
@@ -617,7 +618,7 @@ a { color: inherit; text-decoration: none; }
 .checkbox-box.checked { border-color: var(--primary); background: var(--primary-bg); }
 
 /* ── Activity chart ── */
-.activity-chart { display: flex; align-items: flex-end; gap: 2px; height: 90px; }
+.activity-chart { display: flex; align-items: flex-end; gap: 2px; height: 110px; }
 .activity-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .activity-bar { width: 70%; border-radius: 2px; }
 
