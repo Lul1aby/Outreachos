@@ -102,7 +102,7 @@ export default function Analytics() {
     const last30 = Array.from({ length: 30 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (29 - i));
       const key = d.toISOString().slice(0, 10);
-      return { key, label: d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }), count: actMap[key] || 0, added: addMap[key] || 0 };
+      return { key, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), count: actMap[key] || 0, added: addMap[key] || 0 };
     });
     const maxAct = Math.max(...last30.map((d) => d.count), 1);
     const maxAdded = Math.max(...last30.map((d) => d.added), 1);
@@ -118,10 +118,10 @@ export default function Analytics() {
 
     /* Touchpoint distribution buckets */
     const buckets = [
-      { label: "0 touches", filter: (p) => p.touchpoints.length === 0, color: "#4b5563" },
-      { label: "1–2 touches", filter: (p) => p.touchpoints.length >= 1 && p.touchpoints.length <= 2, color: "#60a5fa" },
-      { label: "3–5 touches", filter: (p) => p.touchpoints.length >= 3 && p.touchpoints.length <= 5, color: "#a78bfa" },
-      { label: "6+ touches", filter: (p) => p.touchpoints.length >= 6, color: "#fbbf24" },
+      { label: "0–5 touches", filter: (p) => p.touchpoints.length <= 5, color: "#60a5fa" },
+      { label: "5–10 touches", filter: (p) => p.touchpoints.length >= 5 && p.touchpoints.length <= 10, color: "#a78bfa" },
+      { label: "10–15 touches", filter: (p) => p.touchpoints.length >= 10 && p.touchpoints.length <= 15, color: "#fbbf24" },
+      { label: "15+ touches", filter: (p) => p.touchpoints.length >= 15, color: "#f97316" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
       const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
