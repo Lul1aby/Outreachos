@@ -1,14 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { STATUSES, STATUS_COLORS } from "../constants";
 import { daysSinceLast, greeting, stalenessColor } from "../utils";
 import { Badge } from "./ui";
 
 export default function Home({ onNavigate, onSelect }) {
-  const { state, stats, allLists, tasksToday, overdueProspects } = useStore();
+  const { state, stats, allLists, tasksToday, overdueProspects, exportBackup, importBackup } = useStore();
   const { prospects } = state;
   const [listSearch, setListSearch] = useState("");
   const [listDetail, setListDetail] = useState(null);
+  const [importStatus, setImportStatus] = useState(null); // null | "ok:{n}" | "err:{msg}"
+  const fileInputRef = useRef(null);
 
   const recentProspects = useMemo(() => [...prospects].sort((a, b) => b.id - a.id).slice(0, 5), [prospects]);
   const hotProspects = useMemo(() => prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).slice(0, 5), [prospects]);
@@ -197,6 +199,62 @@ export default function Home({ onNavigate, onSelect }) {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Data Backup */}
+      <div className="card mb-24" style={{ borderColor: "var(--border)" }}>
+        <div className="card-title">Data Backup</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>
+          Your data lives in your browser's IndexedDB — new deployments never touch it. Export a backup before major changes, or to move data to another device.
+        </div>
+        <div className="flex gap-10 items-center flex-wrap">
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={exportBackup}
+            title="Download all prospects, sequences, and enrollments as JSON"
+          >
+            ⬇ Export Backup
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => fileInputRef.current?.click()}
+            title="Restore from a previously exported JSON backup"
+          >
+            ⬆ Import Backup
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              e.target.value = "";
+              try {
+                const n = await importBackup(file);
+                setImportStatus(`ok:${n}`);
+                setTimeout(() => setImportStatus(null), 4000);
+              } catch (err) {
+                setImportStatus(`err:${err.message}`);
+                setTimeout(() => setImportStatus(null), 5000);
+              }
+            }}
+          />
+          {importStatus?.startsWith("ok:") && (
+            <span style={{ fontSize: 13, color: "#34d399", fontWeight: 600 }}>
+              ✓ Restored {importStatus.slice(3)} prospects
+            </span>
+          )}
+          {importStatus?.startsWith("err:") && (
+            <span style={{ fontSize: 13, color: "#f87171" }}>
+              ✕ {importStatus.slice(4)}
+            </span>
+          )}
+        </div>
+        <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 12 }}>
+          {state.prospects.length} prospects · {state.sequences.length} sequences · {state.enrollments.length} enrollments stored locally
         </div>
       </div>
 

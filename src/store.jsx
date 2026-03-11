@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useReducer, useEffect, useMemo, useState, useRef } from "react";
 import { get, set, del } from "idb-keyval";
 import { DEFAULT_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
@@ -194,12 +194,21 @@ function reducer(state, action) {
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, defaultState);
   const [hydrated, setHydrated] = useState(false);
+  // Guard: only allow persisting after we've confirmed what's in IndexedDB.
+  // Prevents a race where hydrated=true fires the persist effect before HYDRATE
+  // has updated state, which would overwrite real data with an empty defaultState.
+  const persistAllowed = useRef(false);
 
   /* Load from IndexedDB on mount; migrate from localStorage if needed */
   useEffect(() => {
     get(STORAGE_KEY).then((idbData) => {
       if (idbData) {
-        dispatch({ type: "HYDRATE", payload: idbData });
+        const merged = mergeLoaded(idbData);
+        if (merged) {
+          dispatch({ type: "HYDRATE", payload: idbData });
+        }
+        // corrupt data: leave state empty, but still allow persisting
+        // (user starts fresh rather than losing everything silently)
       } else {
         // One-time migration: pull existing data out of localStorage
         try {
@@ -213,12 +222,18 @@ export function StoreProvider({ children }) {
         } catch { /* corrupt localStorage — start fresh */ }
       }
     }).catch(() => { /* IndexedDB unavailable — app still works with defaultState */ })
-      .finally(() => setHydrated(true));
+      .finally(() => {
+        persistAllowed.current = true;
+        setHydrated(true);
+      });
   }, []);
 
-  /* Persist to IndexedDB on every state change (skip before hydration to avoid overwriting with empty state) */
+  /* Persist to IndexedDB on every state change.
+     Skip until after hydration AND until persistAllowed is set —
+     this prevents overwriting real data if state updates haven't
+     settled yet when hydrated flips to true. */
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !persistAllowed.current) return;
     set(STORAGE_KEY, state).catch(() => {});
   }, [state, hydrated]);
 
@@ -274,8 +289,36 @@ export function StoreProvider({ children }) {
     [state.prospects]
   );
 
+  /* Backup helpers exposed to UI */
+  const exportBackup = () => {
+    const blob = new Blob([JSON.stringify({ ...state, _exportedAt: new Date().toISOString(), _version: 1 }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `outreachos-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importBackup = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const merged = mergeLoaded(parsed);
+        if (!merged) { reject(new Error("Invalid backup file — missing required data.")); return; }
+        dispatch({ type: "HYDRATE", payload: parsed });
+        resolve(merged.prospects.length);
+      } catch (err) {
+        reject(new Error("Could not parse backup file."));
+      }
+    };
+    reader.readAsText(file);
+  });
+
   const value = useMemo(
-    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated }),
+    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated, exportBackup, importBackup }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [state, tasksToday, overdueProspects, stats, allLists, hydrated]
   );
 
