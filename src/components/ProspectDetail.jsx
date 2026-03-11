@@ -49,6 +49,9 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [research, setResearch] = useState(null);   // { brief, fetchedAt }
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState(null);
+  const [hiring, setHiring] = useState(null);        // { brief, fetchedAt }
+  const [hiringLoading, setHiringLoading] = useState(false);
+  const [hiringError, setHiringError] = useState(null);
 
   /* Inline touchpoint form state */
   const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
@@ -81,6 +84,26 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       setResearchError(err.message);
     } finally {
       setResearching(false);
+    }
+  }, [prospect]);
+
+  const fetchHiring = useCallback(async () => {
+    if (!prospect) return;
+    setHiringLoading(true);
+    setHiringError(null);
+    try {
+      const res = await fetch("/api/hiring", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company: prospect.company, industry: prospect.industry }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Hiring lookup failed");
+      setHiring({ brief: data.brief, fetchedAt: new Date().toLocaleTimeString() });
+    } catch (err) {
+      setHiringError(err.message);
+    } finally {
+      setHiringLoading(false);
     }
   }, [prospect]);
 
@@ -272,6 +295,67 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               </div>
             </div>
           )}
+
+          {/* Hiring section */}
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+              Open Roles
+            </div>
+
+            {!hiring && !hiringLoading && !hiringError && (
+              <div style={{ textAlign: "center", padding: "20px 16px" }}>
+                <div style={{ fontSize: 22, marginBottom: 8 }}>💼</div>
+                <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 16, maxWidth: 320, margin: "0 auto 16px" }}>
+                  Find what <strong style={{ color: "var(--text)" }}>{prospect.company}</strong> is actively hiring for — use it as a sales angle.
+                </div>
+                <button className="btn btn-outline btn-sm" onClick={fetchHiring}>
+                  Find Open Roles →
+                </button>
+              </div>
+            )}
+
+            {hiringLoading && (
+              <div style={{ textAlign: "center", padding: "24px 16px" }}>
+                <div style={{ fontSize: 20, marginBottom: 10 }}>⏳</div>
+                <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4 }}>Scanning job boards…</div>
+                <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>Checking careers page · LinkedIn Jobs · Indeed</div>
+              </div>
+            )}
+
+            {hiringError && (
+              <div style={{ padding: "14px", background: "#2a1e1e", border: "1px solid #991b1b", borderRadius: 8 }}>
+                <div style={{ color: "#f87171", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Lookup failed</div>
+                <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 10 }}>{hiringError}</div>
+                <button className="btn btn-ghost btn-sm" onClick={fetchHiring}>Try Again</button>
+              </div>
+            )}
+
+            {hiring && (
+              <div>
+                <div className="flex items-center justify-between mb-12">
+                  <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                    Fetched at {hiring.fetchedAt} · Powered by Claude + web search
+                  </div>
+                  <div className="flex gap-8">
+                    <button className="btn btn-ghost btn-sm" onClick={fetchHiring} title="Refresh hiring data">↻ Refresh</button>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => {
+                        const note = `--- Open Roles at ${prospect.company} (${new Date().toLocaleDateString()}) ---\n${hiring.brief}`;
+                        dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { notes: prospect.notes ? prospect.notes + "\n\n" + note : note } } });
+                      }}
+                      title="Save hiring brief to prospect notes"
+                    >
+                      Save to Notes
+                    </button>
+                  </div>
+                </div>
+                <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
+                  <RenderBrief text={hiring.brief} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
