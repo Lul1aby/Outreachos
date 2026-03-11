@@ -1,5 +1,4 @@
 import { createContext, useContext, useReducer, useEffect, useMemo } from "react";
-import { DEFAULT_SEQUENCE, SEED_PROSPECTS } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
 
 const STORAGE_KEY = "outreach-os-data";
@@ -8,8 +7,8 @@ const StoreContext = createContext(null);
 /* ── Initial state ── */
 
 const defaultState = {
-  prospects: SEED_PROSPECTS,
-  sequences: [DEFAULT_SEQUENCE],
+  prospects: [],
+  sequences: [],
   enrollments: [],
   dismissedReminders: [],
   lists: [],
@@ -51,7 +50,7 @@ function reducer(state, action) {
     }
 
     case "IMPORT_PROSPECTS": {
-      const newP = action.payload.map((p) => ({ ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: "Not Started" }));
+      const newP = action.payload.map((p) => ({ ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: p.status || "Not Started" }));
       const defaultSeq = state.sequences.find((s) => s.isDefault);
       const newE = defaultSeq
         ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] }))
@@ -67,7 +66,7 @@ function reducer(state, action) {
             i === existingIdx ? { ...l, count: l.count + newP.length, updatedAt: todayStr() } : l
           );
         } else {
-          updatedLists = [...existingLists, { id: nextId(), name: listName, count: newP.length, uploadedAt: todayStr() }];
+          updatedLists = [...existingLists, { id: nextId(), name: listName, count: newP.length, uploadedAt: todayStr(), updatedAt: todayStr() }];
         }
       }
       return { ...state, prospects: [...state.prospects, ...newP], enrollments: [...state.enrollments, ...newE], lists: updatedLists };

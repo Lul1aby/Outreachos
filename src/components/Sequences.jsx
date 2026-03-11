@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import { CHANNELS, CHANNEL_ICONS } from "../constants";
+import { nextId } from "../utils";
 import { Modal, Input, Badge } from "./ui";
 
 export default function Sequences() {
@@ -25,7 +26,7 @@ export default function Sequences() {
 
   function addStep() {
     const maxDay = form.steps.length ? Math.max(...form.steps.map((s) => s.day)) : -1;
-    setForm((f) => ({ ...f, steps: [...f.steps, { id: Date.now(), day: maxDay + 3, channel: "Email", note: "" }] }));
+    setForm((f) => ({ ...f, steps: [...f.steps, { id: nextId(), day: maxDay + 3, channel: "Email", note: "" }] }));
   }
 
   function save() {

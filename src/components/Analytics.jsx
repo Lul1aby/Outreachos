@@ -1,11 +1,46 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useStore } from "../store";
 import { STATUSES, INDUSTRIES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
+import { fmtDate, daysSinceLast } from "../utils";
 import { MiniBar } from "./ui";
+
+function escapeCSV(val) {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 export default function Analytics() {
   const { state, allLists } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
+
+  const downloadReport = useCallback(() => {
+    const src = selectedList === "__all__" ? state.prospects : state.prospects.filter((p) => p.listName === selectedList);
+    const rows = [
+      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used"],
+      ...src.map((p) => {
+        const days = daysSinceLast(p);
+        const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1).date : "";
+        const channels = [...new Set(p.touchpoints.map((t) => t.channel))].join("; ");
+        return [
+          p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "",
+          p.email || "", p.phone || "", p.linkedin || "",
+          fmtDate(p.createdAt), p.touchpoints.length,
+          lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "",
+          channels,
+        ];
+      }),
+    ];
+    const csv = rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
+    const label = selectedList === "__all__" ? "all-prospects" : selectedList.replace(/\s+/g, "-").toLowerCase();
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `outreach-report-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [state.prospects, selectedList]);
   const prospects = useMemo(() => {
     if (selectedList === "__all__") return state.prospects;
     return state.prospects.filter((p) => p.listName === selectedList);
@@ -116,12 +151,12 @@ export default function Analytics() {
       return { name: i, total: ind.length, replied: r, meetings: m, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
-    /* Touchpoint distribution buckets */
+    /* Touchpoint distribution buckets (non-overlapping: upper bound exclusive except last) */
     const buckets = [
-      { label: "0–5 touches", filter: (p) => p.touchpoints.length <= 5, color: "#60a5fa" },
-      { label: "5–10 touches", filter: (p) => p.touchpoints.length >= 5 && p.touchpoints.length <= 10, color: "#a78bfa" },
-      { label: "10–15 touches", filter: (p) => p.touchpoints.length >= 10 && p.touchpoints.length <= 15, color: "#fbbf24" },
-      { label: "15+ touches", filter: (p) => p.touchpoints.length >= 15, color: "#f97316" },
+      { label: "0–5 touches",  filter: (p) => p.touchpoints.length <= 5, color: "#60a5fa" },
+      { label: "5–10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "#a78bfa" },
+      { label: "10–15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "#fbbf24" },
+      { label: "15+ touches",  filter: (p) => p.touchpoints.length > 15, color: "#f97316" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
       const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
@@ -145,7 +180,7 @@ export default function Analytics() {
           <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
           <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
         </div>
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-8 flex-wrap">
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>Analysing:</span>
           <select
             className="form-select"
@@ -156,6 +191,9 @@ export default function Analytics() {
             <option value="__all__">All Prospects</option>
             {allLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
           </select>
+          <button className="btn btn-outline btn-sm" onClick={downloadReport} title="Download activity report as CSV" style={{ whiteSpace: "nowrap" }}>
+            ⬇ Download Report
+          </button>
         </div>
       </div>
 
