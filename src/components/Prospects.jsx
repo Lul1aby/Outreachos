@@ -21,6 +21,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [customDays, setCustomDays] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [copied, setCopied] = useState(null); // { id, field }
+
+  const copyContact = useCallback((e, text, id, field) => {
+    e.stopPropagation();
+    e.preventDefault();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied({ id, field });
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }, []);
 
   const onSearch = useCallback((val) => {
     setSearch(val);
@@ -262,8 +272,18 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
                   <td>
                     <div className="flex flex-col gap-4">
-                      {p.email && <a href={`mailto:${p.email}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-email" title={p.email}>✉️ <span className="truncate">{p.email}</span></a>}
-                      {p.phone && <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-phone" title={p.phone}>📞 {p.phone}</a>}
+                      {p.email && (
+                        <a href="#" onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
+                          ✉️ <span className="truncate">{p.email}</span>
+                          {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                        </a>
+                      )}
+                      {p.phone && (
+                        <a href="#" onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
+                          📞 {p.phone}
+                          {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                        </a>
+                      )}
                       {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
                     </div>
                   </td>

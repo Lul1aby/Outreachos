@@ -106,6 +106,14 @@ export function downloadTemplate() {
   URL.revokeObjectURL(url);
 }
 
+/* ── URL helpers ── */
+
+export function normalizeLinkedIn(url) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return "https://" + url;
+}
+
 /* ── Validation ── */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

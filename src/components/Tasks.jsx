@@ -1,11 +1,21 @@
+import { useState, useCallback } from "react";
 import { useStore } from "../store";
 import { CHANNEL_ICONS } from "../constants";
-import { todayStr } from "../utils";
+import { todayStr, normalizeLinkedIn } from "../utils";
 import { Badge } from "./ui";
 
 export default function Tasks({ onSelect, onNavigate }) {
   const { tasksToday, dispatch } = useStore();
   const today = todayStr();
+  const [copied, setCopied] = useState(null); // { enrollmentId, field }
+
+  const copyContact = useCallback((e, text, enrollmentId, field) => {
+    e.preventDefault();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied({ enrollmentId, field });
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }, []);
 
   return (
     <div style={{ padding: "24px 32px" }}>
@@ -51,9 +61,19 @@ export default function Tasks({ onSelect, onNavigate }) {
                 </div>
                 {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 <div className="task-contacts">
-                  {p.email && <a href={`mailto:${p.email}`} className="task-contact-link contact-link-email">✉️ {p.email}</a>}
-                  {p.phone && <a href={`tel:${p.phone}`} className="task-contact-link contact-link-phone">📞 {p.phone}</a>}
-                  {p.linkedin && <a href={`https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
+                  {p.email && (
+                    <a href="#" onClick={(e) => copyContact(e, p.email, task.enrollmentId, "email")} className="task-contact-link contact-link-email" title="Click to copy email">
+                      ✉️ {p.email}
+                      {copied?.enrollmentId === task.enrollmentId && copied?.field === "email" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                    </a>
+                  )}
+                  {p.phone && (
+                    <a href="#" onClick={(e) => copyContact(e, p.phone, task.enrollmentId, "phone")} className="task-contact-link contact-link-phone" title="Click to copy phone">
+                      📞 {p.phone}
+                      {copied?.enrollmentId === task.enrollmentId && copied?.field === "phone" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                    </a>
+                  )}
+                  {p.linkedin && <a href={normalizeLinkedIn(p.linkedin)} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
                 </div>
               </div>
               <div className="task-actions">

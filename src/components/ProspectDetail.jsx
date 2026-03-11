@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS } from "../constants";
-import { todayStr } from "../utils";
+import { todayStr, normalizeLinkedIn } from "../utils";
 import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input } from "./ui";
 
 export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint }) {
@@ -11,6 +11,14 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
   /* Inline touchpoint form state */
   const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
+  const [copied, setCopied] = useState(null);
+
+  const copyContact = useCallback((text, field) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(field);
+      setTimeout(() => setCopied(null), 2000);
+    });
+  }, []);
 
   /* Inline reminder-style form (we use the touchpoint form here) */
   const touchpoints = prospect?.touchpoints || [];
@@ -48,9 +56,23 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Contact info */}
       <div className="detail-info">
-        {prospect.email && <div className="detail-info-item">✉️ {prospect.email}</div>}
-        {prospect.phone && <div className="detail-info-item">📞 {prospect.phone}</div>}
-        {prospect.linkedin && <div className="detail-info-item">💼 {prospect.linkedin}</div>}
+        {prospect.email && (
+          <div className="detail-info-item" style={{ cursor: "pointer" }} title="Click to copy" onClick={() => copyContact(prospect.email, "email")}>
+            ✉️ {prospect.email}
+            {copied === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
+          </div>
+        )}
+        {prospect.phone && (
+          <div className="detail-info-item" style={{ cursor: "pointer" }} title="Click to copy" onClick={() => copyContact(prospect.phone, "phone")}>
+            📞 {prospect.phone}
+            {copied === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
+          </div>
+        )}
+        {prospect.linkedin && (
+          <div className="detail-info-item">
+            💼 <a href={normalizeLinkedIn(prospect.linkedin)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-light)", textDecoration: "none" }}>{prospect.linkedin}</a>
+          </div>
+        )}
         <div className="detail-info-item">🏭 {prospect.industry}</div>
         {prospect.listName && <div className="detail-info-item">📋 {prospect.listName}</div>}
         <div className="detail-info-item" style={{ color: "var(--text-muted)" }}>📅 Added {prospect.createdAt}</div>
