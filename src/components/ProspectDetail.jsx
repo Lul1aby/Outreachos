@@ -1,0 +1,140 @@
+import { useState, useMemo, useCallback } from "react";
+import { useStore } from "../store";
+import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS } from "../constants";
+import { todayStr } from "../utils";
+import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input } from "./ui";
+
+export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint }) {
+  const { state, dispatch } = useStore();
+  const prospect = state.prospects.find((p) => p.id === prospectId);
+  const [tab, setTab] = useState("touchpoints");
+
+  /* Inline touchpoint form state */
+  const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "Contacted" });
+
+  /* Inline reminder-style form (we use the touchpoint form here) */
+  const touchpoints = prospect?.touchpoints || [];
+
+  const logInline = useCallback(() => {
+    if (!tpForm.note.trim()) return;
+    dispatch({
+      type: "ADD_TOUCHPOINT",
+      payload: {
+        prospectId,
+        touchpoint: { channel: tpForm.channel, date: tpForm.date, note: tpForm.note.trim(), status: tpForm.status },
+        newStatus: tpForm.status,
+      },
+    });
+    setTpForm({ channel: "Email", date: todayStr(), note: "", status: "Contacted" });
+  }, [tpForm, prospectId, dispatch]);
+
+  if (!prospect) return null;
+
+  return (
+    <Modal onClose={onClose} wide>
+      {/* Header */}
+      <div className="modal-header">
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>{prospect.name}</div>
+          <div style={{ fontSize: 13, color: "var(--text-sec)", marginTop: 4 }}>
+            {prospect.title} at <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.company}</span>
+          </div>
+        </div>
+        <div className="flex gap-8 items-center">
+          <Badge status={prospect.status} />
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+      </div>
+
+      {/* Contact info */}
+      <div className="detail-info">
+        {prospect.email && <div className="detail-info-item">✉️ {prospect.email}</div>}
+        {prospect.phone && <div className="detail-info-item">📞 {prospect.phone}</div>}
+        {prospect.linkedin && <div className="detail-info-item">💼 {prospect.linkedin}</div>}
+        <div className="detail-info-item">🏭 {prospect.industry}</div>
+        {prospect.listName && <div className="detail-info-item">📋 {prospect.listName}</div>}
+        <div className="detail-info-item" style={{ color: "var(--text-muted)" }}>📅 Added {prospect.createdAt}</div>
+      </div>
+
+      {/* Notes */}
+      {prospect.notes && (
+        <div className="detail-notes">
+          <span className="detail-section-label" style={{ display: "block", marginBottom: 4 }}>Notes</span>
+          {prospect.notes}
+        </div>
+      )}
+
+      {/* Status update */}
+      <div className="mb-20">
+        <div className="detail-section-label" style={{ marginBottom: 6 }}>Update Status</div>
+        <div className="detail-status-row">
+          {STATUSES.map((s) => (
+            <StatusPill key={s} status={s} active={prospect.status === s}
+              onClick={() => dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { status: s } } })} />
+          ))}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="tab-switcher" style={{ maxWidth: 360 }}>
+        <button className={`tab-switch${tab === "touchpoints" ? " active" : ""}`} onClick={() => setTab("touchpoints")}>
+          Touchpoints ({touchpoints.length})
+        </button>
+        <button className={`tab-switch${tab === "log" ? " active" : ""}`} onClick={() => setTab("log")}>
+          + Log New
+        </button>
+      </div>
+
+      {/* Touchpoints tab */}
+      {tab === "touchpoints" && (
+        <>
+          {touchpoints.length === 0 && <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "20px 0" }}>No touchpoints yet. Log your first outreach.</div>}
+          {[...touchpoints].reverse().map((tp) => (
+            <div key={tp.id} className="tp-row">
+              <span className="tp-icon">{CHANNEL_ICONS[tp.channel]}</span>
+              <div className="tp-content">
+                <div className="tp-meta">
+                  <span className="tp-channel">{tp.channel}</span>
+                  <Badge status={tp.status} />
+                  <span className="tp-date">{tp.date}</span>
+                </div>
+                <div className="tp-note">{tp.note}</div>
+              </div>
+              <button className="btn btn-danger btn-sm btn-icon" title="Delete"
+                onClick={() => dispatch({ type: "DELETE_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id } })}>×</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Log new tab */}
+      {tab === "log" && (
+        <div className="inline-form">
+          <div className="inline-form-title">Log a touchpoint</div>
+          <div className="inline-row">
+            <select className="form-select" value={tpForm.channel} onChange={(e) => setTpForm((f) => ({ ...f, channel: e.target.value }))}>
+              {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
+            </select>
+            <input type="date" className="form-input" value={tpForm.date} onChange={(e) => setTpForm((f) => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div className="inline-row">
+            <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="inline-row">
+            <textarea className="form-textarea" rows={3} value={tpForm.note} placeholder="What happened? Key takeaways, next steps…" onChange={(e) => setTpForm((f) => ({ ...f, note: e.target.value }))} />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={logInline}>Log Touchpoint</button>
+        </div>
+      )}
+
+      {/* Delete */}
+      <div className="pt-12 mt-16 border-t">
+        <button className="btn btn-danger" onClick={() => { dispatch({ type: "DELETE_PROSPECT", payload: prospect.id }); onClose(); }}>
+          Delete Prospect
+        </button>
+      </div>
+    </Modal>
+  );
+}
