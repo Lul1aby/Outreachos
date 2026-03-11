@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useStore } from "./store";
+import { supabase } from "./supabase";
 import Home from "./components/Home";
 import Prospects from "./components/Prospects";
 import Analytics from "./components/Analytics";
@@ -9,9 +10,10 @@ import ProspectDetail from "./components/ProspectDetail";
 import AddProspect from "./components/AddProspect";
 import TouchpointModal from "./components/TouchpointModal";
 import StoredLists from "./components/StoredLists";
+import AuthPage from "./components/AuthPage";
 
 export default function App() {
-  const { tasksToday, hydrated } = useStore();
+  const { tasksToday, hydrated, user, syncing } = useStore();
 
   if (!hydrated) {
     return (
@@ -21,6 +23,12 @@ export default function App() {
       </div>
     );
   }
+
+  // If Supabase is configured and user is not logged in, show auth gate
+  if (supabase && !user) {
+    return <AuthPage />;
+  }
+
   const [view, setView] = useState("home");
   const [viewParams, setViewParams] = useState({});
   const [selectedId, setSelectedId] = useState(null);
@@ -79,6 +87,22 @@ export default function App() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+          {user && (
+            <div className="flex items-center gap-8" style={{ borderLeft: "1px solid var(--border)", paddingLeft: 12 }}>
+              {syncing && <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }} title="Syncing to cloud">↑ sync</span>}
+              {!syncing && supabase && <span style={{ fontSize: 12, color: "var(--success)", opacity: 0.7 }} title="Saved to cloud">●</span>}
+              <span style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={user.email}>
+                {user.email}
+              </span>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => supabase?.auth.signOut()}
+                title="Sign out"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
         </nav>
       </header>

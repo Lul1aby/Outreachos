@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@supabase/supabase-js": "^2.99.1",
     "idb-keyval": "^6.2.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

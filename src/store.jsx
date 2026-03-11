@@ -1,5 +1,6 @@
-import { createContext, useContext, useReducer, useEffect, useMemo, useState, useRef } from "react";
-import { get, set, del } from "idb-keyval";
+import { createContext, useContext, useReducer, useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { get, set } from "idb-keyval";
+import { supabase } from "./supabase";
 import { DEFAULT_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
 
@@ -194,48 +195,108 @@ function reducer(state, action) {
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, defaultState);
   const [hydrated, setHydrated] = useState(false);
-  // Guard: only allow persisting after we've confirmed what's in IndexedDB.
-  // Prevents a race where hydrated=true fires the persist effect before HYDRATE
-  // has updated state, which would overwrite real data with an empty defaultState.
+  const [user, setUser] = useState(null);   // Supabase auth user (null = not logged in)
+  const [syncing, setSyncing] = useState(false); // cloud save in progress
   const persistAllowed = useRef(false);
+  const saveTimer = useRef(null);
 
-  /* Load from IndexedDB on mount; migrate from localStorage if needed */
-  useEffect(() => {
-    get(STORAGE_KEY).then((idbData) => {
-      if (idbData) {
-        const merged = mergeLoaded(idbData);
-        if (merged) {
-          dispatch({ type: "HYDRATE", payload: idbData });
-        }
-        // corrupt data: leave state empty, but still allow persisting
-        // (user starts fresh rather than losing everything silently)
-      } else {
-        // One-time migration: pull existing data out of localStorage
-        try {
-          const raw = localStorage.getItem(LS_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            dispatch({ type: "HYDRATE", payload: parsed });
-            // Move to IndexedDB and clear localStorage
-            set(STORAGE_KEY, parsed).then(() => localStorage.removeItem(LS_KEY));
+  /* ── Load data for a given userId from Supabase, fall back to IndexedDB ── */
+  const loadData = useCallback(async (userId) => {
+    persistAllowed.current = false;
+    if (supabase && userId) {
+      try {
+        const { data, error } = await supabase
+          .from("user_data")
+          .select("data")
+          .eq("user_id", userId)
+          .single();
+        if (!error && data?.data) {
+          const merged = mergeLoaded(data.data);
+          if (merged) {
+            dispatch({ type: "HYDRATE", payload: data.data });
+            persistAllowed.current = true;
+            setHydrated(true);
+            return;
           }
-        } catch { /* corrupt localStorage — start fresh */ }
-      }
-    }).catch(() => { /* IndexedDB unavailable — app still works with defaultState */ })
-      .finally(() => {
+        }
+        // No cloud data yet — check if there's local data to migrate up
+        const idbData = await get(STORAGE_KEY).catch(() => null);
+        if (idbData && mergeLoaded(idbData)) {
+          dispatch({ type: "HYDRATE", payload: idbData });
+          // Auto-migrate local data to the cloud
+          await supabase.from("user_data").upsert({ user_id: userId, data: idbData, updated_at: new Date().toISOString() });
+        }
         persistAllowed.current = true;
         setHydrated(true);
-      });
+        return;
+      } catch { /* network error — fall through to IndexedDB */ }
+    }
+    // No Supabase or not logged in — use local IndexedDB only
+    const idbData = await get(STORAGE_KEY).catch(() => null);
+    if (idbData) {
+      const merged = mergeLoaded(idbData);
+      if (merged) dispatch({ type: "HYDRATE", payload: idbData });
+    } else {
+      // One-time migration from localStorage
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          dispatch({ type: "HYDRATE", payload: parsed });
+          set(STORAGE_KEY, parsed).then(() => localStorage.removeItem(LS_KEY));
+        }
+      } catch { /* corrupt — start fresh */ }
+    }
+    persistAllowed.current = true;
+    setHydrated(true);
   }, []);
 
-  /* Persist to IndexedDB on every state change.
-     Skip until after hydration AND until persistAllowed is set —
-     this prevents overwriting real data if state updates haven't
-     settled yet when hydrated flips to true. */
+  /* ── Auth: check session on mount, listen for changes ── */
+  useEffect(() => {
+    if (!supabase) {
+      // No Supabase configured — load locally
+      loadData(null);
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      loadData(u?.id ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (!u) {
+        // Logged out — reset to empty state
+        dispatch({ type: "RESET_DATA" });
+        persistAllowed.current = false;
+        setHydrated(true);
+      } else {
+        setHydrated(false);
+        loadData(u.id);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [loadData]);
+
+  /* ── Persist on every state change ── */
   useEffect(() => {
     if (!hydrated || !persistAllowed.current) return;
+    // Always write to local IndexedDB immediately (offline cache)
     set(STORAGE_KEY, state).catch(() => {});
-  }, [state, hydrated]);
+    // Debounce cloud writes (1.5s) to avoid hammering Supabase on every keystroke
+    if (supabase && user) {
+      clearTimeout(saveTimer.current);
+      setSyncing(true);
+      saveTimer.current = setTimeout(async () => {
+        await supabase
+          .from("user_data")
+          .upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() })
+          .catch(() => {});
+        setSyncing(false);
+      }, 1500);
+    }
+  }, [state, hydrated, user]);
 
   const today = todayStr();
 
@@ -317,9 +378,9 @@ export function StoreProvider({ children }) {
   });
 
   const value = useMemo(
-    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated, exportBackup, importBackup }),
+    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing, exportBackup, importBackup }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state, tasksToday, overdueProspects, stats, allLists, hydrated]
+    [state, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
