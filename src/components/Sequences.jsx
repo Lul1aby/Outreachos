@@ -42,8 +42,8 @@ export default function Sequences() {
     <div style={{ padding: "24px 32px" }}>
       <div className="flex items-center justify-between mb-24">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>⚡ Sequences</div>
-          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>Multi-step outreach cadences — assign to prospects for a daily task queue</div>
+          <div style={{ fontSize: 19, fontWeight: 700 }}>⚡ Sequences</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 3 }}>Multi-step outreach cadences — assign to prospects for a daily task queue</div>
         </div>
         <button className="btn btn-primary" onClick={() => openBuilder()}>+ New Sequence</button>
       </div>
@@ -63,8 +63,8 @@ export default function Sequences() {
             <div key={seq.id} className="seq-card">
               <div className="flex items-start justify-between mb-16">
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>⚡ {seq.name}</div>
-                  {seq.description && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>{seq.description}</div>}
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>⚡ {seq.name}</div>
+                  {seq.description && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 3 }}>{seq.description}</div>}
                 </div>
                 <button className="btn btn-ghost btn-sm" onClick={() => openBuilder(seq)}>Edit</button>
               </div>
@@ -103,23 +103,23 @@ export default function Sequences() {
             <div className="modal-title">{editingId ? "Edit Sequence" : "New Sequence"}</div>
             <button className="modal-close" onClick={() => setShowBuilder(false)}>×</button>
           </div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>Define the steps and timing for your outreach cadence.</div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>Define the steps and timing for your outreach cadence.</div>
           <Input label="Sequence Name *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Cold Outbound Standard" />
           <Input label="Description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Brief description of this cadence" />
           <div className="form-label" style={{ marginBottom: 10 }}>Steps</div>
           <div className="flex flex-col gap-8 mb-12">
             {form.steps.map((step, i) => (
               <div key={step.id} className="seq-builder-step">
-                <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", width: 14 }}>{i + 1}</span>
+                <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", width: 14 }}>{i + 1}</span>
                 <div className="flex items-center gap-4" style={{ flexShrink: 0 }}>
-                  <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>Day</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>Day</span>
                   <input type="number" min="0" className="seq-builder-day" value={step.day} onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s) => s.id === step.id ? { ...s, day: Number(e.target.value) } : s) }))} />
                 </div>
                 <select value={step.channel} onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s) => s.id === step.id ? { ...s, channel: e.target.value } : s) }))}>
                   {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input className="seq-builder-note" value={step.note} onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s) => s.id === step.id ? { ...s, note: e.target.value } : s) }))} placeholder="What to do / say…" />
-                <button onClick={() => setForm((f) => ({ ...f, steps: f.steps.filter((s) => s.id !== step.id) }))} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+                <button onClick={() => setForm((f) => ({ ...f, steps: f.steps.filter((s) => s.id !== step.id) }))} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 17, cursor: "pointer", lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
               </div>
             ))}
           </div>
@@ -137,7 +137,7 @@ export default function Sequences() {
           <div className="modal-header">
             <div>
               <div className="modal-title">Enroll Prospects</div>
-              <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4 }}>
                 Enroll in <strong style={{ color: "var(--primary-light)" }}>⚡ {sequences.find((s) => s.id === assignSeqId)?.name}</strong>. Tasks start today.
               </div>
             </div>
@@ -149,13 +149,13 @@ export default function Sequences() {
               return (
                 <div key={p.id} className={`enroll-row${enrolled ? " enrolled" : ""}`}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: enrolled ? "var(--text-dim)" : "var(--text)" }}>{p.name}</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.company} · {p.title}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: enrolled ? "var(--text-dim)" : "var(--text)" }}>{p.name}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company} · {p.title}</div>
                   </div>
                   <div className="flex items-center gap-8">
                     <Badge status={p.status} />
                     {enrolled
-                      ? <span className="mono" style={{ fontSize: 11, color: "var(--success-bright)" }}>✓ enrolled</span>
+                      ? <span className="mono" style={{ fontSize: 14, color: "var(--success-bright)" }}>✓ enrolled</span>
                       : <button className="btn btn-outline btn-sm" onClick={() => dispatch({ type: "ENROLL_PROSPECT", payload: { prospectId: p.id, sequenceId: assignSeqId } })}>Enroll</button>
                     }
                   </div>

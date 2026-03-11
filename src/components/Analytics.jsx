@@ -142,14 +142,14 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-12">
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
-          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
         </div>
         <div className="flex items-center gap-8">
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>Analysing:</span>
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>Analysing:</span>
           <select
             className="form-select"
-            style={{ marginBottom: 0, minWidth: 180, fontSize: 13 }}
+            style={{ marginBottom: 0, minWidth: 180, fontSize: 14 }}
             value={selectedList}
             onChange={(e) => setSelectedList(e.target.value)}
           >
@@ -203,13 +203,13 @@ export default function Analytics() {
                 { label: "Nurture", val: data.nurture, color: "#c084fc" },
               ].map((x) => (
                 <div key={x.label} className="flex flex-col gap-4">
-                  <div style={{ fontSize: 14, fontWeight: 700, color: x.color }}>{x.val}</div>
-                  <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>{x.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
                 </div>
               ))}
               <div className="ml-auto flex flex-col gap-4">
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#ef4444" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
-                <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>dead rate</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#ef4444" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
               </div>
             </div>
           </div>
@@ -220,17 +220,17 @@ export default function Analytics() {
             {data.dropOffs.map((d) => (
               <div key={d.from}>
                 <div className="flex justify-between mb-6">
-                  <span style={{ fontSize: 11, color: "var(--text-sec)" }}>{d.from}</span>
-                  <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399" }}>{d.rate}% drop</span>
+                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{d.from}</span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399" }}>{d.rate}% drop</span>
                 </div>
                 <MiniBar pct={d.rate} color={d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399"} height={6} />
-                <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
               </div>
             ))}
             <div className="pt-12 border-t">
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "#a5b4fc" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
-              <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{data.avgTpAll} avg touchpoints per prospect</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
+              <div style={{ fontSize: 23, fontWeight: 700, color: "#a5b4fc" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
+              <div style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 2 }}>{data.avgTpAll} avg touchpoints per prospect</div>
             </div>
           </div>
         </div>
@@ -240,20 +240,20 @@ export default function Analytics() {
       <div className="analytics-grid-3">
         <div className="card">
           <div className="card-title">❌ Not Interested — by Industry</div>
-          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
+          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
             data.rejByIndustry.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12 }}>{r.name}</span><span className="mono" style={{ fontSize: 11, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
                 <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
               </div>
             ))}
         </div>
         <div className="card">
           <div className="card-title">❌ Not Interested — by Channel</div>
-          {data.rejByChannel.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No data yet</div> :
+          {data.rejByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
             data.rejByChannel.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 11, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
                 <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
               </div>
             ))}
@@ -265,7 +265,7 @@ export default function Analytics() {
             const pct = data.total ? (cnt / data.total) * 100 : 0;
             return (
               <div key={s} className="mb-8">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
                 <MiniBar pct={pct} color={STATUS_COLORS[s].text} />
               </div>
             );
@@ -278,15 +278,15 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">🔄 Follow Up — by Industry</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
           </div>
-          {data.followUpByIndustry.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No follow-ups yet</div> :
+          {data.followUpByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No follow-ups yet</div> :
             data.followUpByIndustry.map((r) => (
               <div key={r.name} className="mb-10">
                 <div className="flex justify-between mb-4">
-                  <span style={{ fontSize: 12 }}>{r.name}</span>
-                  <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: 14 }}>{r.name}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
                     <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
                   </span>
                 </div>
@@ -297,15 +297,15 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">🔄 Follow Up — by Channel</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
           </div>
-          {data.followUpByChannel.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No data yet</div> :
+          {data.followUpByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
             data.followUpByChannel.map((r) => (
               <div key={r.name} className="mb-10">
                 <div className="flex justify-between mb-4">
-                  <span style={{ fontSize: 12 }}>{CHANNEL_ICONS[r.name]} {r.name}</span>
-                  <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                  <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
                     <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
                   </span>
                 </div>
@@ -323,10 +323,10 @@ export default function Analytics() {
             ].map((item) => (
               <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
                 <div className="flex justify-between items-center mb-4">
-                  <span style={{ fontSize: 12, color: item.color, fontWeight: 600 }}>{item.label}</span>
-                  <span style={{ fontSize: 22, fontWeight: 700, color: item.color }}>{item.val}</span>
+                  <span style={{ fontSize: 14, color: item.color, fontWeight: 600 }}>{item.label}</span>
+                  <span style={{ fontSize: 23, fontWeight: 700, color: item.color }}>{item.val}</span>
                 </div>
-                <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>{item.desc}</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{item.desc}</div>
                 <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
                   <div style={{ height: "100%", width: `${data.total ? (item.val / data.total) * 100 : 0}%`, background: item.color, borderRadius: 2 }} />
                 </div>
@@ -342,14 +342,14 @@ export default function Analytics() {
         <div className="channel-eff-grid">
           {data.channelReply.map((c) => (
             <div key={c.name} className="channel-eff-card">
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
+              <div style={{ fontSize: 21, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
+              <div style={{ fontSize: 21, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
               <div style={{ height: 40, background: "var(--border)", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
                 <div style={{ width: "100%", height: `${c.rate}%`, background: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", opacity: 0.75 }} />
               </div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} touched</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{c.totalTp} total touches</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} touched</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{c.totalTp} total touches</div>
             </div>
           ))}
         </div>
@@ -360,15 +360,15 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Activity — Last 30 Days</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
           </div>
           <div className="activity-chart">
             {data.last30.map((d, i) => (
               <div key={d.key} className="activity-bar-col">
                 <div className="activity-bar" style={{ height: Math.max((d.count / data.maxAct) * 60, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.85 }} title={`${d.count} touchpoints`} />
                 <div className="activity-bar" style={{ height: Math.max((d.added / data.maxAdded) * 24, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.5 }} title={`${d.added} added`} />
-                {i % 5 === 0 && <div className="mono" style={{ fontSize: 8, color: "#374151", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
+                {i % 5 === 0 && <div className="mono" style={{ fontSize: 14, color: "#374151", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
               </div>
             ))}
           </div>
@@ -377,14 +377,14 @@ export default function Analytics() {
           <div className="card-title">Industry Performance</div>
           <div className="flex flex-col">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
-              {["Industry", "#", "Reply", "Mtg"].map((h) => <div key={h} className="mono" style={{ fontSize: 9, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+              {["Industry", "#", "Reply", "Mtg"].map((h) => <div key={h} className="mono" style={{ fontSize: 14, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
             </div>
             {data.industryStats.map((ind) => (
               <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
-                <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 12, color: "var(--text-sec)" }}>{ind.name}</span></div>
-                <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{ind.total}</div>
-                <div className="mono" style={{ fontSize: 12, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
-                <div className="mono" style={{ fontSize: 12, color: "#a78bfa" }}>{ind.meetings}</div>
+                <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind.name}</span></div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ind.total}</div>
+                <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
+                <div className="mono" style={{ fontSize: 14, color: "#a78bfa" }}>{ind.meetings}</div>
               </div>
             ))}
           </div>
@@ -397,15 +397,15 @@ export default function Analytics() {
         <div className="touch-dist-grid">
           {data.buckets.map((b) => (
             <div key={b.label} className="touch-dist-card">
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
               <div style={{ height: 4, background: "var(--border)", borderRadius: 2, marginBottom: 6 }}>
                 <div style={{ height: "100%", width: `${data.total ? (b.count / data.total) * 100 : 0}%`, background: b.color, borderRadius: 2 }} />
               </div>
               <div className="flex justify-between">
-                <span className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>reply rate</span>
-                <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: b.replyRate > 30 ? "#34d399" : b.replyRate > 10 ? "#fbbf24" : "#f87171" }}>{b.replyRate}%</span>
+                <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>reply rate</span>
+                <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: b.replyRate > 30 ? "#34d399" : b.replyRate > 10 ? "#fbbf24" : "#f87171" }}>{b.replyRate}%</span>
               </div>
             </div>
           ))}

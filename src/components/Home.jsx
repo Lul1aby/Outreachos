@@ -46,8 +46,8 @@ export default function Home({ onNavigate, onSelect }) {
       <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
         <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{p.name[0]}</div>
         <div className="flex-1" style={{ minWidth: 0 }}>
-          <div className="truncate" style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</div>
-          <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.company}</div>
+          <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company}</div>
         </div>
         {extra || <Badge status={p.status} />}
       </div>
@@ -62,7 +62,7 @@ export default function Home({ onNavigate, onSelect }) {
       <div style={{ padding: "24px 32px" }}>
         <div className="flex items-center gap-12 mb-20">
           <button className="btn btn-ghost" onClick={() => setListDetail(null)}>← Back</button>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>📋 {l.name}</div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>📋 {l.name}</div>
           <button className="btn btn-outline ml-auto" onClick={() => { onNavigate("list", { list: l.name }); setListDetail(null); }}>
             Filter to this list →
           </button>
@@ -87,11 +87,11 @@ export default function Home({ onNavigate, onSelect }) {
               const d = daysSinceLast(p);
               return (
                 <tr key={p.id} onClick={() => { onSelect(p.id); setListDetail(null); }}>
-                  <td><div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div><div style={{ fontSize: 11, color: "var(--text-muted)" }}>{p.title}</div></td>
-                  <td style={{ fontSize: 13, color: "var(--text-sec)" }}>{p.company}</td>
+                  <td><div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div><div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.title}</div></td>
+                  <td style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</td>
                   <td><Badge status={p.status} /></td>
-                  <td className="mono" style={{ fontSize: 13, color: "var(--text-sec)" }}>{p.touchpoints.length}</td>
-                  <td className="mono" style={{ fontSize: 12, color: stalenessColor(d) }}>{d === null ? "—" : d === 0 ? "Today" : `${d}d ago`}</td>
+                  <td className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.touchpoints.length}</td>
+                  <td className="mono" style={{ fontSize: 14, color: stalenessColor(d) }}>{d === null ? "—" : d === 0 ? "Today" : `${d}d ago`}</td>
                 </tr>
               );
             })}
@@ -105,10 +105,10 @@ export default function Home({ onNavigate, onSelect }) {
     <div style={{ padding: "24px 32px" }}>
       {/* Welcome */}
       <div className="mb-24">
-        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>
+        <div style={{ fontSize: 23, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>
           Good {greeting()} 👋
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
           Here's your pipeline at a glance · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
         </div>
       </div>
@@ -134,7 +134,7 @@ export default function Home({ onNavigate, onSelect }) {
             <button className="home-panel-link" onClick={() => onNavigate("list")}>View all →</button>
           </div>
           {recentProspects.length === 0
-            ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No prospects yet</div>
+            ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No prospects yet</div>
             : <div className="flex flex-col gap-10">{recentProspects.map((p) => <ProspectRow key={p.id} p={p} />)}</div>
           }
         </div>
@@ -145,7 +145,7 @@ export default function Home({ onNavigate, onSelect }) {
             <div className="home-panel-title">🔥 Hot Prospects</div>
           </div>
           {hotProspects.length === 0
-            ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No hot prospects yet — keep reaching out!</div>
+            ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No hot prospects yet — keep reaching out!</div>
             : <div className="flex flex-col gap-10">
                 {hotProspects.map((p) => (
                   <ProspectRow key={p.id} p={p} avatarBg="#0d2e1a" avatarColor="#4ade80" />
@@ -160,14 +160,14 @@ export default function Home({ onNavigate, onSelect }) {
             <div className="home-panel-title">⏰ Needs Attention</div>
           </div>
           {needsAttention.length === 0
-            ? <div style={{ fontSize: 13, color: "#34d399" }}>All prospects touched recently 🎉</div>
+            ? <div style={{ fontSize: 14, color: "#34d399" }}>All prospects touched recently 🎉</div>
             : <div className="flex flex-col gap-10">
                 {needsAttention.map((p) => {
                   const d = daysSinceLast(p);
                   const c = stalenessColor(d);
                   return (
                     <ProspectRow key={p.id} p={p} avatarBg="#1a1a2e" avatarColor={c}
-                      extra={<span className="mono nowrap" style={{ fontSize: 10, color: c }}>{d}d ago</span>}
+                      extra={<span className="mono nowrap" style={{ fontSize: 14, color: c }}>{d}d ago</span>}
                     />
                   );
                 })}
@@ -203,7 +203,7 @@ export default function Home({ onNavigate, onSelect }) {
       {/* Lists */}
       <div>
         <div className="flex items-center justify-between mb-16">
-          <div style={{ fontSize: 14, fontWeight: 700 }}>📋 Lists</div>
+          <div style={{ fontSize: 15, fontWeight: 700 }}>📋 Lists</div>
           <input
             className="form-input"
             value={listSearch}
@@ -219,8 +219,8 @@ export default function Home({ onNavigate, onSelect }) {
           {listsData.filter((l) => !listSearch || l.name.toLowerCase().includes(listSearch.toLowerCase())).map((l) => (
             <div key={l.name} className="list-card" onClick={() => setListDetail(l.name)}>
               <div className="flex items-start justify-between mb-10">
-                <div style={{ fontSize: 14, fontWeight: 700 }}>📋 {l.name}</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "#a5b4fc" }}>{l.members.length}</div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>📋 {l.name}</div>
+                <div style={{ fontSize: 21, fontWeight: 700, color: "#a5b4fc" }}>{l.members.length}</div>
               </div>
               <div className="pipeline-bar" style={{ marginBottom: 10, height: 5, borderRadius: 3 }}>
                 {STATUSES.map((s) => {
@@ -229,9 +229,9 @@ export default function Home({ onNavigate, onSelect }) {
                 })}
               </div>
               <div className="flex gap-16">
-                <div><span style={{ fontSize: 14, fontWeight: 700, color: "#34d399" }}>{l.replyRate}%</span><div className="mono" style={{ fontSize: 9, color: "var(--text-muted)" }}>replies</div></div>
-                <div><span style={{ fontSize: 14, fontWeight: 700, color: "#a78bfa" }}>{l.meetings}</span><div className="mono" style={{ fontSize: 9, color: "var(--text-muted)" }}>meetings</div></div>
-                {l.needsTouch > 0 && <div className="ml-auto"><span style={{ fontSize: 14, fontWeight: 700, color: "#f97316" }}>{l.needsTouch}</span><div className="mono" style={{ fontSize: 9, color: "#f97316" }}>stale</div></div>}
+                <div><span style={{ fontSize: 15, fontWeight: 700, color: "#34d399" }}>{l.replyRate}%</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>replies</div></div>
+                <div><span style={{ fontSize: 15, fontWeight: 700, color: "#a78bfa" }}>{l.meetings}</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>meetings</div></div>
+                {l.needsTouch > 0 && <div className="ml-auto"><span style={{ fontSize: 15, fontWeight: 700, color: "#f97316" }}>{l.needsTouch}</span><div className="mono" style={{ fontSize: 14, color: "#f97316" }}>stale</div></div>}
               </div>
             </div>
           ))}

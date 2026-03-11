@@ -86,7 +86,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
             <div className="overdue-title">
               <span>⏰</span> {overdueProspects.length} prospect{overdueProspects.length > 1 ? "s" : ""} haven't been touched in 28+ hours
             </div>
-            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
+            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
           </div>
           <div className="overdue-chips">
             {overdueProspects.slice(0, 8).map((p) => {
@@ -94,14 +94,14 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               const label = h >= 48 ? `${Math.floor(h / 24)}d ago` : `${h}h ago`;
               return (
                 <div key={p.id} className="overdue-chip" onClick={() => onSelect(p.id)}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-sec)" }}>{p.company}</span>
-                  <span className="mono" style={{ fontSize: 10, color: "#f97316", background: "#2a1800", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
-                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 14, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
+                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "#f97316", background: "#2a1800", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
+                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
                 </div>
               );
             })}
-            {overdueProspects.length > 8 && <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
+            {overdueProspects.length > 8 && <span style={{ fontSize: 14, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
           </div>
         </div>
       )}
@@ -111,8 +111,8 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         <input className="filter-input" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="🔍  Search name, company, title, list…" />
         <button className={`filter-toggle${showFilters || activeFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
           <span>⚙ Filters</span>
-          {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{activeFilterCount}</span>}
-          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
+          {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{activeFilterCount}</span>}
+          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
         </button>
         {/* Active filter pills */}
         {filterStatuses.map((s) => (
@@ -137,10 +137,10 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   return (
                     <label key={s} className="checkbox-row" onClick={() => setFilterStatuses((prev) => checked ? prev.filter((x) => x !== s) : [...prev, s])}>
                       <div className={`checkbox-box${checked ? " checked" : ""}`} style={{ borderColor: checked ? c.border : undefined, background: checked ? c.bg : undefined }}>
-                        {checked && <span style={{ color: c.text, fontSize: 10 }}>✓</span>}
+                        {checked && <span style={{ color: c.text, fontSize: 14 }}>✓</span>}
                       </div>
-                      <span style={{ fontSize: 12, color: checked ? c.text : "var(--text-sec)", flex: 1 }}>{s}</span>
-                      <span className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{prospects.filter((p) => p.status === s).length}</span>
+                      <span style={{ fontSize: 14, color: checked ? c.text : "var(--text-sec)", flex: 1 }}>{s}</span>
+                      <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.status === s).length}</span>
                     </label>
                   );
                 })}
@@ -151,11 +151,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               <div className="form-label" style={{ marginBottom: 10 }}>Date Added</div>
               <div className="flex flex-col gap-10">
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
                   <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ colorScheme: "dark" }} />
                 </div>
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
                   <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ colorScheme: "dark" }} />
                 </div>
                 <div className="flex gap-6 flex-wrap">
@@ -169,15 +169,15 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
             {/* List + Channel */}
             <div>
               <div className="form-label" style={{ marginBottom: 10 }}>List Name</div>
-              {allLists.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
+              {allLists.length === 0 && <div style={{ fontSize: 14, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
               <div className="flex flex-col gap-6 mb-16">
                 {allLists.map((l) => (
                   <label key={l} className="checkbox-row" onClick={() => setFilterList(filterList === l ? "" : l)} style={{ padding: "6px 10px", borderRadius: 7, background: filterList === l ? "#0d1a2e" : "transparent", border: `1px solid ${filterList === l ? "#1e3a5f" : "transparent"}` }}>
                     <div className={`checkbox-box${filterList === l ? " checked" : ""}`} style={filterList === l ? { borderColor: "#3b82f6", background: "#1e3a5f" } : {}}>
-                      {filterList === l && <span style={{ color: "#60a5fa", fontSize: 10 }}>✓</span>}
+                      {filterList === l && <span style={{ color: "#60a5fa", fontSize: 14 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: 12, color: filterList === l ? "#93c5fd" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
-                    <span className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{prospects.filter((p) => p.listName === l).length}</span>
+                    <span style={{ fontSize: 14, color: filterList === l ? "#93c5fd" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
+                    <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.listName === l).length}</span>
                   </label>
                 ))}
               </div>
@@ -193,7 +193,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 
       {/* Dormant chips */}
       <div className="dormant-bar">
-        <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
+        <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
         {[{ key: "All", label: "Show All" }, { key: "7", label: "7d+" }, { key: "15", label: "15d+" }, { key: "30", label: "30d+" }].map((opt) => {
           const count = opt.key === "All" ? null : prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
           return (
@@ -204,23 +204,23 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           );
         })}
         <div className="flex items-center" style={{ background: "var(--surface)", border: `1px solid ${filterDormant === "custom" ? "var(--warning-alt)" : "var(--input-border)"}`, borderRadius: 20, overflow: "hidden" }}>
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
-          <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 12, outline: "none", fontFamily: "var(--mono)" }} />
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
+          <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 14, outline: "none", fontFamily: "var(--mono)" }} />
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
         </div>
         {filterDormant !== "All" && <button className="dormant-chip" onClick={() => { setFilterDormant("All"); setCustomDays(""); }}>✕ Clear</button>}
-        <span className="mono ml-auto" style={{ fontSize: 12, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+        <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
       {/* Table */}
       <div style={{ padding: "0 32px 32px" }}>
         {selectedIds.size > 0 && (
           <div className="select-bar">
-            <span style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
+            <span style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
             <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Tasks</button>
             <button className="btn btn-sm" style={{ background: "#2a1e1e", border: "1px solid #991b1b", color: "#f87171" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
-            <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
-            <span className="mono ml-auto" style={{ fontSize: 11, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
+            <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
+            <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
           </div>
         )}
 
@@ -249,22 +249,22 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   <td>
                     <div className="flex items-center gap-6">
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
-                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 10, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
+                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>
                   </td>
                   <td>
-                    <div style={{ fontSize: 13, color: "var(--text-sec)" }}>{p.company}</div>
-                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 11, color: "#3b82f6", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
+                    <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>
+                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "#3b82f6", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
                   </td>
                   <td><Badge status={p.status} /></td>
-                  <td><span className="mono" style={{ fontSize: 12, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
+                  <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
                   <td>
                     <div className="flex flex-col gap-4">
                       {p.email && <a href={`mailto:${p.email}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-email" title={p.email}>✉️ <span className="truncate">{p.email}</span></a>}
                       {p.phone && <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-phone" title={p.phone}>📞 {p.phone}</a>}
-                      {!p.email && !p.phone && <span style={{ fontSize: 11, color: "var(--text-dim)" }}>—</span>}
+                      {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
                     </div>
                   </td>
                   <td>

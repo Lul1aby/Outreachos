@@ -11,8 +11,8 @@ export default function Tasks({ onSelect, onNavigate }) {
     <div style={{ padding: "24px 32px" }}>
       <div className="flex items-center justify-between mb-24">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>✅ Today's Tasks</div>
-          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
+          <div style={{ fontSize: 19, fontWeight: 700 }}>✅ Today's Tasks</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 3 }}>
             {tasksToday.length === 0 ? "All caught up 🎉" : `${tasksToday.length} task${tasksToday.length > 1 ? "s" : ""} due`}
           </div>
         </div>
@@ -49,7 +49,7 @@ export default function Tasks({ onSelect, onNavigate }) {
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
                   <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
                 </div>
-                {task.step.note && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
+                {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 <div className="task-contacts">
                   {p.email && <a href={`mailto:${p.email}`} className="task-contact-link contact-link-email">✉️ {p.email}</a>}
                   {p.phone && <a href={`tel:${p.phone}`} className="task-contact-link contact-link-phone">📞 {p.phone}</a>}

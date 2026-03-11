@@ -35,8 +35,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       {/* Header */}
       <div className="modal-header">
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>{prospect.name}</div>
-          <div style={{ fontSize: 13, color: "var(--text-sec)", marginTop: 4 }}>
+          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em" }}>{prospect.name}</div>
+          <div style={{ fontSize: 14, color: "var(--text-sec)", marginTop: 4 }}>
             {prospect.title} at <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.company}</span>
           </div>
         </div>

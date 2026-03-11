@@ -33,7 +33,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
       <div className="modal-header">
         <div>
           <div className="modal-title">Log Touchpoint</div>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+          <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4 }}>
             {prospect.name} · {prospect.company}
           </div>
         </div>

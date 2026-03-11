@@ -26,15 +26,15 @@ export default function StoredLists({ onNavigate }) {
   return (
     <div style={{ padding: "32px" }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>📋 Stored Lists</div>
-        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>All CSV lists uploaded into OutreachOS</div>
+        <div style={{ fontSize: 23, fontWeight: 700, marginBottom: 4 }}>📋 Stored Lists</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>All CSV lists uploaded into OutreachOS</div>
       </div>
 
       {allLists.length === 0 ? (
         <div style={{ textAlign: "center", padding: "80px 0", color: "var(--text-muted)" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📂</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>No lists yet</div>
-          <div style={{ fontSize: 13 }}>Import a CSV to get started. Lists will appear here automatically.</div>
+          <div style={{ fontSize: 42, marginBottom: 12 }}>📂</div>
+          <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>No lists yet</div>
+          <div style={{ fontSize: 14 }}>Import a CSV to get started. Lists will appear here automatically.</div>
         </div>
       ) : (
         <table className="table">
@@ -54,20 +54,20 @@ export default function StoredLists({ onNavigate }) {
               return (
                 <tr key={list.id} onClick={() => onNavigate("list", { list: list.name })} style={{ cursor: "pointer" }}>
                   <td>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>📋 {list.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>📋 {list.name}</div>
                   </td>
                   <td>
-                    <span className="mono" style={{ fontSize: 13, color: "var(--primary-light)" }}>{total}</span>
+                    <span className="mono" style={{ fontSize: 14, color: "var(--primary-light)" }}>{total}</span>
                   </td>
                   <td>
-                    <span className="mono" style={{ fontSize: 12, color: "var(--text-sec)" }}>
+                    <span className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>
                       {list.uploadedAt
                         ? new Date(list.uploadedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
                         : <span style={{ color: "var(--text-dim)", fontStyle: "italic" }}>—</span>}
                     </span>
                   </td>
                   <td>
-                    <span className="mono" style={{ fontSize: 13, color: "var(--success-bright)" }}>{active}</span>
+                    <span className="mono" style={{ fontSize: 14, color: "var(--success-bright)" }}>{active}</span>
                   </td>
                   <td>
                     <button
