@@ -61,13 +61,20 @@ export default function Sequences() {
             return !lastStep || !e.completedSteps.includes(lastStep.id);
           });
           return (
-            <div key={seq.id} className="seq-card">
+            <div key={seq.id} className="seq-card" style={seq.isDefault ? { borderColor: "var(--primary)", boxShadow: "0 0 0 1px var(--primary-bg)" } : {}}>
               <div className="flex items-start justify-between mb-16">
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 700 }}>⚡ {seq.name}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="flex items-center gap-8 flex-wrap">
+                    <div style={{ fontSize: 16, fontWeight: 700 }}>⚡ {seq.name}</div>
+                    {seq.isDefault && (
+                      <span style={{ fontSize: 12, fontWeight: 600, background: "var(--primary-bg)", color: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: 6, padding: "1px 8px", whiteSpace: "nowrap" }}>
+                        🔒 Default · Auto-assigned
+                      </span>
+                    )}
+                  </div>
                   {seq.description && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 3 }}>{seq.description}</div>}
                 </div>
-                <button className="btn btn-ghost btn-sm" onClick={() => openBuilder(seq)}>Edit</button>
+                <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8, flexShrink: 0 }} onClick={() => openBuilder(seq)}>Edit</button>
               </div>
               <div className="flex flex-col gap-6 mb-16">
                 {seq.steps.map((step, i) => (

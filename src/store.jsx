@@ -1,4 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useMemo } from "react";
+import { DEFAULT_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
 
 const STORAGE_KEY = "outreach-os-data";
@@ -8,7 +9,7 @@ const StoreContext = createContext(null);
 
 const defaultState = {
   prospects: [],
-  sequences: [],
+  sequences: [DEFAULT_SEQUENCE],
   enrollments: [],
   dismissedReminders: [],
   lists: [],
@@ -19,7 +20,17 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) return { ...defaultState, ...parsed, lists: parsed.lists || [] };
+    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) {
+      const sequences = parsed.sequences;
+      // Always ensure the default sequence is present
+      const hasDefault = sequences.some((s) => s.isDefault);
+      return {
+        ...defaultState,
+        ...parsed,
+        sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
+        lists: parsed.lists || [],
+      };
+    }
   } catch { /* corrupt data — reset */ }
   return defaultState;
 }
@@ -125,12 +136,15 @@ function reducer(state, action) {
         sequences: state.sequences.map((s) => (s.id === action.payload.id ? { ...s, ...action.payload.updates } : s)),
       };
 
-    case "DELETE_SEQUENCE":
+    case "DELETE_SEQUENCE": {
+      const target = state.sequences.find((s) => s.id === action.payload);
+      if (target?.isDefault) return state; // default cadence is permanent
       return {
         ...state,
         sequences: state.sequences.filter((s) => s.id !== action.payload),
         enrollments: state.enrollments.filter((e) => e.sequenceId !== action.payload),
       };
+    }
 
     case "ENROLL_PROSPECT":
       return {
