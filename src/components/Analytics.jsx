@@ -363,12 +363,24 @@ export default function Analytics() {
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
           </div>
-          <div className="activity-chart">
+          {/* Bars area */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
+            {data.last30.map((d) => (
+              <div key={d.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 1, height: "100%" }}>
+                <div style={{ width: "80%", borderRadius: "2px 2px 0 0", height: Math.max((d.count / data.maxAct) * 70, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.9 }} title={`${d.count} touchpoints`} />
+                <div style={{ width: "80%", borderRadius: "2px 2px 0 0", height: Math.max((d.added / data.maxAdded) * 20, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.7 }} title={`${d.added} added`} />
+              </div>
+            ))}
+          </div>
+          {/* Baseline */}
+          <div style={{ height: 1, background: "var(--border)", marginBottom: 6 }} />
+          {/* Date labels - horizontal, always at bottom */}
+          <div style={{ display: "flex", gap: 2 }}>
             {data.last30.map((d, i) => (
-              <div key={d.key} className="activity-bar-col">
-                <div className="activity-bar" style={{ height: Math.max((d.count / data.maxAct) * 60, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.85 }} title={`${d.count} touchpoints`} />
-                <div className="activity-bar" style={{ height: Math.max((d.added / data.maxAdded) * 24, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.5 }} title={`${d.added} added`} />
-                {i % 5 === 0 && <div className="mono" style={{ fontSize: 13, color: "var(--text-sec)", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
+              <div key={d.key} style={{ flex: 1, textAlign: "center" }}>
+                {i % 5 === 0 && (
+                  <div className="mono" style={{ fontSize: 12, color: "var(--text-sec)" }}>{d.label}</div>
+                )}
               </div>
             ))}
           </div>
