@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "idb-keyval": "^6.2.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
