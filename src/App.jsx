@@ -8,6 +8,7 @@ import Tasks from "./components/Tasks";
 import ProspectDetail from "./components/ProspectDetail";
 import AddProspect from "./components/AddProspect";
 import TouchpointModal from "./components/TouchpointModal";
+import StoredLists from "./components/StoredLists";
 
 export default function App() {
   const { tasksToday } = useStore();
@@ -31,6 +32,7 @@ export default function App() {
     { id: "analytics", label: "📊 Analytics" },
     { id: "sequences", label: "⚡ Sequences" },
     { id: "tasks", label: "✅ Tasks", badge: tasksToday.length || null },
+    { id: "stored-lists", label: "📋 Lists" },
   ];
 
   return (
@@ -73,6 +75,7 @@ export default function App() {
         {view === "analytics" && <Analytics />}
         {view === "sequences" && <Sequences />}
         {view === "tasks" && <Tasks onSelect={setSelectedId} onNavigate={navigate} />}
+        {view === "stored-lists" && <StoredLists onNavigate={navigate} />}
       </main>
 
       {/* Modals */}

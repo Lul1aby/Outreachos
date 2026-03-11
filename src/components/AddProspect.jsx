@@ -58,7 +58,7 @@ export default function AddProspect({ onClose }) {
   }, [csvRaw, csvHeaders, csvMapping, csvListName]);
 
   function commitCsv() {
-    dispatch({ type: "IMPORT_PROSPECTS", payload: csvPreview });
+    dispatch({ type: "IMPORT_PROSPECTS", payload: csvPreview, meta: { listName: csvListName || null } });
     onClose();
   }
 

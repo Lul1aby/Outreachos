@@ -12,6 +12,7 @@ const defaultState = {
   sequences: [DEFAULT_SEQUENCE],
   enrollments: [],
   dismissedReminders: [],
+  lists: [],
 };
 
 function loadState() {
@@ -19,7 +20,7 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) return parsed;
+    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) return { ...defaultState, ...parsed, lists: parsed.lists || [] };
   } catch { /* corrupt data — reset */ }
   return defaultState;
 }
@@ -55,7 +56,21 @@ function reducer(state, action) {
       const newE = defaultSeq
         ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] }))
         : [];
-      return { ...state, prospects: [...state.prospects, ...newP], enrollments: [...state.enrollments, ...newE] };
+      // Record list metadata
+      const listName = action.meta?.listName;
+      const existingLists = state.lists || [];
+      let updatedLists = existingLists;
+      if (listName) {
+        const existingIdx = existingLists.findIndex((l) => l.name === listName);
+        if (existingIdx >= 0) {
+          updatedLists = existingLists.map((l, i) =>
+            i === existingIdx ? { ...l, count: l.count + newP.length, updatedAt: todayStr() } : l
+          );
+        } else {
+          updatedLists = [...existingLists, { id: nextId(), name: listName, count: newP.length, uploadedAt: todayStr() }];
+        }
+      }
+      return { ...state, prospects: [...state.prospects, ...newP], enrollments: [...state.enrollments, ...newE], lists: updatedLists };
     }
 
     case "UPDATE_PROSPECT":
