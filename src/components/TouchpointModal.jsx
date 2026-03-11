@@ -10,7 +10,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
   const [form, setForm] = useState({
     channel: "Email",
     date: todayStr(),
-    status: prospect?.status || "Contacted",
+    status: prospect?.status || "No Response",
     note: "",
   });
 

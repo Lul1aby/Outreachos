@@ -1,16 +1,17 @@
 export const CHANNELS = ["Call", "Email", "LinkedIn DM", "LinkedIn InMail", "SMS", "Twitter/X", "Other"];
-export const STATUSES = ["Not Started", "Contacted", "Replied", "Meeting Booked", "No Response", "Not Interested", "Closed Won", "Closed Lost"];
+export const STATUSES = ["Not Started", "Replied", "Meeting Booked", "No Response", "Not Interested", "Opportunity", "Trials", "Call Back", "Nurture"];
 export const INDUSTRIES = ["SaaS", "Fintech", "Healthcare", "E-commerce", "Agency", "Enterprise", "Startup", "Other"];
 
 export const STATUS_COLORS = {
   "Not Started":     { bg: "#1a1a2e", text: "#6b7280", border: "#2d2d4e" },
-  "Contacted":       { bg: "#1e2a4a", text: "#60a5fa", border: "#3b5998" },
   "Replied":         { bg: "#1a3a2e", text: "#34d399", border: "#065f46" },
   "Meeting Booked":  { bg: "#2d1f4a", text: "#a78bfa", border: "#5b21b6" },
   "No Response":     { bg: "#2a2a1e", text: "#fbbf24", border: "#92400e" },
   "Not Interested":  { bg: "#2a1e1e", text: "#f87171", border: "#991b1b" },
-  "Closed Won":      { bg: "#0d2e1a", text: "#4ade80", border: "#14532d" },
-  "Closed Lost":     { bg: "#1f1f1f", text: "#6b7280", border: "#374151" },
+  "Opportunity":     { bg: "#0d2e1a", text: "#4ade80", border: "#14532d" },
+  "Trials":          { bg: "#0d2238", text: "#38bdf8", border: "#0369a1" },
+  "Call Back":       { bg: "#2a1800", text: "#f97316", border: "#c2410c" },
+  "Nurture":         { bg: "#1e1a2e", text: "#c084fc", border: "#7e22ce" },
 };
 
 export const CHANNEL_ICONS = {
@@ -69,7 +70,7 @@ export const SEED_PROSPECTS = [
     industry: "Fintech", email: "m.webb@finstream.io", linkedin: "", phone: "",
     status: "No Response", notes: "Cold outreach, no reply yet", listName: "Cold Outbound Q1",
     touchpoints: [
-      { id: 3, channel: "Email", date: "2026-02-20", note: "Cold email #1 sent", status: "Contacted" },
+      { id: 3, channel: "Email", date: "2026-02-20", note: "Cold email #1 sent", status: "No Response" },
       { id: 4, channel: "Email", date: "2026-02-27", note: "Follow-up #1 sent", status: "No Response" },
     ],
     createdAt: "2026-02-19",

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useStore } from "./store";
 import Home from "./components/Home";
 import Prospects from "./components/Prospects";
@@ -19,6 +19,12 @@ export default function App() {
   const [tpProspectId, setTpProspectId] = useState(null);
   /* Use a key to force Prospects remount when navigating with params */
   const [navKey, setNavKey] = useState(0);
+
+  const [theme, setTheme] = useState(() => localStorage.getItem("outreach-theme") || "dark");
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("outreach-theme", theme);
+  }, [theme]);
 
   const navigate = useCallback((newView, params = {}) => {
     setView(newView);
@@ -57,6 +63,13 @@ export default function App() {
               {t.badge ? <span className="tab-badge">{t.badge}</span> : null}
             </button>
           ))}
+          <button
+            className="theme-toggle"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
         </nav>
       </header>

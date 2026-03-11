@@ -50,7 +50,7 @@ export default function StoredLists({ onNavigate }) {
           <tbody>
             {allLists.map((list) => {
               const total = state.prospects.filter((p) => p.listName === list.name).length;
-              const active = state.prospects.filter((p) => p.listName === list.name && !["Closed Won", "Closed Lost", "Unsubscribed"].includes(p.status)).length;
+              const active = state.prospects.filter((p) => p.listName === list.name && !["Not Interested"].includes(p.status)).length;
               return (
                 <tr key={list.id} onClick={() => onNavigate("list", { list: list.name })} style={{ cursor: "pointer" }}>
                   <td>

@@ -218,6 +218,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           <div className="select-bar">
             <span style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
             <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Tasks</button>
+            <button className="btn btn-sm" style={{ background: "#2a1e1e", border: "1px solid #991b1b", color: "#f87171" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
             <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
             <span className="mono ml-auto" style={{ fontSize: 11, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
           </div>

@@ -10,7 +10,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [tab, setTab] = useState("touchpoints");
 
   /* Inline touchpoint form state */
-  const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "Contacted" });
+  const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
 
   /* Inline reminder-style form (we use the touchpoint form here) */
   const touchpoints = prospect?.touchpoints || [];
@@ -25,7 +25,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         newStatus: tpForm.status,
       },
     });
-    setTpForm({ channel: "Email", date: todayStr(), note: "", status: "Contacted" });
+    setTpForm({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
   }, [tpForm, prospectId, dispatch]);
 
   if (!prospect) return null;

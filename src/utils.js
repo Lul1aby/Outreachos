@@ -6,7 +6,7 @@ export function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 /* ── Time helpers ── */
 
-const TERMINAL = new Set(["Closed Won", "Closed Lost", "Not Interested"]);
+const TERMINAL = new Set(["Not Interested"]);
 
 export function lastTouchDate(prospect) {
   if (TERMINAL.has(prospect.status)) return null;

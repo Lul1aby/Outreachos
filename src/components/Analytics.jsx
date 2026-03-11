@@ -19,50 +19,67 @@ export default function Analytics() {
 
     /* Funnel */
     const contacted = prospects.filter((p) => p.touchpoints.length > 0).length;
-    const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
-    const meeting = prospects.filter((p) => ["Meeting Booked", "Closed Won"].includes(p.status)).length;
-    const won = prospects.filter((p) => p.status === "Closed Won").length;
-    const lost = prospects.filter((p) => p.status === "Closed Lost").length;
+    const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+    const meeting = prospects.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+    const won = prospects.filter((p) => p.status === "Opportunity").length;
     const notInt = prospects.filter((p) => p.status === "Not Interested").length;
     const noResp = prospects.filter((p) => p.status === "No Response").length;
-    const closedNeg = notInt + lost + noResp;
+    const callBack = prospects.filter((p) => p.status === "Call Back").length;
+    const nurture = prospects.filter((p) => p.status === "Nurture").length;
+    const trials = prospects.filter((p) => p.status === "Trials").length;
+    const closedNeg = notInt + noResp;
 
     const funnelSteps = [
       { label: "Total", val: total, color: "#6366f1", pct: 100 },
-      { label: "Contacted", val: contacted, color: "#60a5fa", pct: total ? Math.round((contacted / total) * 100) : 0 },
+      { label: "Touched", val: contacted, color: "#60a5fa", pct: total ? Math.round((contacted / total) * 100) : 0 },
       { label: "Replied", val: replied, color: "#34d399", pct: total ? Math.round((replied / total) * 100) : 0 },
       { label: "Meeting", val: meeting, color: "#a78bfa", pct: total ? Math.round((meeting / total) * 100) : 0 },
-      { label: "Won", val: won, color: "#4ade80", pct: total ? Math.round((won / total) * 100) : 0 },
+      { label: "Opportunity", val: won, color: "#4ade80", pct: total ? Math.round((won / total) * 100) : 0 },
     ];
 
     const dropOffs = [
-      { from: "Contacted→Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
+      { from: "Touched→Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
       { from: "Replied→Meeting", lost: replied - meeting, rate: replied ? Math.round((1 - meeting / replied) * 100) : 0 },
-      { from: "Meeting→Won", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
+      { from: "Meeting→Opportunity", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
     ];
 
     /* Rejection by industry/channel */
     const rejByIndustry = INDUSTRIES.map((i) => {
       const ind = prospects.filter((p) => p.industry === i);
-      const neg = ind.filter((p) => ["Not Interested", "Closed Lost", "No Response"].includes(p.status)).length;
+      const neg = ind.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
       return { name: i, total: ind.length, neg, rate: ind.length ? Math.round((neg / ind.length) * 100) : 0 };
     }).filter((r) => r.neg > 0).sort((a, b) => b.rate - a.rate);
 
     const rejByChannel = CHANNELS.map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const neg = touched.filter((p) => ["Not Interested", "Closed Lost", "No Response"].includes(p.status)).length;
+      const neg = touched.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
       return { name: c, total: touched.length, neg, rate: touched.length ? Math.round((neg / touched.length) * 100) : 0 };
     }).filter((r) => r.total > 0).sort((a, b) => b.rate - a.rate);
+
+    /* Follow Up by industry/channel */
+    const followUpByIndustry = INDUSTRIES.map((i) => {
+      const ind = prospects.filter((p) => p.industry === i);
+      const cb = ind.filter((p) => p.status === "Call Back").length;
+      const nu = ind.filter((p) => p.status === "Nurture").length;
+      return { name: i, total: ind.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: ind.length ? Math.round(((cb + nu) / ind.length) * 100) : 0 };
+    }).filter((r) => r.followUp > 0).sort((a, b) => b.followUp - a.followUp);
+
+    const followUpByChannel = CHANNELS.map((c) => {
+      const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
+      const cb = touched.filter((p) => p.status === "Call Back").length;
+      const nu = touched.filter((p) => p.status === "Nurture").length;
+      return { name: c, total: touched.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: touched.length ? Math.round(((cb + nu) / touched.length) * 100) : 0 };
+    }).filter((r) => r.total > 0).sort((a, b) => b.followUp - a.followUp);
 
     /* Channel reply rate */
     const channelReply = CHANNELS.map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const r = touched.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = touched.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 
     /* Touchpoints → reply */
-    const withReply = prospects.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status));
+    const withReply = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status));
     const avgTpToReply = withReply.length ? Math.round((withReply.reduce((a, p) => a + p.touchpoints.length, 0) / withReply.length) * 10) / 10 : 0;
     const avgTpAll = total ? Math.round((prospects.reduce((a, p) => a + p.touchpoints.length, 0) / total) * 10) / 10 : 0;
 
@@ -90,8 +107,8 @@ export default function Analytics() {
     const IND_COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f97316", "#f87171"];
     const industryStats = INDUSTRIES.filter((i) => prospects.filter((p) => p.industry === i).length > 0).map((i, idx) => {
       const ind = prospects.filter((p) => p.industry === i);
-      const r = ind.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
-      const m = ind.filter((p) => ["Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = ind.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const m = ind.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { name: i, total: ind.length, replied: r, meetings: m, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
@@ -103,12 +120,13 @@ export default function Analytics() {
       { label: "6+ touches", filter: (p) => p.touchpoints.length >= 6, color: "#fbbf24" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
-      const r = group.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { ...b, count: group.length, replyRate: group.length ? Math.round((r / group.length) * 100) : 0 };
     });
 
     return {
-      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, lost, closedNeg,
+      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg,
+      callBack, nurture, trials, followUpByIndustry, followUpByChannel,
       rejByIndustry, rejByChannel, channelReply, byChannel,
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
       last30, maxAct, maxAdded, industryStats, buckets,
@@ -127,10 +145,13 @@ export default function Analytics() {
       <div className="analytics-kpi-row">
         {[
           { label: "Total", val: data.total, color: "#6366f1" },
-          { label: "Contacted", val: data.contacted, color: "#60a5fa" },
+          { label: "Touched", val: data.contacted, color: "#60a5fa" },
           { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "#34d399" },
           { label: "Meetings", val: data.meeting, color: "#a78bfa" },
-          { label: "Won", val: data.won, color: "#4ade80" },
+          { label: "Opportunity", val: data.won, color: "#4ade80" },
+          { label: "Trials", val: data.trials, color: "#38bdf8" },
+          { label: "Call Back", val: data.callBack, color: "#f97316" },
+          { label: "Nurture", val: data.nurture, color: "#c084fc" },
           { label: "Not Interested", val: data.notInt, color: "#f87171" },
           { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "#fbbf24" },
         ].map((k) => (
@@ -156,11 +177,12 @@ export default function Analytics() {
                 <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
               </div>
             ))}
-            <div className="flex gap-20 pt-12 border-t mt-8">
+            <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
               {[
                 { label: "No Response", val: data.noResp, color: "#fbbf24" },
                 { label: "Not Interested", val: data.notInt, color: "#f87171" },
-                { label: "Closed Lost", val: data.lost, color: "#6b7280" },
+                { label: "Call Back", val: data.callBack, color: "#f97316" },
+                { label: "Nurture", val: data.nurture, color: "#c084fc" },
               ].map((x) => (
                 <div key={x.label} className="flex flex-col gap-4">
                   <div style={{ fontSize: 14, fontWeight: 700, color: x.color }}>{x.val}</div>
@@ -230,6 +252,69 @@ export default function Analytics() {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Follow Up analysis */}
+      <div className="analytics-grid-3">
+        <div className="card">
+          <div className="card-title">🔄 Follow Up — by Industry</div>
+          <div className="flex gap-16 mb-12">
+            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+          </div>
+          {data.followUpByIndustry.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No follow-ups yet</div> :
+            data.followUpByIndustry.map((r) => (
+              <div key={r.name} className="mb-10">
+                <div className="flex justify-between mb-4">
+                  <span style={{ fontSize: 12 }}>{r.name}</span>
+                  <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
+                  </span>
+                </div>
+                <MiniBar pct={r.rate} color="#c084fc" />
+              </div>
+            ))}
+        </div>
+        <div className="card">
+          <div className="card-title">🔄 Follow Up — by Channel</div>
+          <div className="flex gap-16 mb-12">
+            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+          </div>
+          {data.followUpByChannel.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No data yet</div> :
+            data.followUpByChannel.map((r) => (
+              <div key={r.name} className="mb-10">
+                <div className="flex justify-between mb-4">
+                  <span style={{ fontSize: 12 }}>{CHANNEL_ICONS[r.name]} {r.name}</span>
+                  <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                    <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
+                  </span>
+                </div>
+                <MiniBar pct={r.rate} color="#c084fc" />
+              </div>
+            ))}
+        </div>
+        <div className="card">
+          <div className="card-title">📋 Follow Up Pipeline</div>
+          <div className="flex flex-col gap-16" style={{ paddingTop: 4 }}>
+            {[
+              { label: "Call Back", val: data.callBack, color: "#f97316", bg: "#2a1800", desc: "Awaiting callback" },
+              { label: "Nurture", val: data.nurture, color: "#c084fc", bg: "#1e1a2e", desc: "Long-term nurture" },
+              { label: "Trials", val: data.trials, color: "#38bdf8", bg: "#0d2238", desc: "In trial phase" },
+            ].map((item) => (
+              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
+                <div className="flex justify-between items-center mb-4">
+                  <span style={{ fontSize: 12, color: item.color, fontWeight: 600 }}>{item.label}</span>
+                  <span style={{ fontSize: 22, fontWeight: 700, color: item.color }}>{item.val}</span>
+                </div>
+                <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>{item.desc}</div>
+                <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
+                  <div style={{ height: "100%", width: `${data.total ? (item.val / data.total) * 100 : 0}%`, background: item.color, borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

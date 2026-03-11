@@ -86,6 +86,15 @@ function reducer(state, action) {
         enrollments: state.enrollments.filter((e) => e.prospectId !== action.payload),
       };
 
+    case "DELETE_PROSPECTS": {
+      const ids = new Set(action.payload);
+      return {
+        ...state,
+        prospects: state.prospects.filter((p) => !ids.has(p.id)),
+        enrollments: state.enrollments.filter((e) => !ids.has(e.prospectId)),
+      };
+    }
+
     case "ADD_TOUCHPOINT": {
       const { prospectId, touchpoint, newStatus } = action.payload;
       return {
@@ -217,7 +226,7 @@ export function StoreProvider({ children }) {
     const replied = state.prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
     const totalTp = state.prospects.reduce((a, p) => a + p.touchpoints.length, 0);
     const needsTouch7 = state.prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
-    const won = state.prospects.filter((p) => p.status === "Closed Won").length;
+    const won = state.prospects.filter((p) => p.status === "Opportunity").length;
     return {
       total: t, meetings, replied, totalTp, won, needsTouch7,
       replyRate: t ? Math.round((replied / t) * 100) : 0,
