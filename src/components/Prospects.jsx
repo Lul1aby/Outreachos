@@ -22,6 +22,15 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copied, setCopied] = useState(null); // { id, field }
+  const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
+  const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
+
+  const toggleSort = useCallback((col) => {
+    setSortBy((prev) => {
+      if (prev === col) { setSortDir((d) => d === "asc" ? "desc" : "asc"); return col; }
+      setSortDir("asc"); return col;
+    });
+  }, []);
 
   const copyContact = useCallback((e, text, id, field) => {
     e.stopPropagation();
@@ -57,6 +66,24 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       return true;
     });
   }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays]);
+
+  const sorted = useMemo(() => {
+    if (!sortBy) return filtered;
+    return [...filtered].sort((a, b) => {
+      let av, bv;
+      if (sortBy === "name")     { av = a.name.toLowerCase();    bv = b.name.toLowerCase(); }
+      if (sortBy === "company")  { av = a.company.toLowerCase(); bv = b.company.toLowerCase(); }
+      if (sortBy === "title")    { av = (a.title || "").toLowerCase(); bv = (b.title || "").toLowerCase(); }
+      if (sortBy === "status")   { av = a.status; bv = b.status; }
+      if (sortBy === "activity") {
+        const da = daysSinceLast(a); const db = daysSinceLast(b);
+        av = da === null ? 9999 : da; bv = db === null ? 9999 : db;
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sortBy, sortDir]);
 
   function clearAll() {
     setFilterStatuses([]); setFilterList(""); setFilterDateFrom(""); setFilterDateTo("");
@@ -238,13 +265,33 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           <thead>
             <tr>
               <th style={{ width: 32, padding: "12px 8px" }}>
-                <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(filtered.map((p) => p.id)) : new Set())} style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
+                <input type="checkbox" checked={selectedIds.size === sorted.length && sorted.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(sorted.map((p) => p.id)) : new Set())} style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
               </th>
-              {["Prospect", "Company / List", "Status", "Last Activity", "Contact", ""].map((h) => <th key={h}>{h}</th>)}
+              {[
+                { label: "Prospect",        col: "name" },
+                { label: "Company / List",  col: "company" },
+                { label: "Status",          col: "status" },
+                { label: "Last Activity",   col: "activity" },
+                { label: "Contact",         col: null },
+                { label: "",               col: null },
+              ].map(({ label, col }) => (
+                <th key={label}
+                  onClick={col ? () => toggleSort(col) : undefined}
+                  style={col ? { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" } : {}}
+                  title={col ? `Sort by ${label}` : undefined}
+                >
+                  {label}
+                  {col && (
+                    <span style={{ marginLeft: 5, opacity: sortBy === col ? 1 : 0.3, fontSize: 11 }}>
+                      {sortBy === col ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
+                    </span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => {
+            {sorted.map((p) => {
               const days = daysSinceLast(p);
               const hours = hoursSinceLast(p);
               const sc = stalenessColor(days);
@@ -300,7 +347,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr><td colSpan={7} className="empty" style={{ paddingTop: 48 }}>No prospects found. Add one to get started.</td></tr>
             )}
           </tbody>
