@@ -1,8 +1,10 @@
-import { createContext, useContext, useReducer, useEffect, useMemo } from "react";
+import { createContext, useContext, useReducer, useEffect, useMemo, useState } from "react";
+import { get, set, del } from "idb-keyval";
 import { DEFAULT_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
 
 const STORAGE_KEY = "outreach-os-data";
+const LS_KEY = "outreach-os-data"; // same key — used only for one-time migration
 const StoreContext = createContext(null);
 
 /* ── Initial state ── */
@@ -15,30 +17,27 @@ const defaultState = {
   lists: [],
 };
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState;
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) {
-      const sequences = parsed.sequences;
-      // Always ensure the default sequence is present
-      const hasDefault = sequences.some((s) => s.isDefault);
-      return {
-        ...defaultState,
-        ...parsed,
-        sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
-        lists: parsed.lists || [],
-      };
-    }
-  } catch { /* corrupt data — reset */ }
-  return defaultState;
+function mergeLoaded(parsed) {
+  if (!Array.isArray(parsed?.prospects) || !Array.isArray(parsed?.sequences)) return null;
+  const sequences = parsed.sequences;
+  const hasDefault = sequences.some((s) => s.isDefault);
+  return {
+    ...defaultState,
+    ...parsed,
+    sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
+    lists: parsed.lists || [],
+  };
 }
 
 /* ── Reducer ── */
 
 function reducer(state, action) {
   switch (action.type) {
+
+    case "HYDRATE": {
+      const merged = mergeLoaded(action.payload);
+      return merged || state;
+    }
 
     case "ADD_PROSPECT": {
       const id = nextId();
@@ -66,7 +65,6 @@ function reducer(state, action) {
       const newE = defaultSeq
         ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] }))
         : [];
-      // Record list metadata
       const listName = action.meta?.listName;
       const existingLists = state.lists || [];
       let updatedLists = existingLists;
@@ -194,12 +192,35 @@ function reducer(state, action) {
 /* ── Provider ── */
 
 export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, null, loadState);
+  const [state, dispatch] = useReducer(reducer, defaultState);
+  const [hydrated, setHydrated] = useState(false);
 
-  /* Persist on every change */
+  /* Load from IndexedDB on mount; migrate from localStorage if needed */
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* quota exceeded */ }
-  }, [state]);
+    get(STORAGE_KEY).then((idbData) => {
+      if (idbData) {
+        dispatch({ type: "HYDRATE", payload: idbData });
+      } else {
+        // One-time migration: pull existing data out of localStorage
+        try {
+          const raw = localStorage.getItem(LS_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            dispatch({ type: "HYDRATE", payload: parsed });
+            // Move to IndexedDB and clear localStorage
+            set(STORAGE_KEY, parsed).then(() => localStorage.removeItem(LS_KEY));
+          }
+        } catch { /* corrupt localStorage — start fresh */ }
+      }
+    }).catch(() => { /* IndexedDB unavailable — app still works with defaultState */ })
+      .finally(() => setHydrated(true));
+  }, []);
+
+  /* Persist to IndexedDB on every state change (skip before hydration to avoid overwriting with empty state) */
+  useEffect(() => {
+    if (!hydrated) return;
+    set(STORAGE_KEY, state).catch(() => {});
+  }, [state, hydrated]);
 
   const today = todayStr();
 
@@ -254,8 +275,8 @@ export function StoreProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists }),
-    [state, tasksToday, overdueProspects, stats, allLists]
+    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated }),
+    [state, tasksToday, overdueProspects, stats, allLists, hydrated]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

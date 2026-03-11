@@ -11,7 +11,16 @@ import TouchpointModal from "./components/TouchpointModal";
 import StoredLists from "./components/StoredLists";
 
 export default function App() {
-  const { tasksToday } = useStore();
+  const { tasksToday, hydrated } = useStore();
+
+  if (!hydrated) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, background: "var(--bg)" }}>
+        <div style={{ fontSize: 28 }}>⚡</div>
+        <div style={{ fontSize: 15, color: "var(--text-muted)", fontFamily: "var(--font)" }}>Loading OutreachOS…</div>
+      </div>
+    );
+  }
   const [view, setView] = useState("home");
   const [viewParams, setViewParams] = useState({});
   const [selectedId, setSelectedId] = useState(null);
