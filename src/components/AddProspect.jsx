@@ -4,7 +4,7 @@ import { STATUSES, INDUSTRIES, CSV_FIELDS } from "../constants";
 import { validateProspect, parseCSV, autoMapCSV, downloadTemplate, todayStr } from "../utils";
 import { Modal, Input, Select, Textarea } from "./ui";
 
-const empty = { name: "", company: "", title: "", industry: "SaaS", email: "", linkedin: "", phone: "", notes: "", listName: "", status: "Not Started" };
+const empty = { name: "", company: "", title: "", industry: "Enterprise", email: "", linkedin: "", phone: "", notes: "", listName: "", status: "Not Started" };
 
 export default function AddProspect({ onClose }) {
   const { state, dispatch, allLists } = useStore();
@@ -49,7 +49,7 @@ export default function AddProspect({ onClose }) {
         const idx = col ? csvHeaders.indexOf(col) : -1;
         let val = idx >= 0 ? row[idx] || "" : "";
         if (f.key === "status") val = "Not Started";
-        if (f.key === "industry") val = INDUSTRIES.includes(val) ? val : "Other";
+        if (f.key === "industry") val = INDUSTRIES.includes(val) ? val : "Enterprise";
         if (f.key === "listName" && !val && csvListName) val = csvListName;
         obj[f.key] = val;
       });

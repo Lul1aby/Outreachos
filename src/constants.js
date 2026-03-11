@@ -1,6 +1,6 @@
-export const CHANNELS = ["Call", "Email", "LinkedIn DM", "LinkedIn InMail", "SMS", "Twitter/X", "Other"];
+export const CHANNELS = ["Email", "Call", "SMS", "LinkedIn", "WhatsApp", "Other"];
 export const STATUSES = ["Not Started", "Replied", "Meeting Booked", "No Response", "Not Interested", "Opportunity", "Trials", "Call Back", "Nurture"];
-export const INDUSTRIES = ["SaaS", "Fintech", "Healthcare", "E-commerce", "Agency", "Enterprise", "Startup", "Other"];
+export const INDUSTRIES = ["Enterprise", "Commercial", "SMB", "Staffing", "GCC"];
 
 export const STATUS_COLORS = {
   "Not Started":     { bg: "#1a1a2e", text: "#6b7280", border: "#2d2d4e" },
@@ -15,8 +15,7 @@ export const STATUS_COLORS = {
 };
 
 export const CHANNEL_ICONS = {
-  "Call": "📞", "Email": "✉️", "LinkedIn DM": "💼", "LinkedIn InMail": "📨",
-  "SMS": "💬", "Twitter/X": "🐦", "Other": "📌",
+  "Email": "✉️", "Call": "📞", "SMS": "💬", "LinkedIn": "💼", "WhatsApp": "📱", "Other": "📌",
 };
 
 export const CSV_FIELDS = [

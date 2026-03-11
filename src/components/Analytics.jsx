@@ -1,11 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useStore } from "../store";
 import { STATUSES, INDUSTRIES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { MiniBar } from "./ui";
 
 export default function Analytics() {
-  const { state } = useStore();
-  const { prospects } = state;
+  const { state, allLists } = useStore();
+  const [selectedList, setSelectedList] = useState("__all__");
+  const prospects = useMemo(() => {
+    if (selectedList === "__all__") return state.prospects;
+    return state.prospects.filter((p) => p.listName === selectedList);
+  }, [state.prospects, selectedList]);
 
   const data = useMemo(() => {
     const total = prospects.length;
@@ -136,9 +140,23 @@ export default function Analytics() {
   return (
     <div style={{ padding: "24px 32px" }} className="flex flex-col gap-20">
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
-        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+      <div className="flex items-center justify-between flex-wrap gap-12">
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
+          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+        </div>
+        <div className="flex items-center gap-8">
+          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>Analysing:</span>
+          <select
+            className="form-select"
+            style={{ marginBottom: 0, minWidth: 180, fontSize: 13 }}
+            value={selectedList}
+            onChange={(e) => setSelectedList(e.target.value)}
+          >
+            <option value="__all__">All Prospects</option>
+            {allLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
+          </select>
+        </div>
       </div>
 
       {/* KPI strip */}

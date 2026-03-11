@@ -17,7 +17,6 @@ export default function TouchpointModal({ prospectId, onClose }) {
   if (!prospect) return null;
 
   function save() {
-    if (!form.note.trim()) return;
     dispatch({
       type: "ADD_TOUCHPOINT",
       payload: {
@@ -59,7 +58,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
         onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
       />
       <Textarea
-        label="Note *"
+        label="Note"
         rows={3}
         value={form.note}
         placeholder="What happened? Key takeaways, next steps…"
