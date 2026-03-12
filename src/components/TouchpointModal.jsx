@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CHANNELS, STATUSES, CHANNEL_ICONS } from "../constants";
+import { CHANNELS, CHANNEL_OUTCOMES, CHANNEL_ICONS } from "../constants";
 import { todayStr } from "../utils";
 import { useStore } from "../store";
 import { Modal, Select, Textarea, Input, CalendarPicker } from "./ui";
@@ -7,11 +7,9 @@ import { Modal, Select, Textarea, Input, CalendarPicker } from "./ui";
 export default function TouchpointModal({ prospectId, onClose }) {
   const { state, dispatch } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
-  const [form, setForm] = useState({
-    channel: "Email",
-    date: todayStr(),
-    status: prospect?.status || "No Response",
-    note: "",
+  const [form, setForm] = useState(() => {
+    const channel = "Call";
+    return { channel, date: todayStr(), status: CHANNEL_OUTCOMES[channel][0], note: "" };
   });
 
   /* Meeting scheduler */
@@ -87,7 +85,10 @@ export default function TouchpointModal({ prospectId, onClose }) {
         label="Channel"
         options={CHANNELS}
         value={form.channel}
-        onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
+        onChange={(e) => {
+          const channel = e.target.value;
+          setForm((f) => ({ ...f, channel, status: CHANNEL_OUTCOMES[channel][0] }));
+        }}
       />
       <Input
         label="Date"
@@ -96,8 +97,8 @@ export default function TouchpointModal({ prospectId, onClose }) {
         onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
       />
       <Select
-        label="Outcome / New Status"
-        options={STATUSES}
+        label="Outcome"
+        options={CHANNEL_OUTCOMES[form.channel]}
         value={form.status}
         onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
       />

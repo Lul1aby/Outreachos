@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
-import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS } from "../constants";
+import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
 import { todayStr, normalizeLinkedIn } from "../utils";
 import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input, CalendarPicker } from "./ui";
 
@@ -54,7 +54,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [hiringError, setHiringError] = useState(null);
 
   /* Inline touchpoint form state */
-  const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
+  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
   const [copied, setCopied] = useState(null);
 
   /* Meeting scheduler state */
@@ -119,7 +119,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const logInline = useCallback(async () => {
     const tp = { channel: tpForm.channel, date: tpForm.date, note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
-    setTpForm({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
+    setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
 
     if (syncHubspot && prospect?.email) {
       setHubspotStatus("syncing");
@@ -303,14 +303,17 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         <div className="inline-form">
           <div className="inline-form-title">Log a touchpoint</div>
           <div className="inline-row">
-            <select className="form-select" value={tpForm.channel} onChange={(e) => setTpForm((f) => ({ ...f, channel: e.target.value }))}>
+            <select className="form-select" value={tpForm.channel} onChange={(e) => {
+              const channel = e.target.value;
+              setTpForm((f) => ({ ...f, channel, status: CHANNEL_OUTCOMES[channel][0] }));
+            }}>
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
             </select>
             <CalendarPicker value={tpForm.date} onChange={(d) => setTpForm((f) => ({ ...f, date: d }))} />
           </div>
           <div className="inline-row">
             <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>
-              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {CHANNEL_OUTCOMES[tpForm.channel].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="inline-row">

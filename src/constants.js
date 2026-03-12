@@ -1,17 +1,29 @@
-export const CHANNELS = ["Email", "Call", "SMS", "LinkedIn", "WhatsApp", "Other"];
-export const STATUSES = ["Not Started", "Replied", "Meeting Booked", "No Response", "Not Interested", "Opportunity", "Trials", "Call Back", "Nurture"];
+export const CHANNELS = ["Call", "Email", "LinkedIn", "WhatsApp", "SMS", "Other"];
+export const STATUSES = ["Not Started", "Replied", "Meeting Booked", "No Response", "Not Interested", "Opportunity", "Trials", "Call Back", "Nurture", "DNP/Busy", "Connected +ve", "Wrong/Invalid"];
 export const INDUSTRIES = ["Enterprise", "Commercial", "SMB", "Staffing", "GCC"];
 
+export const CHANNEL_OUTCOMES = {
+  "Call":      ["DNP/Busy", "Connected +ve", "Nurture", "Not Interested", "Wrong/Invalid", "Meeting Booked"],
+  "Email":     ["No Response", "Not Interested", "Nurture", "Meeting Booked"],
+  "LinkedIn":  ["No Response", "Not Interested", "Nurture", "Meeting Booked"],
+  "WhatsApp":  ["No Response", "Not Interested", "Meeting Booked"],
+  "SMS":       ["No Response", "Not Interested", "Meeting Booked"],
+  "Other":     ["No Response", "Not Interested", "Meeting Booked"],
+};
+
 export const STATUS_COLORS = {
-  "Not Started":     { bg: "#1a1a2e", text: "#6b7280", border: "#2d2d4e" },
-  "Replied":         { bg: "#1a3a2e", text: "#34d399", border: "#065f46" },
-  "Meeting Booked":  { bg: "#2d1f4a", text: "#a78bfa", border: "#5b21b6" },
-  "No Response":     { bg: "#2a2a1e", text: "#fbbf24", border: "#92400e" },
-  "Not Interested":  { bg: "#2a1e1e", text: "#f87171", border: "#991b1b" },
-  "Opportunity":     { bg: "#0d2e1a", text: "#4ade80", border: "#14532d" },
-  "Trials":          { bg: "#0d2238", text: "#38bdf8", border: "#0369a1" },
-  "Call Back":       { bg: "#2a1800", text: "#f97316", border: "#c2410c" },
-  "Nurture":         { bg: "#1e1a2e", text: "#c084fc", border: "#7e22ce" },
+  "Not Started":    { bg: "#1a1a2e", text: "#6b7280", border: "#2d2d4e" },
+  "Replied":        { bg: "#1a3a2e", text: "#34d399", border: "#065f46" },
+  "Meeting Booked": { bg: "#2d1f4a", text: "#a78bfa", border: "#5b21b6" },
+  "No Response":    { bg: "#2a2a1e", text: "#fbbf24", border: "#92400e" },
+  "Not Interested": { bg: "#2a1e1e", text: "#f87171", border: "#991b1b" },
+  "Opportunity":    { bg: "#0d2e1a", text: "#4ade80", border: "#14532d" },
+  "Trials":         { bg: "#0d2238", text: "#38bdf8", border: "#0369a1" },
+  "Call Back":      { bg: "#2a1800", text: "#f97316", border: "#c2410c" },
+  "Nurture":        { bg: "#1e1a2e", text: "#c084fc", border: "#7e22ce" },
+  "DNP/Busy":       { bg: "#1e1e1e", text: "#9ca3af", border: "#374151" },
+  "Connected +ve":  { bg: "#0d2e1a", text: "#6ee7b7", border: "#065f46" },
+  "Wrong/Invalid":  { bg: "#2a1e1e", text: "#fb923c", border: "#9a3412" },
 };
 
 export const CHANNEL_ICONS = {
