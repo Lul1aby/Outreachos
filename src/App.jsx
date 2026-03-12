@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useStore } from "./store";
 import { supabase } from "./supabase";
 import Home from "./components/Home";
@@ -138,6 +139,7 @@ export default function App() {
           onClose={() => setTpProspectId(null)}
         />
       )}
+      <SpeedInsights />
     </div>
   );
 }
