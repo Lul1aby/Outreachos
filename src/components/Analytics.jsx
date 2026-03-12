@@ -11,13 +11,19 @@ function escapeCSV(val) {
   return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ownId }) {
+function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ownEmail, ownProspectCount }) {
   const [open, setOpen] = useState(false);
 
+  // All users: own account first, then others from admin data (excluding own to avoid duplicate)
   const users = [
-    { id: "own", email: "My Data", count: null },
-    ...(adminAllData || []).map((u) => ({ id: u.userId, email: u.userEmail, count: (u.prospects || []).length })),
+    { id: "own", email: ownEmail || "My Account", count: ownProspectCount },
+    ...(adminAllData || [])
+      .filter((u) => u.userEmail?.toLowerCase() !== ownEmail?.toLowerCase())
+      .map((u) => ({ id: u.userId, email: u.userEmail, count: (u.prospects || []).length })),
   ];
+
+  const allIds = users.map((u) => u.id);
+  const allSelected = allIds.every((id) => selectedUsers.has(id));
 
   function toggle(id) {
     setSelectedUsers((prev) => {
@@ -28,9 +34,19 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
     });
   }
 
-  const label = selectedUsers.size === 1 && selectedUsers.has("own")
-    ? "My Data"
-    : `${selectedUsers.size} user${selectedUsers.size !== 1 ? "s" : ""} selected`;
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedUsers(new Set(["own"]));
+    } else {
+      setSelectedUsers(new Set(allIds));
+    }
+  }
+
+  const label = allSelected
+    ? "All Users"
+    : selectedUsers.size === 1 && selectedUsers.has("own")
+    ? (ownEmail || "My Account")
+    : `${selectedUsers.size} users selected`;
 
   return (
     <div style={{ position: "relative" }}>
@@ -40,10 +56,11 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
         style={{
           fontSize: 13, padding: "6px 12px", borderRadius: 6, cursor: "pointer",
           border: "1px solid var(--border)", background: "var(--surface-raised)",
-          color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6,
+          color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 260,
         }}
       >
-        {label} <span style={{ opacity: 0.5 }}>▾</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ opacity: 0.5, flexShrink: 0 }}>▾</span>
       </button>
       {open && (
         <>
@@ -51,8 +68,23 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
           <div style={{
             position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
             background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
-            minWidth: 240, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", padding: "6px 0",
+            minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", padding: "6px 0",
           }}>
+            {/* Select All */}
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
+              cursor: "pointer", fontSize: 13, fontWeight: 600,
+              borderBottom: "1px solid var(--border)",
+              background: allSelected ? "rgba(99,102,241,0.1)" : "transparent",
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
+              />
+              Select All
+            </label>
             {users.map((u) => (
               <label key={u.id} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
@@ -66,10 +98,10 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
                   style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
                 />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {u.id === "own" ? "👤 My Data" : `👤 ${u.email}`}
+                  👤 {u.email}{u.id === "own" ? " (you)" : ""}
                 </span>
                 {u.count !== null && (
-                  <span style={{ fontSize: 12, color: "var(--text-dim)" }}>({u.count})</span>
+                  <span style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>({u.count})</span>
                 )}
               </label>
             ))}
@@ -303,7 +335,8 @@ export default function Analytics() {
               selectedUsers={selectedUsers}
               setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
               adminAllData={adminAllData}
-              ownId={user?.id}
+              ownEmail={user?.email}
+              ownProspectCount={state.prospects.length}
             />
           </div>
         )}
@@ -331,7 +364,8 @@ export default function Analytics() {
               selectedUsers={selectedUsers}
               setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
               adminAllData={adminAllData}
-              ownId={user?.id}
+              ownEmail={user?.email}
+              ownProspectCount={state.prospects.length}
             />
           )}
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
