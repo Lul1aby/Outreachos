@@ -19,18 +19,34 @@ export default function TouchpointModal({ prospectId, onClose }) {
   const [meetTime, setMeetTime] = useState("10:00");
   const [meetDuration, setMeetDuration] = useState("60");
 
+  /* HubSpot sync */
+  const [syncHubspot, setSyncHubspot] = useState(false);
+  const [hubspotStatus, setHubspotStatus] = useState(null); // null | "syncing" | "ok:{name}" | "err:{msg}"
+
   if (!prospect) return null;
 
-  function save() {
-    dispatch({
-      type: "ADD_TOUCHPOINT",
-      payload: {
-        prospectId,
-        touchpoint: { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status },
-        newStatus: form.status,
-      },
-    });
-    onClose();
+  async function save() {
+    const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
+    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
+
+    if (syncHubspot && prospect.email) {
+      setHubspotStatus("syncing");
+      try {
+        const res = await fetch("/api/hubspot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: prospect.email, prospectName: prospect.name, company: prospect.company, touchpoint: tp }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "HubSpot sync failed");
+        setHubspotStatus(`ok:${data.contactName}`);
+        setTimeout(onClose, 1800);
+      } catch (err) {
+        setHubspotStatus(`err:${err.message}`);
+      }
+    } else {
+      onClose();
+    }
   }
 
   function openGoogleCal() {
@@ -140,9 +156,36 @@ export default function TouchpointModal({ prospectId, onClose }) {
         </div>
       )}
 
-      <div className="flex gap-8 justify-end mt-8">
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save}>Save Touchpoint</button>
+      {/* HubSpot sync option */}
+      {prospect.email && (
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14, color: "var(--text-sec)" }}>
+            <input
+              type="checkbox"
+              checked={syncHubspot}
+              onChange={(e) => { setSyncHubspot(e.target.checked); setHubspotStatus(null); }}
+              style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#f97316" }}
+            />
+            <span>🔗 Also log in HubSpot</span>
+            <span style={{ fontSize: 12, color: "var(--text-dim)" }}>({prospect.email})</span>
+          </label>
+          {hubspotStatus === "syncing" && (
+            <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>⏳ Syncing to HubSpot…</div>
+          )}
+          {hubspotStatus?.startsWith("ok:") && (
+            <div style={{ fontSize: 13, color: "#4ade80", marginTop: 6 }}>✓ Logged on HubSpot contact: <strong>{hubspotStatus.slice(3)}</strong></div>
+          )}
+          {hubspotStatus?.startsWith("err:") && (
+            <div style={{ fontSize: 13, color: "#f87171", marginTop: 6 }}>✕ {hubspotStatus.slice(4)}</div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-8 justify-end mt-12">
+        <button className="btn btn-ghost" onClick={onClose} disabled={hubspotStatus === "syncing"}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={hubspotStatus === "syncing"}>
+          {hubspotStatus === "syncing" ? "Saving…" : "Save Touchpoint"}
+        </button>
       </div>
     </Modal>
   );
