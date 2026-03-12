@@ -28,6 +28,12 @@ export default function App() {
     localStorage.setItem("outreach-theme", theme);
   }, [theme]);
 
+  const navigate = useCallback((newView, params = {}) => {
+    setView(newView);
+    setViewParams(params);
+    setNavKey((k) => k + 1);
+  }, []);
+
   if (!hydrated) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, background: "var(--bg)" }}>
@@ -41,12 +47,6 @@ export default function App() {
   if (supabase && !user) {
     return <AuthPage />;
   }
-
-  const navigate = useCallback((newView, params = {}) => {
-    setView(newView);
-    setViewParams(params);
-    setNavKey((k) => k + 1);
-  }, []);
 
   const tabs = [
     { id: "home", label: "🏠 Home" },
