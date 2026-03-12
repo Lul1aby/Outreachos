@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { supabase } from "../supabase";
 
+const REMEMBERED_EMAIL_KEY = "outreach-remembered-email";
+
 export default function AuthPage() {
   const [mode, setMode] = useState("login"); // "login" | "signup" | "reset"
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem(REMEMBERED_EMAIL_KEY) || "");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(() => !!localStorage.getItem(REMEMBERED_EMAIL_KEY));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -19,6 +22,8 @@ export default function AuthPage() {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        if (remember) localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+        else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
       } else if (mode === "signup") {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
@@ -114,6 +119,18 @@ export default function AuthPage() {
             )}
 
             {mode === "reset" && <div style={{ marginBottom: 24 }} />}
+
+            {mode === "login" && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20, cursor: "pointer", fontSize: 14, color: "var(--text-sec)" }}>
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  style={{ width: 15, height: 15, cursor: "pointer", accentColor: "var(--primary)" }}
+                />
+                Remember my email
+              </label>
+            )}
 
             <button
               type="submit"
