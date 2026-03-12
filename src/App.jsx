@@ -49,7 +49,10 @@ export default function App() {
   }, []);
 
   const navigate = useCallback((newView, params = {}) => {
-    setView(newView);
+    setView((prev) => {
+      // Clicking the active tab refreshes it (bumps navKey regardless)
+      return newView;
+    });
     setViewParams(params);
     setNavKey((k) => k + 1);
   }, []);
@@ -87,7 +90,7 @@ export default function App() {
     <div className="app-layout">
       {/* Header */}
       <header className="header">
-        <div className="header-brand">
+        <div className="header-brand" onClick={() => navigate("home")} style={{ cursor: "pointer" }} title="Go to Home">
           <div className="header-icon">⚡</div>
           <div>
             <div className="header-title">OutreachOS</div>
@@ -141,12 +144,13 @@ export default function App() {
             initialFilters={viewParams}
             onSelect={setSelectedId}
             onLogTouchpoint={setTpProspectId}
+            onAdd={() => setShowAdd(true)}
           />
         )}
         {view === "analytics" && <Analytics />}
         {view === "sequences" && <Sequences />}
         {view === "tasks" && <Tasks onSelect={setSelectedId} onNavigate={navigate} />}
-        {view === "stored-lists" && <StoredLists onNavigate={navigate} />}
+        {view === "stored-lists" && <StoredLists onNavigate={navigate} onAdd={() => setShowAdd(true)} />}
         {view === "admin" && isAdmin && <AdminPanel />}
       </main>
 

@@ -11,6 +11,7 @@ export default function Tasks({ onSelect, onNavigate }) {
 
   const copyContact = useCallback((e, text, enrollmentId, field) => {
     e.preventDefault();
+    e.stopPropagation();
     navigator.clipboard.writeText(text).then(() => {
       setCopied({ enrollmentId, field });
       setTimeout(() => setCopied(null), 2000);
@@ -62,16 +63,16 @@ export default function Tasks({ onSelect, onNavigate }) {
                 {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 <div className="task-contacts">
                   {p.email && (
-                    <a href="#" onClick={(e) => copyContact(e, p.email, task.enrollmentId, "email")} className="task-contact-link contact-link-email" title="Click to copy email">
+                    <button onClick={(e) => copyContact(e, p.email, task.enrollmentId, "email")} className="task-contact-link contact-link-email" title="Click to copy email">
                       ✉️ {p.email}
                       {copied?.enrollmentId === task.enrollmentId && copied?.field === "email" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
-                    </a>
+                    </button>
                   )}
                   {p.phone && (
-                    <a href="#" onClick={(e) => copyContact(e, p.phone, task.enrollmentId, "phone")} className="task-contact-link contact-link-phone" title="Click to copy phone">
+                    <button onClick={(e) => copyContact(e, p.phone, task.enrollmentId, "phone")} className="task-contact-link contact-link-phone" title="Click to copy phone">
                       📞 {p.phone}
                       {copied?.enrollmentId === task.enrollmentId && copied?.field === "phone" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
-                    </a>
+                    </button>
                   )}
                   {p.linkedin && <a href={normalizeLinkedIn(p.linkedin)} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
                 </div>

@@ -4,7 +4,7 @@ import { STATUSES, CHANNELS, STATUS_COLORS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
 import { Badge } from "./ui";
 
-export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint }) {
+export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint, onAdd }) {
   const { state, dispatch, stats, allLists, overdueProspects, tasksToday } = useStore();
   const { prospects, dismissedReminders } = state;
 
@@ -320,16 +320,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   <td>
                     <div className="flex flex-col gap-4">
                       {p.email && (
-                        <a href="#" onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
+                        <button onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
                           ✉️ <span className="truncate">{p.email}</span>
                           {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
-                        </a>
+                        </button>
                       )}
                       {p.phone && (
-                        <a href="#" onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
+                        <button onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
                           📞 {p.phone}
                           {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
-                        </a>
+                        </button>
                       )}
                       {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
                     </div>
@@ -348,7 +348,23 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               );
             })}
             {sorted.length === 0 && (
-              <tr><td colSpan={7} className="empty" style={{ paddingTop: 48 }}>No prospects found. Add one to get started.</td></tr>
+              <tr>
+                <td colSpan={7} style={{ paddingTop: 56, paddingBottom: 40, textAlign: "center" }}>
+                  {prospects.length === 0 ? (
+                    <div>
+                      <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>No prospects yet</div>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 16 }}>Add your first prospect or import a CSV to get started.</div>
+                      {onAdd && <button className="btn btn-primary" onClick={onAdd}>+ Add Prospect</button>}
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>No prospects match your filters.</div>
+                      <button className="btn btn-ghost btn-sm" onClick={clearAll}>Clear filters</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

@@ -16,20 +16,11 @@ export default function TouchpointModal({ prospectId, onClose }) {
   const [meetDate, setMeetDate] = useState(todayStr());
   const [meetTime, setMeetTime] = useState("10:00");
   const [meetDuration, setMeetDuration] = useState("60");
+  const [calBlocked, setCalBlocked] = useState(null); // URL when popup was blocked
 
   if (!prospect) return null;
 
-  function save() {
-    const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
-    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
-
-    // Auto-open Google Calendar when Meeting Booked is the outcome
-    if (form.status === "Meeting Booked") openGoogleCal();
-
-    onClose();
-  }
-
-  function openGoogleCal() {
+  function buildCalUrl() {
     const [y, m, d] = meetDate.split("-");
     const [hh, mm] = meetTime.split(":");
     const start = new Date(+y, +m - 1, +d, +hh, +mm);
@@ -46,10 +37,28 @@ export default function TouchpointModal({ prospectId, onClose }) {
     const details = encodeURIComponent(
       `Prospect: ${prospect.name}\nCompany: ${prospect.company}${prospect.title ? `\nTitle: ${prospect.title}` : ""}${prospect.phone ? `\nPhone: ${prospect.phone}` : ""}`
     );
-    window.open(
-      `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}${add}`,
-      "_blank"
-    );
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}${add}`;
+  }
+
+  function openGoogleCal() {
+    const url = buildCalUrl();
+    const opened = window.open(url, "_blank");
+    if (!opened) setCalBlocked(url);
+  }
+
+  function save() {
+    const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
+    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
+    if (form.status === "Meeting Booked") {
+      const url = buildCalUrl();
+      const opened = window.open(url, "_blank");
+      if (!opened) {
+        // Popup blocked — show the link after modal closes (handled in parent)
+        // Best we can do: fall back to navigating directly
+        window.location.href = url;
+      }
+    }
+    onClose();
   }
 
   return (
@@ -133,15 +142,28 @@ export default function TouchpointModal({ prospectId, onClose }) {
               style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
               onClick={openGoogleCal}
             >
-              Open Google Calendar →
+              Preview in Calendar →
             </button>
           </div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>
+            Google Calendar will open automatically when you save.
+          </div>
+          {calBlocked && (
+            <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 6 }}>
+              Popup blocked.{" "}
+              <a href={calBlocked} target="_blank" rel="noopener noreferrer" style={{ color: "#4ade80", textDecoration: "underline" }}>
+                Open Google Calendar manually →
+              </a>
+            </div>
+          )}
         </div>
       )}
 
       <div className="flex gap-8 justify-end mt-12">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save}>Save Touchpoint</button>
+        <button className="btn btn-primary" onClick={save}>
+          Save Touchpoint{form.status === "Meeting Booked" ? " & Open Calendar" : ""}
+        </button>
       </div>
     </Modal>
   );

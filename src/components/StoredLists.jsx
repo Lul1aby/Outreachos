@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 
-export default function StoredLists({ onNavigate }) {
+export default function StoredLists({ onNavigate, onAdd }) {
   const { state, dispatch } = useStore();
   const [confirmList, setConfirmList] = useState(null); // { name } when confirming delete
 
@@ -71,8 +71,12 @@ export default function StoredLists({ onNavigate }) {
       {allLists.length === 0 ? (
         <div style={{ textAlign: "center", padding: "80px 0", color: "var(--text-muted)" }}>
           <div style={{ fontSize: 42, marginBottom: 12 }}>📂</div>
-          <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>No lists yet</div>
-          <div style={{ fontSize: 14 }}>Import a CSV to get started. Lists will appear here automatically.</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>No lists yet</div>
+          <div style={{ fontSize: 14, marginBottom: 20 }}>Assign a list name when importing a CSV or adding a prospect manually.</div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            {onAdd && <button className="btn btn-primary" onClick={onAdd}>+ Add Prospect</button>}
+            <button className="btn btn-outline" onClick={() => onNavigate("home")}>← Back to Home</button>
+          </div>
         </div>
       ) : (
         <table className="table">

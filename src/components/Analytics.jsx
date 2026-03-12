@@ -172,6 +172,16 @@ export default function Analytics() {
     };
   }, [prospects]);
 
+  if (state.prospects.length === 0) {
+    return (
+      <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12, textAlign: "center" }}>
+        <div style={{ fontSize: 42 }}>📊</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>No data yet</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)", maxWidth: 320 }}>Add prospects or import a CSV to start seeing analytics.</div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "24px 32px" }} className="flex flex-col gap-20">
       {/* Header */}

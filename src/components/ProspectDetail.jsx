@@ -117,7 +117,9 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
     const tp = { channel: tpForm.channel, date: tpForm.date, note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
     setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
-
+    // Reset meeting scheduler so next open shows fresh date/time
+    setMeetDate(todayStr());
+    setMeetTime("10:00");
   }, [tpForm, prospectId, dispatch]);
 
   if (!prospect) return null;
