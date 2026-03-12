@@ -110,13 +110,9 @@ export default function App() {
               {t.badge ? <span className="tab-badge">{t.badge}</span> : null}
             </button>
           ))}
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
         </nav>
       </header>
-
-      {/* Sub-bar */}
-      <div style={{ borderBottom: "1px solid var(--border)", padding: "8px 24px", display: "flex", justifyContent: "flex-end", background: "var(--bg)" }}>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
-      </div>
 
       {/* Pages */}
       <main className="main">
