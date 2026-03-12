@@ -11,24 +11,71 @@ function escapeCSV(val) {
   return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function AdminSourceSelector({ adminSource, setAdminSource, adminAllData, user }) {
+function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ownId }) {
+  const [open, setOpen] = useState(false);
+
+  const users = [
+    { id: "own", email: "My Data", count: null },
+    ...(adminAllData || []).map((u) => ({ id: u.userId, email: u.userEmail, count: (u.prospects || []).length })),
+  ];
+
+  function toggle(id) {
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      if (next.size === 0) next.add("own");
+      return next;
+    });
+  }
+
+  const label = selectedUsers.size === 1 && selectedUsers.has("own")
+    ? "My Data"
+    : `${selectedUsers.size} user${selectedUsers.size !== 1 ? "s" : ""} selected`;
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--mono)" }}>Viewing:</span>
-      <select
-        className="form-select"
-        style={{ marginBottom: 0, fontSize: 13, minWidth: 220 }}
-        value={adminSource}
-        onChange={(e) => setAdminSource(e.target.value)}
+    <div style={{ position: "relative" }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--mono)", marginRight: 8 }}>Viewing:</span>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          fontSize: 13, padding: "6px 12px", borderRadius: 6, cursor: "pointer",
+          border: "1px solid var(--border)", background: "var(--surface-raised)",
+          color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6,
+        }}
       >
-        <option value="own">My Data</option>
-        <option value="all">All Users Combined</option>
-        {(adminAllData || []).map((u) => (
-          <option key={u.userId} value={u.userId}>
-            👤 {u.userEmail} ({(u.prospects || []).length})
-          </option>
-        ))}
-      </select>
+        {label} <span style={{ opacity: 0.5 }}>▾</span>
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
+            minWidth: 240, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", padding: "6px 0",
+          }}>
+            {users.map((u) => (
+              <label key={u.id} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
+                cursor: "pointer", fontSize: 13,
+                background: selectedUsers.has(u.id) ? "rgba(99,102,241,0.1)" : "transparent",
+              }}>
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(u.id)}
+                  onChange={() => toggle(u.id)}
+                  style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
+                />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {u.id === "own" ? "👤 My Data" : `👤 ${u.email}`}
+                </span>
+                {u.count !== null && (
+                  <span style={{ fontSize: 12, color: "var(--text-dim)" }}>({u.count})</span>
+                )}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -42,12 +89,14 @@ export default function Analytics() {
     .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = !!user?.email && (adminEmails.includes(user.email.toLowerCase()) || user?.app_metadata?.role === "admin");
 
-  const [adminSource, setAdminSource] = useState("own"); // "own" | "all" | userId
+  const [selectedUsers, setSelectedUsers] = useState(() => new Set(["own"]));
   const [adminAllData, setAdminAllData] = useState(null); // [{ userId, userEmail, prospects }]
   const [adminLoading, setAdminLoading] = useState(false);
 
+  const needsAdminData = isAdmin && !(selectedUsers.size === 1 && selectedUsers.has("own"));
+
   useEffect(() => {
-    if (!isAdmin || adminSource === "own" || adminAllData) return;
+    if (!isAdmin || adminAllData) return;
     setAdminLoading(true);
     (async () => {
       try {
@@ -62,16 +111,17 @@ export default function Analytics() {
       } catch { /* fail silently */ }
       finally { setAdminLoading(false); }
     })();
-  }, [isAdmin, adminSource, adminAllData]);
+  }, [isAdmin]);
 
   // Source prospects based on selection
   const sourceProspects = useMemo(() => {
-    if (!isAdmin || adminSource === "own") return state.prospects;
-    if (!adminAllData) return [];
-    if (adminSource === "all") return adminAllData.flatMap((u) => u.prospects || []);
-    const userData = adminAllData.find((u) => u.userId === adminSource);
-    return userData?.prospects || [];
-  }, [isAdmin, adminSource, adminAllData, state.prospects]);
+    if (!isAdmin) return state.prospects;
+    const own = selectedUsers.has("own") ? state.prospects : [];
+    const fromOthers = (adminAllData || [])
+      .filter((u) => selectedUsers.has(u.userId))
+      .flatMap((u) => u.prospects || []);
+    return [...own, ...fromOthers];
+  }, [isAdmin, selectedUsers, adminAllData, state.prospects]);
 
   const sourceLists = useMemo(() =>
     [...new Set(sourceProspects.map((p) => p.listName).filter(Boolean))].sort(),
@@ -236,7 +286,7 @@ export default function Analytics() {
     };
   }, [prospects]);
 
-  if (adminLoading) {
+  if (adminLoading && !adminAllData) {
     return (
       <div style={{ padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 10, color: "var(--text-muted)" }}>
         <span style={{ fontSize: 22 }}>📊</span> Loading analytics data…
@@ -250,15 +300,17 @@ export default function Analytics() {
         {isAdmin && (
           <div style={{ marginBottom: 8 }}>
             <AdminSourceSelector
-              adminSource={adminSource} setAdminSource={(s) => { setAdminSource(s); setSelectedList("__all__"); }}
-              adminAllData={adminAllData} user={user}
+              selectedUsers={selectedUsers}
+              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
+              adminAllData={adminAllData}
+              ownId={user?.id}
             />
           </div>
         )}
         <div style={{ fontSize: 42 }}>📊</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>No data yet</div>
         <div style={{ fontSize: 14, color: "var(--text-muted)", maxWidth: 320 }}>
-          {adminSource !== "own" ? "This user has no prospects yet." : "Add prospects or import a CSV to start seeing analytics."}
+          {!(selectedUsers.size === 1 && selectedUsers.has("own")) ? "Selected users have no prospects yet." : "Add prospects or import a CSV to start seeing analytics."}
         </div>
       </div>
     );
@@ -276,10 +328,10 @@ export default function Analytics() {
           {/* Admin: data source selector */}
           {isAdmin && (
             <AdminSourceSelector
-              adminSource={adminSource}
-              setAdminSource={(s) => { setAdminSource(s); setSelectedList("__all__"); }}
+              selectedUsers={selectedUsers}
+              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
               adminAllData={adminAllData}
-              user={user}
+              ownId={user?.id}
             />
           )}
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
