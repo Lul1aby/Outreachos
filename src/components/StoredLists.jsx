@@ -40,30 +40,22 @@ export default function StoredLists({ onNavigate, onAdd }) {
       {/* Delete confirmation modal */}
       {confirmList && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: 28, maxWidth: 420, width: "90%" }}>
-            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Delete "{confirmList.name}"?</div>
-            <div style={{ fontSize: 14, color: "var(--text-sec)", marginBottom: 20 }}>
-              This list has <strong>{confirmCount}</strong> prospect{confirmCount !== 1 ? "s" : ""}. Choose what to do with them:
+          <div style={{ background: "var(--surface)", border: "1px solid #7f1d1d", borderRadius: 14, padding: 28, maxWidth: 380, width: "90%" }}>
+            <div style={{ fontSize: 20, marginBottom: 12 }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Delete "{confirmList.name}"?</div>
+            <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 24, lineHeight: 1.5 }}>
+              This will permanently delete the list and all <strong style={{ color: "var(--text)" }}>{confirmCount} contact{confirmCount !== 1 ? "s" : ""}</strong> in it. This cannot be undone.
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="btn btn-ghost" onClick={() => setConfirmList(null)} style={{ flex: 1 }}>Cancel</button>
               <button
                 className="btn"
-                style={{ justifyContent: "flex-start", padding: "12px 16px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface-raised)", textAlign: "left" }}
-                onClick={() => deleteList(confirmList.name, false)}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 2 }}>Delete list only</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Keep the {confirmCount} contacts — just remove the list tag</div>
-              </button>
-              <button
-                className="btn"
-                style={{ justifyContent: "flex-start", padding: "12px 16px", border: "1px solid #7f1d1d", borderRadius: 8, background: "#450a0a", textAlign: "left" }}
+                style={{ flex: 1, border: "1px solid #7f1d1d", background: "#450a0a", color: "#fca5a5", fontWeight: 600 }}
                 onClick={() => deleteList(confirmList.name, true)}
               >
-                <div style={{ fontWeight: 600, marginBottom: 2, color: "#fca5a5" }}>Delete list + all {confirmCount} contacts</div>
-                <div style={{ fontSize: 12, color: "#f87171", fontWeight: 400 }}>Permanently removes all prospects in this list</div>
+                Delete
               </button>
             </div>
-            <button className="btn btn-ghost" onClick={() => setConfirmList(null)} style={{ width: "100%" }}>Cancel</button>
           </div>
         </div>
       )}
