@@ -257,16 +257,14 @@ export function StoreProvider({ children }) {
       loadData(null);
       return;
     }
-    // Initial load via getSession
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      loadData(u?.id ?? null);
-    });
+    // Use onAuthStateChange exclusively — it fires INITIAL_SESSION synchronously
+    // on mount, so getSession() is not needed and would cause a race condition.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_IN") {
-        // Fresh login — load data for the new user
-        const u = session?.user ?? null;
+      const u = session?.user ?? null;
+      if (event === "INITIAL_SESSION") {
+        setUser(u);
+        loadData(u?.id ?? null);
+      } else if (event === "SIGNED_IN") {
         setUser(u);
         setHydrated(false);
         loadData(u?.id ?? null);
@@ -275,9 +273,9 @@ export function StoreProvider({ children }) {
         dispatch({ type: "RESET_DATA" });
         persistAllowed.current = false;
         setHydrated(true);
-      } else if (session?.user) {
-        // TOKEN_REFRESHED, INITIAL_SESSION, USER_UPDATED — just keep user object current
-        setUser(session.user);
+      } else if (u) {
+        // TOKEN_REFRESHED, USER_UPDATED — update user object only
+        setUser(u);
       }
     });
     return () => subscription.unsubscribe();
