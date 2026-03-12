@@ -38,7 +38,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     navigator.clipboard.writeText(text).then(() => {
       setCopied({ id, field });
       setTimeout(() => setCopied(null), 2000);
-    });
+    }).catch(() => {});
   }, []);
 
   const onSearch = useCallback((val) => {

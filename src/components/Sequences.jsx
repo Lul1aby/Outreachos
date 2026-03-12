@@ -152,7 +152,7 @@ export default function Sequences() {
             <button className="modal-close" onClick={() => setShowAssign(false)}>×</button>
           </div>
           <div style={{ maxHeight: 400, overflowY: "auto" }} className="flex flex-col gap-6">
-            {prospects.filter((p) => !["Not Interested"].includes(p.status)).map((p) => {
+            {prospects.filter((p) => !["Not Interested", "Wrong/Invalid"].includes(p.status)).map((p) => {
               const enrolled = enrollments.some((e) => e.prospectId === p.id && e.sequenceId === assignSeqId);
               return (
                 <div key={p.id} className={`enroll-row${enrolled ? " enrolled" : ""}`}>

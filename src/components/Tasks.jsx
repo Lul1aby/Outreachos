@@ -14,7 +14,7 @@ export default function Tasks({ onSelect, onNavigate }) {
     navigator.clipboard.writeText(text).then(() => {
       setCopied({ enrollmentId, field });
       setTimeout(() => setCopied(null), 2000);
-    });
+    }).catch(() => {});
   }, []);
 
   return (

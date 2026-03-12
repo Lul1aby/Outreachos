@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
 import { todayStr, normalizeLinkedIn } from "../utils";
-import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input, CalendarPicker } from "./ui";
+import { Modal, Badge, StatusPill, Input, CalendarPicker } from "./ui";
 
 /* Render Claude's markdown-style brief into readable JSX */
 function RenderBrief({ text }) {
@@ -67,7 +67,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
     navigator.clipboard.writeText(text).then(() => {
       setCopied(field);
       setTimeout(() => setCopied(null), 2000);
-    });
+    }).catch(() => {});
   }, []);
 
   /* Inline reminder-style form (we use the touchpoint form here) */
