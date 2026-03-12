@@ -1,8 +1,22 @@
 import { useState, useMemo, useRef } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS } from "../constants";
 import { daysSinceLast, greeting, stalenessColor } from "../utils";
 import { Badge } from "./ui";
+
+function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, #6366f1, #8b5cf6)", avatarColor = "#fff", extra }) {
+  return (
+    <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
+      <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{p.name[0]}</div>
+      <div className="flex-1" style={{ minWidth: 0 }}>
+        <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company}</div>
+      </div>
+      {extra || <Badge status={p.status} />}
+    </div>
+  );
+}
 
 export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
   const { state, stats, allLists, tasksToday, overdueProspects, exportBackup, importBackup } = useStore();
@@ -42,19 +56,6 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
     { label: "Win Rate", val: `${stats.winRate}%`, accent: "#4ade80", icon: "🏆", sub: `${stats.won} won` },
     { label: "Stale 7d+", val: stats.needsTouch7, accent: stats.needsTouch7 > 0 ? "#f97316" : "#4b5563", icon: "⏰", sub: "need a touch", click: () => onNavigate("list", { dormant: "7" }) },
   ];
-
-  function ProspectRow({ p, avatarBg = "linear-gradient(135deg, #6366f1, #8b5cf6)", avatarColor = "#fff", extra }) {
-    return (
-      <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
-        <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{p.name[0]}</div>
-        <div className="flex-1" style={{ minWidth: 0 }}>
-          <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
-          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company}</div>
-        </div>
-        {extra || <Badge status={p.status} />}
-      </div>
-    );
-  }
 
   /* ── List detail drill-down ── */
   if (listDetail) {
@@ -137,7 +138,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
           </div>
           {recentProspects.length === 0
             ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No prospects yet</div>
-            : <div className="flex flex-col gap-10">{recentProspects.map((p) => <ProspectRow key={p.id} p={p} />)}</div>
+            : <div className="flex flex-col gap-10">{recentProspects.map((p) => <ProspectRow key={p.id} p={p} onSelect={onSelect} />)}</div>
           }
         </div>
 
@@ -150,7 +151,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
             ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No hot prospects yet — keep reaching out!</div>
             : <div className="flex flex-col gap-10">
                 {hotProspects.map((p) => (
-                  <ProspectRow key={p.id} p={p} avatarBg="#0d2e1a" avatarColor="#4ade80" />
+                  <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="#0d2e1a" avatarColor="#4ade80" />
                 ))}
               </div>
           }
@@ -168,7 +169,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
                   const d = daysSinceLast(p);
                   const c = stalenessColor(d);
                   return (
-                    <ProspectRow key={p.id} p={p} avatarBg="#1a1a2e" avatarColor={c}
+                    <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="#1a1a2e" avatarColor={c}
                       extra={<span className="mono nowrap" style={{ fontSize: 14, color: c }}>{d}d ago</span>}
                     />
                   );
@@ -206,7 +207,9 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
       <div className="card mb-24" style={{ borderColor: "var(--border)" }}>
         <div className="card-title">Data Backup</div>
         <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.6 }}>
-          Your data lives in your browser's IndexedDB — new deployments never touch it. Export a backup before major changes, or to move data to another device.
+          {supabase
+            ? "Your data is synced to the cloud and cached locally — it survives re-logins and new deployments. Export a backup to move data to another account or keep an offline copy."
+            : "Your data lives in your browser's IndexedDB — new deployments never touch it. Export a backup before major changes, or to move data to another device."}
         </div>
         <div className="flex gap-10 items-center flex-wrap">
           <button

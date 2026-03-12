@@ -290,7 +290,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
             <select className="form-select" value={tpForm.channel} onChange={(e) => setTpForm((f) => ({ ...f, channel: e.target.value }))}>
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
             </select>
-            <input type="date" className="form-input" value={tpForm.date} onChange={(e) => setTpForm((f) => ({ ...f, date: e.target.value }))} />
+            <CalendarPicker value={tpForm.date} onChange={(d) => setTpForm((f) => ({ ...f, date: d }))} />
           </div>
           <div className="inline-row">
             <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>

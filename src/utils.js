@@ -95,8 +95,8 @@ export function autoMapCSV(headers) {
 }
 
 export function downloadTemplate() {
-  const hdr = "name,company,title,industry,email,phone,linkedin,status,notes";
-  const row = "Jane Smith,Acme Corp,VP of Sales,SaaS,jane@acme.com,+1 555-0000,linkedin.com/in/janesmith,Not Started,Met at SaaStr";
+  const hdr = "name,company,title,industry,email,phone,linkedin,status,list,notes";
+  const row = "Jane Smith,Acme Corp,VP of Sales,SaaS,jane@acme.com,+1 555-0000,linkedin.com/in/janesmith,Not Started,Cold Outbound Q1,Met at SaaStr";
   const blob = new Blob([hdr + "\n" + row], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

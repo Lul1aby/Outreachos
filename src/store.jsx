@@ -200,6 +200,7 @@ export function StoreProvider({ children }) {
   const persistAllowed = useRef(false);
   const saveTimer = useRef(null);
   const loadedForUser = useRef(undefined); // tracks which userId we've already loaded data for
+  const latestToken = useRef(null);         // user's JWT access token for keepalive flush
 
   /* ── Load data for a given userId from Supabase, fall back to IndexedDB ── */
   const loadData = useCallback(async (userId) => {
@@ -265,8 +266,12 @@ export function StoreProvider({ children }) {
       const u = session?.user ?? null;
       const uid = u?.id ?? null;
 
+      // Always keep the latest access token fresh (TOKEN_REFRESHED rotates it)
+      latestToken.current = session?.access_token ?? null;
+
       if (event === "SIGNED_OUT") {
         loadedForUser.current = undefined;
+        latestToken.current = null;
         setUser(null);
         dispatch({ type: "RESET_DATA" });
         persistAllowed.current = false;
@@ -326,12 +331,13 @@ export function StoreProvider({ children }) {
       const u = latestUser.current;
       if (!u || !persistAllowed.current) return;
       clearTimeout(saveTimer.current);
+      const token = latestToken.current || key; // prefer user JWT; fall back to anon key
       fetch(`${url}/rest/v1/user_data?on_conflict=user_id`, {
         method: "POST",
         keepalive: true,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${key}`,
+          "Authorization": `Bearer ${token}`,
           "apikey": key,
           "Prefer": "resolution=merge-duplicates",
         },

@@ -107,7 +107,12 @@ export function CalendarPicker({ value, onChange }) {
   function toggleOpen() {
     if (!open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
-      setDropPos({ top: rect.bottom + 6, left: rect.left });
+      const dropW = 240, dropH = 280;
+      const left = Math.min(rect.left, window.innerWidth - dropW - 8);
+      const top = rect.bottom + dropH > window.innerHeight
+        ? rect.top - dropH - 4   // flip above if no room below
+        : rect.bottom + 6;
+      setDropPos({ top, left });
     }
     setOpen((o) => !o);
   }
