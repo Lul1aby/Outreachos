@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, INDUSTRIES, CSV_FIELDS } from "../constants";
 import { validateProspect, parseCSV, autoMapCSV, downloadTemplate, todayStr } from "../utils";
 import { Modal, Input, Select, Textarea } from "./ui";
@@ -31,6 +32,8 @@ export default function AddProspect({ onClose }) {
   const [csvMapping, setCsvMapping] = useState({});
   const [csvListName, setCsvListName] = useState("");
   const [csvError, setCsvError] = useState("");
+  const [crossUserDupes, setCrossUserDupes] = useState([]); // matches from /api/check-duplicates
+  const [checkingDupes, setCheckingDupes] = useState(false);
 
   function saveProspect() {
     const errs = validateProspect(form);
@@ -85,8 +88,28 @@ export default function AddProspect({ onClose }) {
     onClose();
   }
 
+  async function goToPreview() {
+    setCsvStep("preview");
+    setCrossUserDupes([]);
+    setCheckingDupes(true);
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ prospects: csvPreview.map((p) => ({ email: p.email, phone: p.phone, linkedin: p.linkedin, name: p.name, company: p.company })) }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        setCrossUserDupes(body.matches || []);
+      }
+    } catch { /* fail silently — don't block the user */ }
+    finally { setCheckingDupes(false); }
+  }
+
   function resetCsv() {
-    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName("");
+    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName(""); setCrossUserDupes([]);
   }
 
   const upd = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors(null); };
@@ -211,7 +234,7 @@ export default function AddProspect({ onClose }) {
               {(!csvMapping.name || !csvMapping.company) && <div style={{ background: "#2a2a1e", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "var(--warning)", marginBottom: 14 }}>Name and Company are required.</div>}
               <div className="flex gap-8 justify-end">
                 <button className="btn btn-ghost" onClick={() => setCsvStep("upload")}>← Back</button>
-                <button className="btn btn-primary" disabled={!csvMapping.name || !csvMapping.company} onClick={() => setCsvStep("preview")} style={(!csvMapping.name || !csvMapping.company) ? { opacity: 0.5, cursor: "not-allowed" } : {}}>Preview →</button>
+                <button className="btn btn-primary" disabled={!csvMapping.name || !csvMapping.company} onClick={goToPreview} style={(!csvMapping.name || !csvMapping.company) ? { opacity: 0.5, cursor: "not-allowed" } : {}}>Preview →</button>
               </div>
             </>
           )}
@@ -223,11 +246,36 @@ export default function AddProspect({ onClose }) {
                 <div style={{ fontSize: 17, fontWeight: 700 }}>Review & Import</div>
                 {csvListName && <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--primary)" }}>📋 {csvListName}</span>}
               </div>
-              <div style={{ fontSize: 14, color: "var(--text-sec)", marginBottom: 14 }}>
+
+              {/* Summary line */}
+              <div style={{ fontSize: 14, color: "var(--text-sec)", marginBottom: 10 }}>
                 <strong style={{ color: "var(--success-bright)" }}>{csvPreview.length} valid prospects</strong> ready to import
-                {csvRaw.length - csvPreview.length > 0 && <span style={{ color: "var(--warning)" }}> · {csvRaw.length - csvPreview.length} skipped</span>}
-                {csvDuplicateCount > 0 && <span style={{ color: "#fb923c" }}> · ⚠️ {csvDuplicateCount} possible duplicate{csvDuplicateCount > 1 ? "s" : ""}</span>}
+                {csvRaw.length - csvPreview.length > 0 && <span style={{ color: "var(--warning)" }}> · {csvRaw.length - csvPreview.length} skipped (missing name/company)</span>}
+                {csvDuplicateCount > 0 && <span style={{ color: "#fb923c" }}> · ⚠️ {csvDuplicateCount} already in your list</span>}
+                {checkingDupes && <span style={{ color: "var(--text-muted)" }}> · checking system…</span>}
+                {!checkingDupes && crossUserDupes.length > 0 && <span style={{ color: "#f87171" }}> · 🚨 {new Set(crossUserDupes.map((m) => m.inputIndex)).size} already in system</span>}
               </div>
+
+              {/* Cross-user duplicate banner */}
+              {!checkingDupes && crossUserDupes.length > 0 && (
+                <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#fca5a5", marginBottom: 14 }}>
+                  <strong>🚨 System duplicates detected</strong> — the following prospects already exist in another user's account:
+                  <ul style={{ margin: "6px 0 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3 }}>
+                    {crossUserDupes.slice(0, 8).map((m, i) => (
+                      <li key={i} style={{ fontSize: 12, color: "#fca5a5" }}>
+                        <strong>{csvPreview[m.inputIndex]?.name}</strong> — duplicate <strong>{m.field}</strong>
+                        {m.field === "email" && <span> (<span style={{ fontFamily: "monospace" }}>{m.value}</span>)</span>}
+                        {m.field === "phone" && <span> ({m.value})</span>}
+                        {m.field === "linkedin" && <span> (linkedin)</span>}
+                        {" "}matches <strong>{m.matchedName}</strong> at <strong>{m.matchedCompany}</strong>
+                      </li>
+                    ))}
+                    {crossUserDupes.length > 8 && <li style={{ fontSize: 12, color: "var(--text-muted)" }}>…and {crossUserDupes.length - 8} more</li>}
+                  </ul>
+                </div>
+              )}
+
+              {/* Table */}
               <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 18 }}>
                 <table className="table" style={{ marginTop: 0 }}>
                   <thead style={{ position: "sticky", top: 0, background: "var(--surface-alt)" }}>
@@ -236,23 +284,38 @@ export default function AddProspect({ onClose }) {
                   <tbody>
                     {csvPreview.map((p, i) => {
                       const n = p.name.toLowerCase(), c = p.company.toLowerCase(), e = p.email?.toLowerCase();
-                      const isDup = state.prospects.some((ex) =>
+                      const isOwnDup = state.prospects.some((ex) =>
                         (ex.name.toLowerCase() === n && ex.company.toLowerCase() === c) ||
                         (e && ex.email && ex.email.toLowerCase() === e)
                       );
+                      const isSysDup = crossUserDupes.some((m) => m.inputIndex === i);
+                      const rowBg = isSysDup ? "rgba(239,68,68,0.07)" : isOwnDup ? "rgba(251,146,60,.06)" : undefined;
                       return (
-                      <tr key={i} style={{ cursor: "default", background: isDup ? "rgba(251,146,60,.06)" : undefined }}>
-                        <td style={{ fontWeight: 500 }}>{p.name}{isDup && <span title="Possible duplicate" style={{ marginLeft: 6, fontSize: 12, color: "#fb923c" }}>⚠️</span>}</td>
-                        <td style={{ color: "var(--text-sec)" }}>{p.company}</td>
-                        <td style={{ color: "var(--text-sec)" }}>{p.title || <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
-                        <td>{p.listName ? <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--border-hover)" }}>{p.listName}</span> : <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
-                        <td><span className="badge" style={{ background: "#1a1a2e", color: "#6b7280", borderColor: "#2d2d4e" }}>Not Started</span></td>
-                      </tr>
+                        <tr key={i} style={{ cursor: "default", background: rowBg }}>
+                          <td style={{ fontWeight: 500 }}>
+                            {p.name}
+                            {isSysDup && <span title="Already exists in the system (another user)" style={{ marginLeft: 6, fontSize: 12, color: "#f87171" }}>🚨</span>}
+                            {!isSysDup && isOwnDup && <span title="Already in your list" style={{ marginLeft: 6, fontSize: 12, color: "#fb923c" }}>⚠️</span>}
+                          </td>
+                          <td style={{ color: "var(--text-sec)" }}>{p.company}</td>
+                          <td style={{ color: "var(--text-sec)" }}>{p.title || <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
+                          <td>{p.listName ? <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--border-hover)" }}>{p.listName}</span> : <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
+                          <td><span className="badge" style={{ background: "#1a1a2e", color: "#6b7280", borderColor: "#2d2d4e" }}>Not Started</span></td>
+                        </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+
+              {/* Legend */}
+              {(csvDuplicateCount > 0 || crossUserDupes.length > 0) && (
+                <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+                  {crossUserDupes.length > 0 && <span><span style={{ color: "#f87171" }}>🚨</span> Already in system (another user)</span>}
+                  {csvDuplicateCount > 0 && <span><span style={{ color: "#fb923c" }}>⚠️</span> Already in your list</span>}
+                </div>
+              )}
+
               <div className="flex gap-8 justify-end">
                 <button className="btn btn-ghost" onClick={() => setCsvStep("map")}>← Back</button>
                 <button className="btn btn-primary" onClick={commitCsv}>⬆ Import {csvPreview.length} Prospects</button>

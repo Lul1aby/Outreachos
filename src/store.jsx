@@ -226,6 +226,23 @@ function reducer(state, action) {
     case "DISMISS_ALL_REMINDERS":
       return { ...state, dismissedReminders: [...state.dismissedReminders, ...action.payload] };
 
+    case "DELETE_LIST": {
+      const { listName, deleteProspects } = action.payload;
+      const removedIds = deleteProspects
+        ? new Set(state.prospects.filter((p) => p.listName === listName).map((p) => p.id))
+        : new Set();
+      return {
+        ...state,
+        lists: state.lists.filter((l) => l.name !== listName),
+        prospects: deleteProspects
+          ? state.prospects.filter((p) => p.listName !== listName)
+          : state.prospects.map((p) => p.listName === listName ? { ...p, listName: "" } : p),
+        enrollments: deleteProspects
+          ? state.enrollments.filter((e) => !removedIds.has(e.prospectId))
+          : state.enrollments,
+      };
+    }
+
     case "FLAG_PROSPECT": {
       const { key, note } = action.payload;
       return {

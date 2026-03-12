@@ -70,7 +70,8 @@ export default function App() {
 
   const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "")
     .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  const isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+  const isOwner = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+  const isAdmin = isOwner || user?.app_metadata?.role === "admin";
 
   const tabs = [
     { id: "home", label: "🏠 Home" },

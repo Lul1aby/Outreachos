@@ -67,5 +67,12 @@ export default async function handler(req, res) {
     prospects: (row.data?.prospects || []).map((p) => ({ ...p, _ownerId: row.user_id })),
   }));
 
-  return res.status(200).json({ users });
+  // Include auth user list with roles for the User Management tab
+  const authUsers = (usersBody.users || []).map((u) => ({
+    id: u.id,
+    email: u.email,
+    role: u.app_metadata?.role || "user",
+  }));
+
+  return res.status(200).json({ users, authUsers });
 }
