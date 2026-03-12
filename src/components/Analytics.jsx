@@ -1,5 +1,6 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, INDUSTRIES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { fmtDate, daysSinceLast } from "../utils";
 import { MiniBar } from "./ui";
@@ -10,12 +11,74 @@ function escapeCSV(val) {
   return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+function AdminSourceSelector({ adminSource, setAdminSource, adminAllData, user }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--mono)" }}>Viewing:</span>
+      <select
+        className="form-select"
+        style={{ marginBottom: 0, fontSize: 13, minWidth: 220 }}
+        value={adminSource}
+        onChange={(e) => setAdminSource(e.target.value)}
+      >
+        <option value="own">My Data</option>
+        <option value="all">All Users Combined</option>
+        {(adminAllData || []).map((u) => (
+          <option key={u.userId} value={u.userId}>
+            👤 {u.userEmail} ({(u.prospects || []).length})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function Analytics() {
-  const { state, allLists } = useStore();
+  const { state, allLists, user } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
 
+  /* ── Admin: data source selector ── */
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = !!user?.email && (adminEmails.includes(user.email.toLowerCase()) || user?.app_metadata?.role === "admin");
+
+  const [adminSource, setAdminSource] = useState("own"); // "own" | "all" | userId
+  const [adminAllData, setAdminAllData] = useState(null); // [{ userId, userEmail, prospects }]
+  const [adminLoading, setAdminLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin || adminSource === "own" || adminAllData) return;
+    setAdminLoading(true);
+    (async () => {
+      try {
+        const session = await supabase?.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+        const body = await res.json();
+        if (res.ok) setAdminAllData(body.users || []);
+      } catch { /* fail silently */ }
+      finally { setAdminLoading(false); }
+    })();
+  }, [isAdmin, adminSource, adminAllData]);
+
+  // Source prospects based on selection
+  const sourceProspects = useMemo(() => {
+    if (!isAdmin || adminSource === "own") return state.prospects;
+    if (!adminAllData) return [];
+    if (adminSource === "all") return adminAllData.flatMap((u) => u.prospects || []);
+    const userData = adminAllData.find((u) => u.userId === adminSource);
+    return userData?.prospects || [];
+  }, [isAdmin, adminSource, adminAllData, state.prospects]);
+
+  const sourceLists = useMemo(() =>
+    [...new Set(sourceProspects.map((p) => p.listName).filter(Boolean))].sort(),
+  [sourceProspects]);
+
   const downloadReport = useCallback(() => {
-    const src = selectedList === "__all__" ? state.prospects : state.prospects.filter((p) => p.listName === selectedList);
+    const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
     const rows = [
       ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used"],
       ...src.map((p) => {
@@ -40,11 +103,12 @@ export default function Analytics() {
     a.download = `outreach-report-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [state.prospects, selectedList]);
+  }, [sourceProspects, selectedList]);
+
   const prospects = useMemo(() => {
-    if (selectedList === "__all__") return state.prospects;
-    return state.prospects.filter((p) => p.listName === selectedList);
-  }, [state.prospects, selectedList]);
+    if (selectedList === "__all__") return sourceProspects;
+    return sourceProspects.filter((p) => p.listName === selectedList);
+  }, [sourceProspects, selectedList]);
 
   const data = useMemo(() => {
     const total = prospects.length;
@@ -172,12 +236,30 @@ export default function Analytics() {
     };
   }, [prospects]);
 
-  if (state.prospects.length === 0) {
+  if (adminLoading) {
+    return (
+      <div style={{ padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 10, color: "var(--text-muted)" }}>
+        <span style={{ fontSize: 22 }}>📊</span> Loading analytics data…
+      </div>
+    );
+  }
+
+  if (sourceProspects.length === 0) {
     return (
       <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12, textAlign: "center" }}>
+        {isAdmin && (
+          <div style={{ marginBottom: 8 }}>
+            <AdminSourceSelector
+              adminSource={adminSource} setAdminSource={(s) => { setAdminSource(s); setSelectedList("__all__"); }}
+              adminAllData={adminAllData} user={user}
+            />
+          </div>
+        )}
         <div style={{ fontSize: 42 }}>📊</div>
         <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>No data yet</div>
-        <div style={{ fontSize: 14, color: "var(--text-muted)", maxWidth: 320 }}>Add prospects or import a CSV to start seeing analytics.</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)", maxWidth: 320 }}>
+          {adminSource !== "own" ? "This user has no prospects yet." : "Add prospects or import a CSV to start seeing analytics."}
+        </div>
       </div>
     );
   }
@@ -191,15 +273,24 @@ export default function Analytics() {
           <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
         </div>
         <div className="flex items-center gap-8 flex-wrap">
-          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>Analysing:</span>
+          {/* Admin: data source selector */}
+          {isAdmin && (
+            <AdminSourceSelector
+              adminSource={adminSource}
+              setAdminSource={(s) => { setAdminSource(s); setSelectedList("__all__"); }}
+              adminAllData={adminAllData}
+              user={user}
+            />
+          )}
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
           <select
             className="form-select"
-            style={{ marginBottom: 0, minWidth: 180, fontSize: 14 }}
+            style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }}
             value={selectedList}
             onChange={(e) => setSelectedList(e.target.value)}
           >
-            <option value="__all__">All Prospects</option>
-            {allLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
+            <option value="__all__">All Lists</option>
+            {sourceLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
           </select>
           <button className="btn btn-outline btn-sm" onClick={downloadReport} title="Download activity report as CSV" style={{ whiteSpace: "nowrap" }}>
             ⬇ Download Report
