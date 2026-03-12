@@ -41,7 +41,8 @@ export function stalenessColor(days) {
   if (days === null) return "#4b5563";
   if (days >= 30) return "#ef4444";
   if (days >= 15) return "#f97316";
-  if (days >= 7) return "#fbbf24";
+  if (days >= 7)  return "#fbbf24";
+  if (days >= 3)  return "#fb923c";
   return "#34d399";
 }
 

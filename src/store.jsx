@@ -426,10 +426,11 @@ export function StoreProvider({ children }) {
     const meetings = state.prospects.filter((p) => p.status === "Meeting Booked").length;
     const replied = state.prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
     const totalTp = state.prospects.reduce((a, p) => a + p.touchpoints.length, 0);
+    const needsTouch3 = state.prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 3; }).length;
     const needsTouch7 = state.prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
     const won = state.prospects.filter((p) => p.status === "Opportunity").length;
     return {
-      total: t, meetings, replied, totalTp, won, needsTouch7,
+      total: t, meetings, replied, totalTp, won, needsTouch3, needsTouch7,
       replyRate: t ? Math.round((replied / t) * 100) : 0,
       winRate: t ? Math.round((won / t) * 100) : 0,
     };

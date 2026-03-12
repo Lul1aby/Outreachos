@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS } from "../constants";
-import { daysSinceLast, greeting, stalenessColor } from "../utils";
+import { daysSinceLast, greeting, stalenessColor, todayStr } from "../utils";
 import { Badge } from "./ui";
 
 function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, #6366f1, #8b5cf6)", avatarColor = "#fff", extra }) {
@@ -26,9 +26,21 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
   const [importStatus, setImportStatus] = useState(null); // null | "ok:{n}" | "err:{msg}"
   const fileInputRef = useRef(null);
 
+  /* Morning digest — dismissible per day */
+  const [digestDismissed, setDigestDismissed] = useState(
+    () => localStorage.getItem("outreach-digest-dismissed") === todayStr()
+  );
+  function dismissDigest() {
+    localStorage.setItem("outreach-digest-dismissed", todayStr());
+    setDigestDismissed(true);
+  }
+  const showDigest = !digestDismissed && prospects.length > 0 && (
+    tasksToday.length > 0 || stats.needsTouch3 > 0 || stats.meetings > 0
+  );
+
   const recentProspects = useMemo(() => [...prospects].sort((a, b) => b.id - a.id).slice(0, 5), [prospects]);
   const hotProspects = useMemo(() => prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).slice(0, 5), [prospects]);
-  const needsAttention = useMemo(() => prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).slice(0, 5), [prospects]);
+  const needsAttention = useMemo(() => prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 3; }).slice(0, 5), [prospects]);
 
   const addedThisWeek = useMemo(() => {
     const week = new Date(); week.setDate(week.getDate() - 7);
@@ -54,7 +66,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
     { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "#34d399", icon: "💬", sub: `${stats.replied} replied` },
     { label: "Meetings", val: stats.meetings, accent: "#a78bfa", icon: "📅", sub: "booked" },
     { label: "Win Rate", val: `${stats.winRate}%`, accent: "#4ade80", icon: "🏆", sub: `${stats.won} won` },
-    { label: "Stale 7d+", val: stats.needsTouch7, accent: stats.needsTouch7 > 0 ? "#f97316" : "#4b5563", icon: "⏰", sub: "need a touch", click: () => onNavigate("list", { dormant: "7" }) },
+    { label: "Stale 3d+", val: stats.needsTouch3, accent: stats.needsTouch3 > 0 ? "#fb923c" : "#4b5563", icon: "⏰", sub: "need a touch", click: () => onNavigate("list", { dormant: "3" }) },
   ];
 
   /* ── List detail drill-down ── */
@@ -116,6 +128,37 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
         </div>
       </div>
 
+      {/* Morning Digest */}
+      {showDigest && (
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 18 }}>☀️</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Today's Briefing</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px" }}>
+              {tasksToday.length > 0 && (
+                <span style={{ fontSize: 13, color: "var(--primary-light)", cursor: "pointer" }} onClick={() => onNavigate("tasks")}>
+                  ✅ <strong>{tasksToday.length}</strong> task{tasksToday.length > 1 ? "s" : ""} due
+                </span>
+              )}
+              {stats.needsTouch3 > 0 && (
+                <span style={{ fontSize: 13, color: "#fb923c", cursor: "pointer" }} onClick={() => onNavigate("list", { dormant: "3" })}>
+                  ⏰ <strong>{stats.needsTouch3}</strong> prospect{stats.needsTouch3 > 1 ? "s" : ""} need a nudge
+                </span>
+              )}
+              {stats.meetings > 0 && (
+                <span style={{ fontSize: 13, color: "#a78bfa" }}>
+                  📅 <strong>{stats.meetings}</strong> meeting{stats.meetings > 1 ? "s" : ""} booked
+                </span>
+              )}
+            </div>
+          </div>
+          <button onClick={dismissDigest} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap", padding: "4px 8px", borderRadius: 6 }}
+            title="Dismiss until tomorrow">
+            Dismiss ×
+          </button>
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="kpi-grid">
         {kpis.map((k) => (
@@ -163,7 +206,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
             <div className="home-panel-title">⏰ Needs Attention</div>
           </div>
           {needsAttention.length === 0
-            ? <div style={{ fontSize: 14, color: "#34d399" }}>All prospects touched recently 🎉</div>
+            ? <div style={{ fontSize: 14, color: "#34d399" }}>All prospects touched in the last 3 days 🎉</div>
             : <div className="flex flex-col gap-10">
                 {needsAttention.map((p) => {
                   const d = daysSinceLast(p);

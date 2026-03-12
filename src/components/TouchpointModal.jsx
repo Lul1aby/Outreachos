@@ -23,6 +23,9 @@ export default function TouchpointModal({ prospectId, onClose }) {
     const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
 
+    // Auto-open Google Calendar when Meeting Booked is the outcome
+    if (form.status === "Meeting Booked") openGoogleCal();
+
     onClose();
   }
 

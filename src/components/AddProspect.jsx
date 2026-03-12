@@ -12,6 +12,18 @@ export default function AddProspect({ onClose }) {
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState(null);
 
+  /* Duplicate detection — single prospect */
+  const duplicate = useMemo(() => {
+    if (!form.name.trim() || !form.company.trim()) return null;
+    const n = form.name.trim().toLowerCase();
+    const c = form.company.trim().toLowerCase();
+    const e = form.email.trim().toLowerCase();
+    return state.prospects.find((p) =>
+      (p.name.toLowerCase() === n && p.company.toLowerCase() === c) ||
+      (e && p.email && p.email.toLowerCase() === e)
+    ) || null;
+  }, [form.name, form.company, form.email, state.prospects]);
+
   /* CSV state */
   const [csvStep, setCsvStep] = useState("upload");
   const [csvRaw, setCsvRaw] = useState([]);
@@ -57,6 +69,17 @@ export default function AddProspect({ onClose }) {
     }).filter((p) => p.name && p.company);
   }, [csvRaw, csvHeaders, csvMapping, csvListName]);
 
+  /* CSV duplicate detection */
+  const csvDuplicateCount = useMemo(() => {
+    return csvPreview.filter((p) => {
+      const n = p.name.toLowerCase(), c = p.company.toLowerCase(), e = p.email?.toLowerCase();
+      return state.prospects.some((ex) =>
+        (ex.name.toLowerCase() === n && ex.company.toLowerCase() === c) ||
+        (e && ex.email && ex.email.toLowerCase() === e)
+      );
+    }).length;
+  }, [csvPreview, state.prospects]);
+
   function commitCsv() {
     dispatch({ type: "IMPORT_PROSPECTS", payload: csvPreview, meta: { listName: csvListName || null } });
     onClose();
@@ -83,6 +106,11 @@ export default function AddProspect({ onClose }) {
             <Input label="Full Name *" value={form.name} onChange={upd("name")} placeholder="Jane Smith" error={errors?.name} />
             <Input label="Company *" value={form.company} onChange={upd("company")} placeholder="Acme Corp" error={errors?.company} />
           </div>
+          {duplicate && (
+            <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "9px 14px", fontSize: 13, color: "var(--warning)", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              ⚠️ Possible duplicate — <strong>{duplicate.name}</strong> at <strong>{duplicate.company}</strong> already exists ({duplicate.status}). You can still add if this is a different contact.
+            </div>
+          )}
           <div className="form-row">
             <Input label="Title" value={form.title} onChange={upd("title")} placeholder="VP of Sales" />
             <Select label="Industry" options={INDUSTRIES} value={form.industry} onChange={upd("industry")} />
@@ -198,6 +226,7 @@ export default function AddProspect({ onClose }) {
               <div style={{ fontSize: 14, color: "var(--text-sec)", marginBottom: 14 }}>
                 <strong style={{ color: "var(--success-bright)" }}>{csvPreview.length} valid prospects</strong> ready to import
                 {csvRaw.length - csvPreview.length > 0 && <span style={{ color: "var(--warning)" }}> · {csvRaw.length - csvPreview.length} skipped</span>}
+                {csvDuplicateCount > 0 && <span style={{ color: "#fb923c" }}> · ⚠️ {csvDuplicateCount} possible duplicate{csvDuplicateCount > 1 ? "s" : ""}</span>}
               </div>
               <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 18 }}>
                 <table className="table" style={{ marginTop: 0 }}>
@@ -205,15 +234,22 @@ export default function AddProspect({ onClose }) {
                     <tr>{["Name", "Company", "Title", "List", "Status"].map((h) => <th key={h}>{h}</th>)}</tr>
                   </thead>
                   <tbody>
-                    {csvPreview.map((p, i) => (
-                      <tr key={i} style={{ cursor: "default" }}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                    {csvPreview.map((p, i) => {
+                      const n = p.name.toLowerCase(), c = p.company.toLowerCase(), e = p.email?.toLowerCase();
+                      const isDup = state.prospects.some((ex) =>
+                        (ex.name.toLowerCase() === n && ex.company.toLowerCase() === c) ||
+                        (e && ex.email && ex.email.toLowerCase() === e)
+                      );
+                      return (
+                      <tr key={i} style={{ cursor: "default", background: isDup ? "rgba(251,146,60,.06)" : undefined }}>
+                        <td style={{ fontWeight: 500 }}>{p.name}{isDup && <span title="Possible duplicate" style={{ marginLeft: 6, fontSize: 12, color: "#fb923c" }}>⚠️</span>}</td>
                         <td style={{ color: "var(--text-sec)" }}>{p.company}</td>
                         <td style={{ color: "var(--text-sec)" }}>{p.title || <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
                         <td>{p.listName ? <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--border-hover)" }}>{p.listName}</span> : <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
                         <td><span className="badge" style={{ background: "#1a1a2e", color: "#6b7280", borderColor: "#2d2d4e" }}>Not Started</span></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
