@@ -4,8 +4,9 @@ import { supabase } from "./supabase";
 import { DEFAULT_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
 
-const STORAGE_KEY = "outreach-os-data";
-const LS_KEY = "outreach-os-data"; // same key — used only for one-time migration
+const STORAGE_KEY_PREFIX = "outreach-os-data";
+const LS_KEY = "outreach-os-data"; // used only for one-time migration from localStorage
+const idbKey = (userId) => userId ? `${STORAGE_KEY_PREFIX}-${userId}` : `${STORAGE_KEY_PREFIX}-guest`;
 const StoreContext = createContext(null);
 
 /* ── Initial state ── */
@@ -16,6 +17,7 @@ const defaultState = {
   enrollments: [],
   dismissedReminders: [],
   lists: [],
+  adminFlags: {}, // keyed by "userId:prospectId" — only populated for admin users
 };
 
 function mergeLoaded(parsed) {
@@ -27,6 +29,7 @@ function mergeLoaded(parsed) {
     ...parsed,
     sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
     lists: parsed.lists || [],
+    adminFlags: parsed.adminFlags || {},
   };
 }
 
@@ -145,7 +148,8 @@ function reducer(state, action) {
             const [y, m, d] = en.startDate.split("-").map(Number);
             const due = new Date(y, m - 1, d);
             due.setDate(due.getDate() + step.day);
-            return due.toISOString().slice(0, 10) <= today && step.channel === touchpoint.channel;
+            const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
+            return dueStr <= today && step.channel === touchpoint.channel;
           })
           .sort((a, b) => a.day - b.day)[0]; // earliest pending step first
 
@@ -222,6 +226,20 @@ function reducer(state, action) {
     case "DISMISS_ALL_REMINDERS":
       return { ...state, dismissedReminders: [...state.dismissedReminders, ...action.payload] };
 
+    case "FLAG_PROSPECT": {
+      const { key, note } = action.payload;
+      return {
+        ...state,
+        adminFlags: { ...state.adminFlags, [key]: { note: note || "", flaggedAt: new Date().toISOString() } },
+      };
+    }
+
+    case "UNFLAG_PROSPECT": {
+      const flags = { ...state.adminFlags };
+      delete flags[action.payload];
+      return { ...state, adminFlags: flags };
+    }
+
     case "RESET_DATA":
       return defaultState;
 
@@ -245,6 +263,7 @@ export function StoreProvider({ children }) {
   /* ── Load data for a given userId from Supabase, fall back to IndexedDB ── */
   const loadData = useCallback(async (userId) => {
     persistAllowed.current = false;
+    const key = idbKey(userId);
     if (supabase && userId) {
       try {
         const { data, error } = await supabase
@@ -261,11 +280,10 @@ export function StoreProvider({ children }) {
             return;
           }
         }
-        // No cloud data yet — check if there's local data to migrate up
-        const idbData = await get(STORAGE_KEY).catch(() => null);
+        // No cloud data yet — only migrate from this user's own IDB key
+        const idbData = await get(key).catch(() => null);
         if (idbData && mergeLoaded(idbData)) {
           dispatch({ type: "HYDRATE", payload: idbData });
-          // Auto-migrate local data to the cloud
           await supabase.from("user_data").upsert({ user_id: userId, data: idbData, updated_at: new Date().toISOString() });
         }
         persistAllowed.current = true;
@@ -273,19 +291,19 @@ export function StoreProvider({ children }) {
         return;
       } catch { /* network error — fall through to IndexedDB */ }
     }
-    // No Supabase or not logged in — use local IndexedDB only
-    const idbData = await get(STORAGE_KEY).catch(() => null);
+    // No Supabase or not logged in — use user-scoped IndexedDB
+    const idbData = await get(key).catch(() => null);
     if (idbData) {
       const merged = mergeLoaded(idbData);
       if (merged) dispatch({ type: "HYDRATE", payload: idbData });
-    } else {
-      // One-time migration from localStorage
+    } else if (!userId) {
+      // One-time migration from legacy unscoped localStorage (guest/old sessions only)
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
           dispatch({ type: "HYDRATE", payload: parsed });
-          set(STORAGE_KEY, parsed).then(() => localStorage.removeItem(LS_KEY));
+          set(key, parsed).then(() => localStorage.removeItem(LS_KEY));
         }
       } catch { /* corrupt — start fresh */ }
     }
@@ -344,8 +362,8 @@ export function StoreProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated || !persistAllowed.current) return;
-    // Always write to local IndexedDB immediately (offline cache)
-    set(STORAGE_KEY, state).catch(() => {});
+    // Always write to local IndexedDB immediately (offline cache), scoped per user
+    set(idbKey(user?.id ?? null), state).catch(() => {});
     // Debounce cloud writes to avoid hammering Supabase on every keystroke
     if (supabase && user) {
       clearTimeout(saveTimer.current);

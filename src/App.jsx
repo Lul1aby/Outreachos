@@ -12,6 +12,7 @@ import AddProspect from "./components/AddProspect";
 import TouchpointModal from "./components/TouchpointModal";
 import StoredLists from "./components/StoredLists";
 import AuthPage from "./components/AuthPage";
+import AdminPanel from "./components/AdminPanel";
 
 export default function App() {
   const { tasksToday, hydrated, user, syncing, flushSave } = useStore();
@@ -49,6 +50,10 @@ export default function App() {
     return <AuthPage />;
   }
 
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = !!user?.email && adminEmails.includes(user.email.toLowerCase());
+
   const tabs = [
     { id: "home", label: "🏠 Home" },
     { id: "list", label: "≡ Prospects" },
@@ -56,6 +61,7 @@ export default function App() {
     { id: "sequences", label: "⚡ Sequences" },
     { id: "tasks", label: "✅ Tasks", badge: tasksToday.length || null },
     { id: "stored-lists", label: "📋 Lists" },
+    ...(isAdmin ? [{ id: "admin", label: "🔑 Admin" }] : []),
   ];
 
   return (
@@ -96,7 +102,7 @@ export default function App() {
               </span>
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={async () => { await flushSave(); supabase?.auth.signOut(); }}
+                onClick={async () => { await flushSave(); await supabase?.auth.signOut(); }}
                 title="Sign out"
               >
                 Sign out
@@ -122,6 +128,7 @@ export default function App() {
         {view === "sequences" && <Sequences />}
         {view === "tasks" && <Tasks onSelect={setSelectedId} onNavigate={navigate} />}
         {view === "stored-lists" && <StoredLists onNavigate={navigate} />}
+        {view === "admin" && isAdmin && <AdminPanel />}
       </main>
 
       {/* Modals */}
