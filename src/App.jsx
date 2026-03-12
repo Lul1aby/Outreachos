@@ -15,6 +15,19 @@ import AuthPage from "./components/AuthPage";
 export default function App() {
   const { tasksToday, hydrated, user, syncing } = useStore();
 
+  const [view, setView] = useState("home");
+  const [viewParams, setViewParams] = useState({});
+  const [selectedId, setSelectedId] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [tpProspectId, setTpProspectId] = useState(null);
+  const [navKey, setNavKey] = useState(0);
+  const [theme, setTheme] = useState(() => localStorage.getItem("outreach-theme") || "dark");
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("outreach-theme", theme);
+  }, [theme]);
+
   if (!hydrated) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, background: "var(--bg)" }}>
@@ -28,20 +41,6 @@ export default function App() {
   if (supabase && !user) {
     return <AuthPage />;
   }
-
-  const [view, setView] = useState("home");
-  const [viewParams, setViewParams] = useState({});
-  const [selectedId, setSelectedId] = useState(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [tpProspectId, setTpProspectId] = useState(null);
-  /* Use a key to force Prospects remount when navigating with params */
-  const [navKey, setNavKey] = useState(0);
-
-  const [theme, setTheme] = useState(() => localStorage.getItem("outreach-theme") || "dark");
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("outreach-theme", theme);
-  }, [theme]);
 
   const navigate = useCallback((newView, params = {}) => {
     setView(newView);
