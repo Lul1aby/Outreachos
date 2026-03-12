@@ -17,7 +17,13 @@ import AdminPanel from "./components/AdminPanel";
 export default function App() {
   const { tasksToday, hydrated, user, syncing, flushSave } = useStore();
 
-  const [view, setView] = useState("home");
+  const VALID_VIEWS = ["home", "list", "analytics", "sequences", "tasks", "stored-lists", "admin"];
+  const getHashView = () => {
+    const hash = window.location.hash.replace("#", "");
+    return VALID_VIEWS.includes(hash) ? hash : "home";
+  };
+
+  const [view, setView] = useState(getHashView);
   const [viewParams, setViewParams] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -29,6 +35,18 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("outreach-theme", theme);
   }, [theme]);
+
+  // Keep URL hash in sync with current view
+  useEffect(() => {
+    window.location.hash = view;
+  }, [view]);
+
+  // Handle browser back/forward
+  useEffect(() => {
+    const onHashChange = () => setView(getHashView());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   const navigate = useCallback((newView, params = {}) => {
     setView(newView);
