@@ -120,6 +120,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
     // Reset meeting scheduler so next open shows fresh date/time
     setMeetDate(todayStr());
     setMeetTime("10:00");
+    // Switch back to touchpoints tab to show the logged entry
+    setTab("touchpoints");
   }, [tpForm, prospectId, dispatch]);
 
   if (!prospect) return null;
@@ -178,9 +180,16 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         <div className="detail-status-row">
           {STATUSES.map((s) => (
             <StatusPill key={s} status={s} active={prospect.status === s}
-              onClick={() => dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { status: s } } })} />
+              onClick={() => {
+                dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { status: s } } });
+                // Pre-fill the log form with this status and open it
+                const ch = "Call";
+                setTpForm((f) => ({ ...f, status: s, date: todayStr() }));
+                setTab("log");
+              }} />
           ))}
         </div>
+        {tab === "log" && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Log a touchpoint to record what led to this status change.</div>}
       </div>
 
       {/* Google Calendar scheduler — shown when Meeting Booked */}
@@ -261,22 +270,66 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       {/* Touchpoints tab */}
       {tab === "touchpoints" && (
         <>
-          {touchpoints.length === 0 && <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "20px 0" }}>No touchpoints yet. Log your first outreach.</div>}
-          {[...touchpoints].reverse().map((tp) => (
-            <div key={tp.id} className="tp-row">
-              <span className="tp-icon">{CHANNEL_ICONS[tp.channel]}</span>
-              <div className="tp-content">
-                <div className="tp-meta">
-                  <span className="tp-channel">{tp.channel}</span>
-                  <Badge status={tp.status} />
-                  <span className="tp-date">{tp.date}</span>
-                </div>
-                <div className="tp-note">{tp.note}</div>
-              </div>
-              <button className="btn btn-danger btn-sm btn-icon" title="Delete"
-                onClick={() => dispatch({ type: "DELETE_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id } })}>×</button>
+          {touchpoints.length === 0 ? (
+            <div style={{ color: "var(--text-dim)", textAlign: "center", padding: "28px 0" }}>
+              <div style={{ fontSize: 26, marginBottom: 8 }}>📭</div>
+              No touchpoints yet — click a status above or use the Log New tab to record your first outreach.
             </div>
-          ))}
+          ) : (
+            <div style={{ position: "relative" }}>
+              {/* Timeline line */}
+              <div style={{ position: "absolute", left: 19, top: 8, bottom: 8, width: 2, background: "var(--border)", borderRadius: 2 }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {[...touchpoints].sort((a, b) => b.date.localeCompare(a.date)).map((tp, idx, arr) => {
+                  const prevTp = arr[idx + 1]; // older entry
+                  const statusChanged = !prevTp || prevTp.status !== tp.status;
+                  return (
+                    <div key={tp.id} style={{ display: "flex", gap: 14, paddingBottom: 16, position: "relative" }}>
+                      {/* Dot */}
+                      <div style={{ width: 40, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 3 }}>
+                        <div style={{
+                          width: 24, height: 24, borderRadius: "50%", border: "2px solid var(--border)",
+                          background: "var(--surface)", display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 13, position: "relative", zIndex: 1,
+                          boxShadow: statusChanged ? "0 0 0 3px var(--primary-bg)" : undefined,
+                        }}>
+                          {CHANNEL_ICONS[tp.channel]}
+                        </div>
+                      </div>
+                      {/* Content */}
+                      <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
+                        {/* Header row */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: tp.note ? 8 : 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{tp.channel}</span>
+                          <Badge status={tp.status} />
+                          {statusChanged && idx > 0 && (
+                            <span style={{ fontSize: 11, background: "var(--primary-bg)", border: "1px solid var(--primary)", borderRadius: 20, padding: "1px 8px", color: "var(--primary-light)" }}>
+                              status updated
+                            </span>
+                          )}
+                          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
+                            {new Date(tp.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                          </span>
+                          <button
+                            className="btn btn-danger btn-sm btn-icon"
+                            title="Delete touchpoint"
+                            style={{ marginLeft: 4, padding: "2px 7px", fontSize: 13 }}
+                            onClick={() => dispatch({ type: "DELETE_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id } })}
+                          >×</button>
+                        </div>
+                        {tp.note && (
+                          <div style={{ fontSize: 13, color: "var(--text-sec)", lineHeight: 1.6, borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+                            {tp.note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 4 }} onClick={() => setTab("log")}>+ Log New Touchpoint</button>
         </>
       )}
 

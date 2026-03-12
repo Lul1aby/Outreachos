@@ -62,6 +62,25 @@ export default function AdminPanel() {
 
   useEffect(() => { fetchAll(); }, []);
 
+  async function deleteProspect(targetUserId, prospectId, prospectName) {
+    if (!window.confirm(`Delete "${prospectName}" from this user's account? This cannot be undone.`)) return;
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/admin-delete-prospect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetUserId, prospectId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      // Remove from local state immediately
+      setUsersData((prev) => prev.map((u) =>
+        u.userId !== targetUserId ? u : { ...u, prospects: u.prospects.filter((p) => p.id !== prospectId && String(p.id) !== String(prospectId)) }
+      ));
+    } catch (err) { alert(err.message); }
+  }
+
   async function changeRole(targetUserId, newRole) {
     setRoleLoading((r) => ({ ...r, [targetUserId]: true }));
     try {
@@ -226,10 +245,16 @@ export default function AdminPanel() {
                                   </div>
                                 </td>
                                 <td style={{ padding: "8px 12px" }}>
-                                  <button
-                                    onClick={() => toggleFlag(key, isFlagged)}
-                                    style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: `1px solid ${isFlagged ? "#7f1d1d" : "var(--border)"}`, background: isFlagged ? "#450a0a" : "var(--surface-raised)", color: isFlagged ? "#fca5a5" : "var(--text-sec)" }}
-                                  >{isFlagged ? "Unflag" : "Flag"}</button>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <button
+                                      onClick={() => toggleFlag(key, isFlagged)}
+                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: `1px solid ${isFlagged ? "#7f1d1d" : "var(--border)"}`, background: isFlagged ? "#450a0a" : "var(--surface-raised)", color: isFlagged ? "#fca5a5" : "var(--text-sec)" }}
+                                    >{isFlagged ? "Unflag" : "Flag"}</button>
+                                    <button
+                                      onClick={() => deleteProspect(u.userId, p.id, p.name)}
+                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: "1px solid #7f1d1d", background: "#450a0a", color: "#fca5a5" }}
+                                    >Delete</button>
+                                  </div>
                                 </td>
                               </tr>
                             );
