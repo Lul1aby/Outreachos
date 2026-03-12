@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 
 /* ── Modal ── */
@@ -77,6 +78,127 @@ export function StatusPill({ status, active, onClick }) {
     >
       {status}
     </button>
+  );
+}
+
+/* ── Calendar date picker ── */
+const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+export function CalendarPicker({ value, onChange }) {
+  // value: "YYYY-MM-DD" string
+  const today = new Date();
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState(() => {
+    if (value) { const [y, m] = value.split("-"); return { year: +y, month: +m - 1 }; }
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selected = value ? new Date(value + "T00:00:00") : null;
+  const todayStr = today.toISOString().slice(0, 10);
+
+  // Days in grid
+  const firstDay = new Date(view.year, view.month, 1).getDay();
+  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  function selectDay(d) {
+    const m = String(view.month + 1).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    onChange(`${view.year}-${m}-${dd}`);
+    setOpen(false);
+  }
+
+  function prevMonth() {
+    setView((v) => v.month === 0 ? { year: v.year - 1, month: 11 } : { year: v.year, month: v.month - 1 });
+  }
+  function nextMonth() {
+    setView((v) => v.month === 11 ? { year: v.year + 1, month: 0 } : { year: v.year, month: v.month + 1 });
+  }
+
+  const displayVal = selected
+    ? selected.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "Pick a date";
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      <button
+        type="button"
+        className="form-input"
+        style={{ cursor: "pointer", textAlign: "left", minWidth: 148, display: "flex", alignItems: "center", gap: 8 }}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span style={{ fontSize: 14 }}>📅</span>
+        <span style={{ fontSize: 14, color: selected ? "var(--text)" : "var(--text-dim)" }}>{displayVal}</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 999,
+          background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
+          padding: 12, width: 240, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        }}>
+          {/* Month nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <button type="button" onClick={prevMonth} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>‹</button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{MONTHS[view.month]} {view.year}</span>
+            <button type="button" onClick={nextMonth} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, padding: "2px 6px" }}>›</button>
+          </div>
+
+          {/* Day headers */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+            {DAYS.map((d) => (
+              <div key={d} style={{ textAlign: "center", fontSize: 11, color: "var(--text-dim)", fontWeight: 600, padding: "2px 0" }}>{d}</div>
+            ))}
+          </div>
+
+          {/* Day cells */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+            {cells.map((d, i) => {
+              if (!d) return <div key={`e${i}`} />;
+              const m = String(view.month + 1).padStart(2, "0");
+              const dd = String(d).padStart(2, "0");
+              const iso = `${view.year}-${m}-${dd}`;
+              const isSelected = value === iso;
+              const isToday = iso === todayStr;
+              return (
+                <button
+                  key={iso}
+                  type="button"
+                  onClick={() => selectDay(d)}
+                  style={{
+                    textAlign: "center", fontSize: 13, padding: "5px 2px",
+                    borderRadius: 6, border: "none", cursor: "pointer",
+                    background: isSelected ? "var(--primary)" : isToday ? "rgba(99,102,241,0.15)" : "transparent",
+                    color: isSelected ? "#fff" : isToday ? "var(--primary-light)" : "var(--text-sec)",
+                    fontWeight: isSelected || isToday ? 700 : 400,
+                  }}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Today shortcut */}
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)", textAlign: "center" }}>
+            <button type="button" onClick={() => { onChange(todayStr); setOpen(false); }} style={{ background: "none", border: "none", color: "var(--primary-light)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }}>
+              Today
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

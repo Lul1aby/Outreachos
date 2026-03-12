@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS } from "../constants";
 import { todayStr, normalizeLinkedIn } from "../utils";
-import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input } from "./ui";
+import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input, CalendarPicker } from "./ui";
 
 /* Render Claude's markdown-style brief into readable JSX */
 function RenderBrief({ text }) {
@@ -194,13 +194,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date</div>
-              <input
-                type="date"
-                className="form-input"
-                value={meetDate}
-                onChange={(e) => setMeetDate(e.target.value)}
-                style={{ width: 148 }}
-              />
+              <CalendarPicker value={meetDate} onChange={setMeetDate} />
             </div>
             <div>
               <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time</div>
