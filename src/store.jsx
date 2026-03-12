@@ -254,26 +254,30 @@ export function StoreProvider({ children }) {
   /* ── Auth: check session on mount, listen for changes ── */
   useEffect(() => {
     if (!supabase) {
-      // No Supabase configured — load locally
       loadData(null);
       return;
     }
+    // Initial load via getSession
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
       loadData(u?.id ?? null);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (!u) {
-        // Logged out — reset to empty state
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN") {
+        // Fresh login — load data for the new user
+        const u = session?.user ?? null;
+        setUser(u);
+        setHydrated(false);
+        loadData(u?.id ?? null);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
         dispatch({ type: "RESET_DATA" });
         persistAllowed.current = false;
         setHydrated(true);
-      } else {
-        setHydrated(false);
-        loadData(u.id);
+      } else if (session?.user) {
+        // TOKEN_REFRESHED, INITIAL_SESSION, USER_UPDATED — just keep user object current
+        setUser(session.user);
       }
     });
     return () => subscription.unsubscribe();
@@ -294,7 +298,7 @@ export function StoreProvider({ children }) {
           .upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() })
           .catch(() => {});
         setSyncing(false);
-      }, 1500);
+      }, 300);
     }
   }, [state, hydrated, user]);
 
