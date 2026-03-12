@@ -52,14 +52,6 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
           <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company}</div>
         </div>
         {extra || <Badge status={p.status} />}
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ fontSize: 12, padding: "3px 8px", marginLeft: 6, flexShrink: 0 }}
-          onClick={(e) => { e.stopPropagation(); onLogTouchpoint(p.id); }}
-          title="Log activity"
-        >
-          + Log
-        </button>
       </div>
     );
   }

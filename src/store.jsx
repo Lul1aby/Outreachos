@@ -291,11 +291,17 @@ export function StoreProvider({ children }) {
   }, [loadData]);
 
   /* ── Persist on every state change ── */
+  // Keep a ref to latest state+user so the beforeunload handler can flush
+  const latestState = useRef(state);
+  const latestUser = useRef(user);
+  useEffect(() => { latestState.current = state; }, [state]);
+  useEffect(() => { latestUser.current = user; }, [user]);
+
   useEffect(() => {
     if (!hydrated || !persistAllowed.current) return;
     // Always write to local IndexedDB immediately (offline cache)
     set(STORAGE_KEY, state).catch(() => {});
-    // Debounce cloud writes (1.5s) to avoid hammering Supabase on every keystroke
+    // Debounce cloud writes to avoid hammering Supabase on every keystroke
     if (supabase && user) {
       clearTimeout(saveTimer.current);
       setSyncing(true);
@@ -308,6 +314,33 @@ export function StoreProvider({ children }) {
       }, 300);
     }
   }, [state, hydrated, user]);
+
+  /* Flush any pending Supabase save immediately before page closes.
+     Uses fetch keepalive:true so the request completes even after unload. */
+  useEffect(() => {
+    if (!supabase) return;
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) return;
+    function flush() {
+      const u = latestUser.current;
+      if (!u || !persistAllowed.current) return;
+      clearTimeout(saveTimer.current);
+      fetch(`${url}/rest/v1/user_data?on_conflict=user_id`, {
+        method: "POST",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${key}`,
+          "apikey": key,
+          "Prefer": "resolution=merge-duplicates",
+        },
+        body: JSON.stringify({ user_id: u.id, data: latestState.current, updated_at: new Date().toISOString() }),
+      }).catch(() => {});
+    }
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, []);
 
   const today = todayStr();
 
