@@ -394,6 +394,17 @@ export function StoreProvider({ children }) {
     [state.prospects]
   );
 
+  /* Flush any pending debounced save immediately (call before sign-out) */
+  const flushSave = useCallback(async () => {
+    if (!supabase || !latestUser.current || !persistAllowed.current) return;
+    clearTimeout(saveTimer.current);
+    try {
+      await supabase
+        .from("user_data")
+        .upsert({ user_id: latestUser.current.id, data: latestState.current, updated_at: new Date().toISOString() });
+    } catch { /* ignore */ }
+  }, []);
+
   /* Backup helpers exposed to UI */
   const exportBackup = () => {
     const blob = new Blob([JSON.stringify({ ...state, _exportedAt: new Date().toISOString(), _version: 1 }, null, 2)], { type: "application/json" });
@@ -422,9 +433,9 @@ export function StoreProvider({ children }) {
   });
 
   const value = useMemo(
-    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing, exportBackup, importBackup }),
+    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing, exportBackup, importBackup, flushSave }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing]
+    [state, tasksToday, overdueProspects, stats, allLists, hydrated, user, syncing, flushSave]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

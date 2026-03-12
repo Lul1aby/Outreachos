@@ -13,7 +13,7 @@ import StoredLists from "./components/StoredLists";
 import AuthPage from "./components/AuthPage";
 
 export default function App() {
-  const { tasksToday, hydrated, user, syncing } = useStore();
+  const { tasksToday, hydrated, user, syncing, flushSave } = useStore();
 
   const [view, setView] = useState("home");
   const [viewParams, setViewParams] = useState({});
@@ -95,7 +95,7 @@ export default function App() {
               </span>
               <button
                 className="btn btn-ghost btn-sm"
-                onClick={() => supabase?.auth.signOut()}
+                onClick={async () => { await flushSave(); supabase?.auth.signOut(); }}
                 title="Sign out"
               >
                 Sign out

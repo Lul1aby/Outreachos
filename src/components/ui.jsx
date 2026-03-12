@@ -89,11 +89,13 @@ export function CalendarPicker({ value, onChange }) {
   // value: "YYYY-MM-DD" string
   const today = new Date();
   const [open, setOpen] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 });
   const [view, setView] = useState(() => {
     if (value) { const [y, m] = value.split("-"); return { year: +y, month: +m - 1 }; }
     return { year: today.getFullYear(), month: today.getMonth() };
   });
   const ref = useRef(null);
+  const btnRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -101,6 +103,14 @@ export function CalendarPicker({ value, onChange }) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  function toggleOpen() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setDropPos({ top: rect.bottom + 6, left: rect.left });
+    }
+    setOpen((o) => !o);
+  }
 
   const selected = value ? new Date(value + "T00:00:00") : null;
   const todayStr = today.toISOString().slice(0, 10);
@@ -133,10 +143,11 @@ export function CalendarPicker({ value, onChange }) {
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
       <button
+        ref={btnRef}
         type="button"
         className="form-input"
         style={{ cursor: "pointer", textAlign: "left", minWidth: 148, display: "flex", alignItems: "center", gap: 8 }}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
       >
         <span style={{ fontSize: 14 }}>📅</span>
         <span style={{ fontSize: 14, color: selected ? "var(--text)" : "var(--text-dim)" }}>{displayVal}</span>
@@ -144,7 +155,7 @@ export function CalendarPicker({ value, onChange }) {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 999,
+          position: "fixed", top: dropPos.top, left: dropPos.left, zIndex: 9999,
           background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12,
           padding: 12, width: 240, boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
         }}>

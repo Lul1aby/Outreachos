@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CHANNELS, STATUSES, CHANNEL_ICONS } from "../constants";
 import { todayStr } from "../utils";
 import { useStore } from "../store";
-import { Modal, Select, Textarea, Input } from "./ui";
+import { Modal, Select, Textarea, Input, CalendarPicker } from "./ui";
 
 export default function TouchpointModal({ prospectId, onClose }) {
   const { state, dispatch } = useStore();
@@ -13,6 +13,11 @@ export default function TouchpointModal({ prospectId, onClose }) {
     status: prospect?.status || "No Response",
     note: "",
   });
+
+  /* Meeting scheduler */
+  const [meetDate, setMeetDate] = useState(todayStr());
+  const [meetTime, setMeetTime] = useState("10:00");
+  const [meetDuration, setMeetDuration] = useState("60");
 
   if (!prospect) return null;
 
@@ -26,6 +31,29 @@ export default function TouchpointModal({ prospectId, onClose }) {
       },
     });
     onClose();
+  }
+
+  function openGoogleCal() {
+    const [y, m, d] = meetDate.split("-");
+    const [hh, mm] = meetTime.split(":");
+    const start = new Date(+y, +m - 1, +d, +hh, +mm);
+    const end = new Date(start.getTime() + +meetDuration * 60000);
+    const fmt = (dt) =>
+      dt.getFullYear().toString()
+      + String(dt.getMonth() + 1).padStart(2, "0")
+      + String(dt.getDate()).padStart(2, "0")
+      + "T" + String(dt.getHours()).padStart(2, "0")
+      + String(dt.getMinutes()).padStart(2, "0") + "00";
+    const title = encodeURIComponent(`Meeting with ${prospect.name} (${prospect.company})`);
+    const dates = `${fmt(start)}/${fmt(end)}`;
+    const add = prospect.email ? `&add=${encodeURIComponent(prospect.email)}` : "";
+    const details = encodeURIComponent(
+      `Prospect: ${prospect.name}\nCompany: ${prospect.company}${prospect.title ? `\nTitle: ${prospect.title}` : ""}${prospect.phone ? `\nPhone: ${prospect.phone}` : ""}`
+    );
+    window.open(
+      `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}${add}`,
+      "_blank"
+    );
   }
 
   return (
@@ -64,6 +92,54 @@ export default function TouchpointModal({ prospectId, onClose }) {
         placeholder="What happened? Key takeaways, next steps…"
         onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
       />
+
+      {/* Google Calendar — shown when Meeting Booked is selected */}
+      {form.status === "Meeting Booked" && (
+        <div style={{ background: "var(--surface)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ade80", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+            📅 Schedule Meeting
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date</div>
+              <CalendarPicker value={meetDate} onChange={setMeetDate} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time</div>
+              <input
+                type="time"
+                className="form-input"
+                value={meetTime}
+                onChange={(e) => setMeetTime(e.target.value)}
+                style={{ width: 120 }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Duration</div>
+              <select
+                className="form-select"
+                value={meetDuration}
+                onChange={(e) => setMeetDuration(e.target.value)}
+                style={{ width: 110 }}
+              >
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+              </select>
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
+              onClick={openGoogleCal}
+            >
+              Open Google Calendar →
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-8 justify-end mt-8">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save}>Save Touchpoint</button>
