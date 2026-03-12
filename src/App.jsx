@@ -113,6 +113,11 @@ export default function App() {
         </nav>
       </header>
 
+      {/* Sub-bar */}
+      <div style={{ borderBottom: "1px solid var(--border)", padding: "8px 24px", display: "flex", justifyContent: "flex-end", background: "var(--bg)" }}>
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
+      </div>
+
       {/* Pages */}
       <main className="main">
         {view === "home" && <Home onNavigate={navigate} onSelect={setSelectedId} onLogTouchpoint={setTpProspectId} onAdd={() => setShowAdd(true)} />}
