@@ -174,24 +174,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         </div>
       )}
 
-      {/* Status update */}
-      <div className="mb-20">
-        <div className="detail-section-label" style={{ marginBottom: 6 }}>Update Status</div>
-        <div className="detail-status-row">
-          {STATUSES.map((s) => (
-            <StatusPill key={s} status={s} active={prospect.status === s}
-              onClick={() => {
-                dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { status: s } } });
-                // Pre-fill the log form with this status and open it
-                const ch = "Call";
-                setTpForm((f) => ({ ...f, status: s, date: todayStr() }));
-                setTab("log");
-              }} />
-          ))}
-        </div>
-        {tab === "log" && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 6 }}>Log a touchpoint to record what led to this status change.</div>}
-      </div>
-
       {/* Google Calendar scheduler — shown when Meeting Booked */}
       {prospect.status === "Meeting Booked" && (
         <div style={{ background: "var(--surface)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
