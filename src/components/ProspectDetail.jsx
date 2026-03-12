@@ -118,15 +118,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
     setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
 
-    // Auto-log in HubSpot only for calls; silently fire in background
-    if (tpForm.channel === "Call" && prospect?.email) {
-      fetch("/api/hubspot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: prospect.email, prospectName: prospect.name, company: prospect.company, touchpoint: tp }),
-      }).catch(() => {});
-    }
-  }, [tpForm, prospectId, dispatch, prospect]);
+  }, [tpForm, prospectId, dispatch]);
 
   if (!prospect) return null;
 

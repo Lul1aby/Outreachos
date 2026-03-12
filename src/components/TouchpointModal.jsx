@@ -23,15 +23,6 @@ export default function TouchpointModal({ prospectId, onClose }) {
     const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
 
-    // Auto-log in HubSpot only for calls; silently fire in background
-    if (form.channel === "Call" && prospect.email) {
-      fetch("/api/hubspot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: prospect.email, prospectName: prospect.name, company: prospect.company, touchpoint: tp }),
-      }).catch(() => {}); // silent — don't block the user
-    }
-
     onClose();
   }
 
