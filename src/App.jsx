@@ -108,7 +108,7 @@ export default function App() {
 
       {/* Pages */}
       <main className="main">
-        {view === "home" && <Home onNavigate={navigate} onSelect={setSelectedId} />}
+        {view === "home" && <Home onNavigate={navigate} onSelect={setSelectedId} onLogTouchpoint={setTpProspectId} />}
         {view === "list" && (
           <Prospects
             key={navKey}

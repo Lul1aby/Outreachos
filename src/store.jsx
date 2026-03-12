@@ -199,6 +199,7 @@ export function StoreProvider({ children }) {
   const [syncing, setSyncing] = useState(false); // cloud save in progress
   const persistAllowed = useRef(false);
   const saveTimer = useRef(null);
+  const loadedForUser = useRef(undefined); // tracks which userId we've already loaded data for
 
   /* ── Load data for a given userId from Supabase, fall back to IndexedDB ── */
   const loadData = useCallback(async (userId) => {
@@ -257,26 +258,34 @@ export function StoreProvider({ children }) {
       loadData(null);
       return;
     }
-    // Use onAuthStateChange exclusively — it fires INITIAL_SESSION synchronously
-    // on mount, so getSession() is not needed and would cause a race condition.
+    // Use onAuthStateChange exclusively. Supabase v2 fires both INITIAL_SESSION
+    // and SIGNED_IN when restoring an existing session — loadedForUser guards
+    // against calling loadData twice for the same user.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
-      if (event === "INITIAL_SESSION") {
-        setUser(u);
-        loadData(u?.id ?? null);
-      } else if (event === "SIGNED_IN") {
-        setUser(u);
-        setHydrated(false);
-        loadData(u?.id ?? null);
-      } else if (event === "SIGNED_OUT") {
+      const uid = u?.id ?? null;
+
+      if (event === "SIGNED_OUT") {
+        loadedForUser.current = undefined;
         setUser(null);
         dispatch({ type: "RESET_DATA" });
         persistAllowed.current = false;
         setHydrated(true);
-      } else if (u) {
-        // TOKEN_REFRESHED, USER_UPDATED — update user object only
-        setUser(u);
+        return;
       }
+
+      // For INITIAL_SESSION and SIGNED_IN: only load data when the user changes
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+        setUser(u);
+        if (uid !== loadedForUser.current) {
+          loadedForUser.current = uid;
+          loadData(uid);
+        }
+        return;
+      }
+
+      // TOKEN_REFRESHED, USER_UPDATED — update user object only, never reload data
+      if (u) setUser(u);
     });
     return () => subscription.unsubscribe();
   }, [loadData]);
