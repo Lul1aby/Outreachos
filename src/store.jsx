@@ -106,14 +106,54 @@ function reducer(state, action) {
 
     case "ADD_TOUCHPOINT": {
       const { prospectId, touchpoint, newStatus } = action.payload;
-      return {
-        ...state,
-        prospects: state.prospects.map((p) =>
-          p.id === prospectId
-            ? { ...p, touchpoints: [...p.touchpoints, { ...touchpoint, id: nextId() }], status: newStatus || p.status }
-            : p
-        ),
-      };
+      const today = todayStr();
+
+      /* ── 1. Update prospect touchpoints + auto-status rules ── */
+      const updatedProspects = state.prospects.map((p) => {
+        if (p.id !== prospectId) return p;
+        const updatedTps = [...p.touchpoints, { ...touchpoint, id: nextId() }];
+
+        // Start with the direct outcome the user selected
+        let autoStatus = newStatus || p.status;
+
+        // Rule A: 3 consecutive DNP/Busy calls → move to Nurture
+        if (touchpoint.channel === "Call") {
+          const callTps = updatedTps.filter((t) => t.channel === "Call");
+          if (callTps.length >= 3 && callTps.slice(-3).every((t) => t.status === "DNP/Busy")) {
+            autoStatus = "Nurture";
+          }
+        }
+
+        // Rule B: Connected +ve → Call Back (positive convo, schedule follow-up)
+        if (touchpoint.status === "Connected +ve") {
+          autoStatus = "Call Back";
+        }
+
+        return { ...p, touchpoints: updatedTps, status: autoStatus };
+      });
+
+      /* ── 2. Auto-advance: complete earliest matching pending sequence step ── */
+      const updatedEnrollments = state.enrollments.map((en) => {
+        if (en.prospectId !== prospectId) return en;
+        const seq = state.sequences.find((s) => s.id === en.sequenceId);
+        if (!seq) return en;
+
+        // Find pending steps due today or earlier whose channel matches the logged touchpoint
+        const matchingStep = seq.steps
+          .filter((step) => {
+            if (en.completedSteps.includes(step.id)) return false;
+            const [y, m, d] = en.startDate.split("-").map(Number);
+            const due = new Date(y, m - 1, d);
+            due.setDate(due.getDate() + step.day);
+            return due.toISOString().slice(0, 10) <= today && step.channel === touchpoint.channel;
+          })
+          .sort((a, b) => a.day - b.day)[0]; // earliest pending step first
+
+        if (!matchingStep) return en;
+        return { ...en, completedSteps: [...en.completedSteps, matchingStep.id] };
+      });
+
+      return { ...state, prospects: updatedProspects, enrollments: updatedEnrollments };
     }
 
     case "DELETE_TOUCHPOINT":
@@ -359,9 +399,10 @@ export function StoreProvider({ children }) {
       if (!seq || !prospect) return;
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
-        const due = new Date(en.startDate);
+        const [sy, sm, sd] = en.startDate.split("-").map(Number);
+        const due = new Date(sy, sm - 1, sd); // local date — avoids UTC off-by-one
         due.setDate(due.getDate() + step.day);
-        const dueStr = due.toISOString().slice(0, 10);
+        const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
         if (dueStr <= today) {
           tasks.push({ prospect, seq, step, dueDate: dueStr, enrollmentId: en.id });
         }
