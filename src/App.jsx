@@ -13,11 +13,12 @@ import TouchpointModal from "./components/TouchpointModal";
 import StoredLists from "./components/StoredLists";
 import AuthPage from "./components/AuthPage";
 import AdminPanel from "./components/AdminPanel";
+import Account from "./components/Account";
 
 export default function App() {
-  const { tasksToday, hydrated, user, syncing, flushSave } = useStore();
+  const { tasksToday, hydrated, user } = useStore();
 
-  const VALID_VIEWS = ["home", "list", "analytics", "sequences", "tasks", "stored-lists", "admin"];
+  const VALID_VIEWS = ["home", "list", "analytics", "sequences", "tasks", "stored-lists", "admin", "account"];
   const getHashView = () => {
     const hash = window.location.hash.replace("#", "");
     return VALID_VIEWS.includes(hash) ? hash : "home";
@@ -84,6 +85,7 @@ export default function App() {
     { id: "tasks", label: "✅ Tasks", badge: tasksToday.length || null },
     { id: "stored-lists", label: "📋 Lists" },
     ...(isAdmin ? [{ id: "admin", label: "🔑 Admin" }] : []),
+    { id: "account", label: "👤 Account" },
   ];
 
   return (
@@ -108,29 +110,6 @@ export default function App() {
               {t.badge ? <span className="tab-badge">{t.badge}</span> : null}
             </button>
           ))}
-          <button
-            className="theme-toggle"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            onClick={() => setTheme((t) => t === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? "☀️" : "🌙"}
-          </button>
-          {user && (
-            <div className="flex items-center gap-8" style={{ borderLeft: "1px solid var(--border)", paddingLeft: 12 }}>
-              {syncing && <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }} title="Syncing to cloud">↑ sync</span>}
-              {!syncing && supabase && <span style={{ fontSize: 12, color: "var(--success)", opacity: 0.7 }} title="Saved to cloud">●</span>}
-              <span style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={user.email}>
-                {user.email}
-              </span>
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={async () => { await flushSave(); await supabase?.auth.signOut(); }}
-                title="Sign out"
-              >
-                Sign out
-              </button>
-            </div>
-          )}
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
         </nav>
       </header>
@@ -152,6 +131,7 @@ export default function App() {
         {view === "tasks" && <Tasks onSelect={setSelectedId} onNavigate={navigate} />}
         {view === "stored-lists" && <StoredLists onNavigate={navigate} onAdd={() => setShowAdd(true)} />}
         {view === "admin" && isAdmin && <AdminPanel />}
+        {view === "account" && <Account theme={theme} setTheme={setTheme} />}
       </main>
 
       {/* Modals */}
