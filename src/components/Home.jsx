@@ -18,7 +18,7 @@ function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, #6366f1,
   );
 }
 
-export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
+export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
   const { state, stats, allLists, tasksToday, overdueProspects, exportBackup, importBackup } = useStore();
   const { prospects } = state;
   const [listSearch, setListSearch] = useState("");
@@ -119,13 +119,16 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint }) {
   return (
     <div style={{ padding: "24px 32px" }}>
       {/* Welcome */}
-      <div className="mb-24">
-        <div style={{ fontSize: 23, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>
-          Good {greeting()} 👋
+      <div className="mb-24" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 23, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>
+            Good {greeting()} 👋
+          </div>
+          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
+            Here's your pipeline at a glance · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </div>
         </div>
-        <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
-          Here's your pipeline at a glance · {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-        </div>
+        {onAdd && <button className="btn btn-primary" onClick={onAdd}>+ Add Prospect</button>}
       </div>
 
       {/* Morning Digest */}

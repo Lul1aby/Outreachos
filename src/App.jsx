@@ -110,13 +110,12 @@ export default function App() {
               {t.badge ? <span className="tab-badge">{t.badge}</span> : null}
             </button>
           ))}
-          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Add Prospect</button>
         </nav>
       </header>
 
       {/* Pages */}
       <main className="main">
-        {view === "home" && <Home onNavigate={navigate} onSelect={setSelectedId} onLogTouchpoint={setTpProspectId} />}
+        {view === "home" && <Home onNavigate={navigate} onSelect={setSelectedId} onLogTouchpoint={setTpProspectId} onAdd={() => setShowAdd(true)} />}
         {view === "list" && (
           <Prospects
             key={navKey}
