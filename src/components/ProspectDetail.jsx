@@ -62,9 +62,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [meetTime, setMeetTime] = useState("10:00");
   const [meetDuration, setMeetDuration] = useState("60");
 
-  /* HubSpot sync state */
-  const [syncHubspot, setSyncHubspot] = useState(false);
-  const [hubspotStatus, setHubspotStatus] = useState(null);
 
   const copyContact = useCallback((text, field) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -116,29 +113,20 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
     }
   }, [prospect]);
 
-  const logInline = useCallback(async () => {
+  const logInline = useCallback(() => {
     const tp = { channel: tpForm.channel, date: tpForm.date, note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
     setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
 
-    if (syncHubspot && prospect?.email) {
-      setHubspotStatus("syncing");
-      try {
-        const res = await fetch("/api/hubspot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: prospect.email, prospectName: prospect.name, company: prospect.company, touchpoint: tp }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "HubSpot sync failed");
-        setHubspotStatus(`ok:${data.contactName}`);
-        setTimeout(() => setHubspotStatus(null), 4000);
-      } catch (err) {
-        setHubspotStatus(`err:${err.message}`);
-        setTimeout(() => setHubspotStatus(null), 6000);
-      }
+    // Auto-log in HubSpot only for calls; silently fire in background
+    if (tpForm.channel === "Call" && prospect?.email) {
+      fetch("/api/hubspot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: prospect.email, prospectName: prospect.name, company: prospect.company, touchpoint: tp }),
+      }).catch(() => {});
     }
-  }, [tpForm, prospectId, dispatch, syncHubspot, prospect]);
+  }, [tpForm, prospectId, dispatch, prospect]);
 
   if (!prospect) return null;
 
@@ -319,33 +307,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           <div className="inline-row">
             <textarea className="form-textarea" rows={3} value={tpForm.note} placeholder="What happened? Key takeaways, next steps…" onChange={(e) => setTpForm((f) => ({ ...f, note: e.target.value }))} />
           </div>
-          <div className="flex items-center gap-12 flex-wrap">
-            <button className="btn btn-primary btn-sm" onClick={logInline} disabled={hubspotStatus === "syncing"}>
-              {hubspotStatus === "syncing" ? "Saving…" : "Log Touchpoint"}
-            </button>
-
-            {prospect.email && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "var(--text-sec)" }}>
-                <input
-                  type="checkbox"
-                  checked={syncHubspot}
-                  onChange={(e) => { setSyncHubspot(e.target.checked); setHubspotStatus(null); }}
-                  style={{ width: 14, height: 14, cursor: "pointer", accentColor: "#f97316" }}
-                />
-                🔗 Sync to HubSpot
-              </label>
-            )}
-          </div>
-
-          {hubspotStatus === "syncing" && (
-            <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>⏳ Syncing to HubSpot…</div>
-          )}
-          {hubspotStatus?.startsWith("ok:") && (
-            <div style={{ fontSize: 13, color: "#4ade80", marginTop: 6 }}>✓ HubSpot updated: <strong>{hubspotStatus.slice(3)}</strong></div>
-          )}
-          {hubspotStatus?.startsWith("err:") && (
-            <div style={{ fontSize: 13, color: "#f87171", marginTop: 6 }}>✕ {hubspotStatus.slice(4)}</div>
-          )}
+          <button className="btn btn-primary btn-sm" onClick={logInline}>Log Touchpoint</button>
 
           {/* Google Calendar shortcut when logging a Meeting Booked */}
           {tpForm.status === "Meeting Booked" && (
