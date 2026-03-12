@@ -57,6 +57,11 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [tpForm, setTpForm] = useState({ channel: "Email", date: todayStr(), note: "", status: "No Response" });
   const [copied, setCopied] = useState(null);
 
+  /* Meeting scheduler state */
+  const [meetDate, setMeetDate] = useState(todayStr());
+  const [meetTime, setMeetTime] = useState("10:00");
+  const [meetDuration, setMeetDuration] = useState("60");
+
   const copyContact = useCallback((text, field) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(field);
@@ -108,7 +113,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect]);
 
   const logInline = useCallback(() => {
-    if (!tpForm.note.trim()) return;
     dispatch({
       type: "ADD_TOUCHPOINT",
       payload: {
@@ -180,6 +184,74 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           ))}
         </div>
       </div>
+
+      {/* Google Calendar scheduler — shown when Meeting Booked */}
+      {prospect.status === "Meeting Booked" && (
+        <div style={{ background: "var(--surface)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ade80", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+            📅 Schedule Meeting
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date</div>
+              <input
+                type="date"
+                className="form-input"
+                value={meetDate}
+                onChange={(e) => setMeetDate(e.target.value)}
+                style={{ width: 148 }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time</div>
+              <input
+                type="time"
+                className="form-input"
+                value={meetTime}
+                onChange={(e) => setMeetTime(e.target.value)}
+                style={{ width: 120 }}
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Duration</div>
+              <select
+                className="form-select"
+                value={meetDuration}
+                onChange={(e) => setMeetDuration(e.target.value)}
+                style={{ width: 110 }}
+              >
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">60 min</option>
+                <option value="90">90 min</option>
+              </select>
+            </div>
+            <button
+              className="btn btn-primary btn-sm"
+              style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
+              onClick={() => {
+                const [y, m, d] = meetDate.split("-");
+                const [hh, mm] = meetTime.split(":");
+                const start = new Date(+y, +m - 1, +d, +hh, +mm);
+                const end = new Date(start.getTime() + +meetDuration * 60000);
+                const fmt = (dt) => dt.getFullYear().toString()
+                  + String(dt.getMonth() + 1).padStart(2, "0")
+                  + String(dt.getDate()).padStart(2, "0")
+                  + "T" + String(dt.getHours()).padStart(2, "0")
+                  + String(dt.getMinutes()).padStart(2, "0") + "00";
+                const title = encodeURIComponent(`Meeting with ${prospect.name} (${prospect.company})`);
+                const dates = `${fmt(start)}/${fmt(end)}`;
+                const add = prospect.email ? `&add=${encodeURIComponent(prospect.email)}` : "";
+                const details = encodeURIComponent(`Prospect: ${prospect.name}\nCompany: ${prospect.company}${prospect.title ? `\nTitle: ${prospect.title}` : ""}${prospect.phone ? `\nPhone: ${prospect.phone}` : ""}`);
+                window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}${add}`, "_blank");
+              }}
+            >
+              Open Google Calendar →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="tab-switcher" style={{ maxWidth: 480 }}>
