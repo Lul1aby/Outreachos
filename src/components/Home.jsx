@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS } from "../constants";
@@ -25,38 +25,6 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
   const [listDetail, setListDetail] = useState(null);
   const [importStatus, setImportStatus] = useState(null); // null | "ok:{n}" | "err:{msg}"
   const fileInputRef = useRef(null);
-
-  /* Cross-user duplicate check for home banner */
-  const [homeDupes, setHomeDupes] = useState([]);
-  const [homeDupeChecked, setHomeDupeChecked] = useState(false);
-  const checkHomeDupes = useCallback(async () => {
-    if (!supabase || prospects.length === 0) return;
-    try {
-      const session = await supabase?.auth.getSession();
-      const token = session?.data?.session?.access_token;
-      const res = await fetch("/api/check-duplicates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ prospects: prospects.map((p) => ({ email: p.email, phone: p.phone, linkedin: p.linkedin, name: p.name, company: p.company })) }),
-      });
-      if (res.ok) {
-        const body = await res.json();
-        const dupes = (body.matches || []).map((m) => ({
-          prospect: prospects[m.inputIndex],
-          field: m.field,
-          matchedName: m.matchedName,
-          matchedCompany: m.matchedCompany,
-          ownerEmail: m.ownerEmail,
-        })).filter((d) => d.prospect);
-        setHomeDupes(dupes);
-      }
-    } catch { /* fail silently */ }
-    finally { setHomeDupeChecked(true); }
-  }, [prospects]);
-
-  useEffect(() => {
-    if (!homeDupeChecked && prospects.length > 0) checkHomeDupes();
-  }, [prospects.length, homeDupeChecked, checkHomeDupes]);
 
   /* Morning digest — dismissible per day */
   const [digestDismissed, setDigestDismissed] = useState(
@@ -191,34 +159,6 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
             title="Dismiss until tomorrow">
             Dismiss ×
           </button>
-        </div>
-      )}
-
-      {/* Duplicate alert */}
-      {homeDupes.length > 0 && (
-        <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#fca5a5" }}>
-              🚨 {homeDupes.length} duplicate prospect{homeDupes.length !== 1 ? "s" : ""} detected
-            </div>
-            <button className="btn btn-sm" onClick={() => onNavigate("list")}
-              style={{ fontSize: 12, background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
-              View in Prospects →
-            </button>
-          </div>
-          <div style={{ fontSize: 13, color: "#fca5a5", opacity: 0.8, marginBottom: 10 }}>
-            These prospects already exist in another team member's account. Delete them to avoid duplicate outreach.
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 120, overflowY: "auto" }}>
-            {homeDupes.slice(0, 6).map((d, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#fca5a5", padding: "4px 0" }}>
-                <span style={{ fontWeight: 600 }}>{d.prospect.name}</span>
-                <span style={{ color: "var(--text-muted)" }}>at {d.prospect.company}</span>
-                <span style={{ fontSize: 11, opacity: 0.7 }}>— matches {d.matchedName} ({d.ownerEmail}) by {d.field}</span>
-              </div>
-            ))}
-            {homeDupes.length > 6 && <div style={{ fontSize: 12, color: "var(--text-muted)" }}>…and {homeDupes.length - 6} more</div>}
-          </div>
         </div>
       )}
 

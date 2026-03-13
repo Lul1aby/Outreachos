@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
 import { todayStr, normalizeLinkedIn } from "../utils";
 import { Modal, Badge, StatusPill, Input, CalendarPicker } from "./ui";
@@ -52,6 +53,32 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [hiring, setHiring] = useState(null);        // { brief, fetchedAt }
   const [hiringLoading, setHiringLoading] = useState(false);
   const [hiringError, setHiringError] = useState(null);
+
+  /* Cross-user duplicate check — only fires for non-original-owner */
+  const [dupeInfo, setDupeInfo] = useState(null); // { field, matchedName, matchedCompany, ownerEmail }
+  useEffect(() => {
+    if (!prospect || !supabase) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await supabase.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch("/api/check-duplicates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ prospects: [{ email: prospect.email, phone: prospect.phone, linkedin: prospect.linkedin, name: prospect.name, company: prospect.company }] }),
+        });
+        if (res.ok && !cancelled) {
+          const body = await res.json();
+          const match = (body.matches || [])[0];
+          if (match) {
+            setDupeInfo({ field: match.field, matchedName: match.matchedName, matchedCompany: match.matchedCompany, ownerEmail: match.ownerEmail });
+          }
+        }
+      } catch { /* fail silently */ }
+    })();
+    return () => { cancelled = true; };
+  }, [prospect?.id]);
 
   /* Inline touchpoint form state */
   const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
@@ -165,6 +192,18 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         {prospect.listName && <div className="detail-info-item">📋 {prospect.listName}</div>}
         <div className="detail-info-item" style={{ color: "var(--text-muted)" }}>📅 Added {prospect.createdAt}</div>
       </div>
+
+      {/* Duplicate warning — shown only when this prospect matches another user's record (i.e. current user is NOT the original owner) */}
+      {dupeInfo && (
+        <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#fca5a5", marginBottom: 4 }}>
+            🚨 Duplicate prospect
+          </div>
+          <div style={{ fontSize: 13, color: "#fca5a5", opacity: 0.9 }}>
+            This prospect already exists in <strong>{dupeInfo.ownerEmail}</strong>'s account — matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} by {dupeInfo.field}. Consider deleting to avoid duplicate outreach.
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       {prospect.notes && (
