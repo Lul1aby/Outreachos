@@ -1,5 +1,14 @@
 import { useState, useCallback } from "react";
 import { useStore } from "./store";
+import Home from "./components/Home";
+import Prospects from "./components/Prospects";
+import Analytics from "./components/Analytics";
+import Sequences from "./components/Sequences";
+import Tasks from "./components/Tasks";
+import ProspectDetail from "./components/ProspectDetail";
+import AddProspect from "./components/AddProspect";
+import TouchpointModal from "./components/TouchpointModal";
+import StoredLists from "./components/StoredLists";
 
 /* ── Profile picker shown when no user is selected ── */
 function ProfilePicker() {
@@ -113,27 +122,14 @@ function UserBadge() {
     </div>
   );
 }
-import Home from "./components/Home";
-import Prospects from "./components/Prospects";
-import Analytics from "./components/Analytics";
-import Sequences from "./components/Sequences";
-import Tasks from "./components/Tasks";
-import ProspectDetail from "./components/ProspectDetail";
-import AddProspect from "./components/AddProspect";
-import TouchpointModal from "./components/TouchpointModal";
-import StoredLists from "./components/StoredLists";
 
 export default function App() {
   const { tasksToday, currentUser } = useStore();
-
-  /* Show profile picker if no user selected */
-  if (!currentUser) return <ProfilePicker />;
   const [view, setView] = useState("home");
   const [viewParams, setViewParams] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [tpProspectId, setTpProspectId] = useState(null);
-  /* Use a key to force Prospects remount when navigating with params */
   const [navKey, setNavKey] = useState(0);
 
   const navigate = useCallback((newView, params = {}) => {
@@ -141,6 +137,9 @@ export default function App() {
     setViewParams(params);
     setNavKey((k) => k + 1);
   }, []);
+
+  /* Show profile picker if no user selected — after all hooks */
+  if (!currentUser) return <ProfilePicker />;
 
   const tabs = [
     { id: "home", label: "🏠 Home" },
