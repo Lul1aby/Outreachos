@@ -5,8 +5,9 @@ import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from ".
 import { Badge } from "./ui";
 
 export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint }) {
-  const { state, dispatch, stats, allLists, overdueProspects, tasksToday } = useStore();
-  const { prospects, dismissedReminders } = state;
+  const { state, dispatch, stats, allLists, overdueProspects, tasksToday, myProspects } = useStore();
+  const { dismissedReminders } = state;
+  const prospects = myProspects;
 
   /* ── Filter state ── */
   const [search, setSearch] = useState("");
@@ -249,6 +250,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     <div className="flex items-center gap-6">
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
+                      {p.isDuplicate && <span style={{ fontSize: 10, background: "#2a1520", color: "#f87171", border: "1px solid #7f1d1d", borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>DUPLICATE</span>}
                       {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 10, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
                     </div>
                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>

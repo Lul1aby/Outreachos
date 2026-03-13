@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store";
+import { findDuplicate } from "../store";
 import { STATUSES, INDUSTRIES, CSV_FIELDS } from "../constants";
 import { validateProspect, parseCSV, autoMapCSV, downloadTemplate, todayStr } from "../utils";
 import { Modal, Input, Select, Textarea } from "./ui";
@@ -11,6 +12,17 @@ export default function AddProspect({ onClose }) {
   const [tab, setTab] = useState("single");
   const [form, setForm] = useState(empty);
   const [errors, setErrors] = useState(null);
+
+  /* Live duplicate detection for single form — checks ALL users' prospects */
+  const singleDuplicate = useMemo(() => {
+    if (!form.name.trim() || !form.company.trim()) return null;
+    return findDuplicate(state.prospects, form);
+  }, [form.name, form.company, form.email, state.prospects]);
+
+  const singleDuplicateUploader = useMemo(() => {
+    if (!singleDuplicate?.uploadedBy) return null;
+    return state.users?.find((u) => u.id === singleDuplicate.uploadedBy)?.name || null;
+  }, [singleDuplicate, state.users]);
 
   /* CSV state */
   const [csvStep, setCsvStep] = useState("upload");
@@ -57,6 +69,20 @@ export default function AddProspect({ onClose }) {
     }).filter((p) => p.name && p.company);
   }, [csvRaw, csvHeaders, csvMapping, csvListName]);
 
+  /* Detect duplicates in CSV preview against ALL prospects (all users) */
+  const csvDuplicateIds = useMemo(() => {
+    const dupes = new Set();
+    const allExisting = [...state.prospects];
+    csvPreview.forEach((p, i) => {
+      if (findDuplicate(allExisting, p)) {
+        dupes.add(i);
+      } else {
+        allExisting.push(p); // first in batch wins
+      }
+    });
+    return dupes;
+  }, [csvPreview, state.prospects]);
+
   function commitCsv() {
     dispatch({ type: "IMPORT_PROSPECTS", payload: csvPreview, meta: { listName: csvListName || null } });
     onClose();
@@ -99,6 +125,15 @@ export default function AddProspect({ onClose }) {
           </div>
           <Select label="Initial Status" options={STATUSES} value={form.status} onChange={upd("status")} />
           <Textarea label="Notes" rows={3} value={form.notes} onChange={upd("notes")} placeholder="How did you find this prospect? Any context…" />
+          {singleDuplicate && (
+            <div style={{ background: "#2a1520", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f87171", marginBottom: 8 }}>
+              ⚠ This prospect already exists
+              {singleDuplicateUploader
+                ? <> — first uploaded by <strong>{singleDuplicateUploader}</strong></>
+                : <> (<strong>{singleDuplicate.name}</strong> at <strong>{singleDuplicate.company}</strong>)</>}
+              {" "}on {singleDuplicate.createdAt}. Adding will mark this as a duplicate in your workspace.
+            </div>
+          )}
           <div className="flex gap-8 justify-end mt-8">
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" onClick={saveProspect}>Add Prospect</button>
@@ -198,6 +233,7 @@ export default function AddProspect({ onClose }) {
               <div style={{ fontSize: 13, color: "var(--text-sec)", marginBottom: 14 }}>
                 <strong style={{ color: "var(--success-bright)" }}>{csvPreview.length} valid prospects</strong> ready to import
                 {csvRaw.length - csvPreview.length > 0 && <span style={{ color: "var(--warning)" }}> · {csvRaw.length - csvPreview.length} skipped</span>}
+                {csvDuplicateIds.size > 0 && <span style={{ color: "#f87171" }}> · {csvDuplicateIds.size} duplicate{csvDuplicateIds.size > 1 ? "s" : ""} (already exist)</span>}
               </div>
               <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 18 }}>
                 <table className="table" style={{ marginTop: 0 }}>
@@ -206,8 +242,13 @@ export default function AddProspect({ onClose }) {
                   </thead>
                   <tbody>
                     {csvPreview.map((p, i) => (
-                      <tr key={i} style={{ cursor: "default" }}>
-                        <td style={{ fontWeight: 500 }}>{p.name}</td>
+                      <tr key={i} style={{ cursor: "default", background: csvDuplicateIds.has(i) ? "rgba(127,29,29,0.15)" : undefined }}>
+                        <td style={{ fontWeight: 500 }}>
+                          <div className="flex items-center gap-6">
+                            {p.name}
+                            {csvDuplicateIds.has(i) && <span style={{ fontSize: 10, background: "#2a1520", color: "#f87171", border: "1px solid #7f1d1d", borderRadius: 4, padding: "1px 6px", fontWeight: 600, flexShrink: 0 }}>DUPLICATE</span>}
+                          </div>
+                        </td>
                         <td style={{ color: "var(--text-sec)" }}>{p.company}</td>
                         <td style={{ color: "var(--text-sec)" }}>{p.title || <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
                         <td>{p.listName ? <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--border-hover)" }}>{p.listName}</span> : <span style={{ color: "var(--text-dim)" }}>—</span>}</td>

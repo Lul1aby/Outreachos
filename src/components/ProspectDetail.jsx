@@ -4,9 +4,11 @@ import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS } from "../constants";
 import { todayStr } from "../utils";
 import { Modal, Badge, TpBadge, StatusPill, Select, Textarea, Input } from "./ui";
 
-export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint }) {
+export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint, onSelect }) {
   const { state, dispatch } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
+  const originalProspect = prospect?.duplicateOfId ? state.prospects.find((p) => p.id === prospect.duplicateOfId) : null;
+  const originalUploader = originalProspect?.uploadedBy ? state.users?.find((u) => u.id === originalProspect.uploadedBy)?.name : null;
   const [tab, setTab] = useState("touchpoints");
 
   /* Inline touchpoint form state */
@@ -45,6 +47,27 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
       </div>
+
+      {/* Duplicate warning */}
+      {prospect.isDuplicate && (
+        <div style={{ background: "#2a1520", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#f87171", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <span>
+            ⚠ Duplicate lead —{" "}
+            {originalUploader
+              ? <><strong>{originalUploader}</strong> already owns this contact</>
+              : <>this contact was already uploaded earlier</>}
+            {originalProspect && <> ({originalProspect.createdAt})</>}.
+          </span>
+          {originalProspect && onSelect && (
+            <button
+              onClick={() => { onClose(); onSelect(originalProspect.id); }}
+              style={{ background: "none", border: "1px solid #7f1d1d", borderRadius: 6, color: "#f87171", fontSize: 12, cursor: "pointer", padding: "4px 10px", fontFamily: "var(--font)", whiteSpace: "nowrap", flexShrink: 0 }}
+            >
+              View Original →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Contact info */}
       <div className="detail-info">

@@ -13,6 +13,8 @@ const defaultState = {
   enrollments: [],
   dismissedReminders: [],
   lists: [],
+  users: [],          // { id, name }
+  currentUserId: null,
 };
 
 function loadState() {
@@ -20,9 +22,24 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences)) return { ...defaultState, ...parsed, lists: parsed.lists || [] };
+    if (Array.isArray(parsed.prospects) && Array.isArray(parsed.sequences))
+      return { ...defaultState, ...parsed, lists: parsed.lists || [], users: parsed.users || [], currentUserId: parsed.currentUserId || null };
   } catch { /* corrupt data — reset */ }
   return defaultState;
+}
+
+/* ── Duplicate detection ── */
+
+export function findDuplicate(existingProspects, newProspect) {
+  const email = (newProspect.email || "").trim().toLowerCase();
+  const name = (newProspect.name || "").trim().toLowerCase();
+  const company = (newProspect.company || "").trim().toLowerCase();
+  for (const p of existingProspects) {
+    if (p.isDuplicate) continue; // only match against originals
+    if (email && p.email && p.email.trim().toLowerCase() === email) return p;
+    if (name && company && p.name.trim().toLowerCase() === name && p.company.trim().toLowerCase() === company) return p;
+  }
+  return null;
 }
 
 /* ── Reducer ── */
@@ -30,14 +47,25 @@ function loadState() {
 function reducer(state, action) {
   switch (action.type) {
 
+    case "ADD_USER": {
+      const newUser = { id: `user_${Date.now()}`, name: action.payload.trim() };
+      return { ...state, users: [...state.users, newUser], currentUserId: newUser.id };
+    }
+
+    case "SET_CURRENT_USER":
+      return { ...state, currentUserId: action.payload };
+
     case "ADD_PROSPECT": {
       const id = nextId();
+      const existing = findDuplicate(state.prospects, action.payload);
       const prospect = {
         ...action.payload,
         id,
         createdAt: todayStr(),
         touchpoints: [],
         status: action.payload.status || "Not Started",
+        uploadedBy: state.currentUserId || null,
+        ...(existing ? { isDuplicate: true, duplicateOfId: existing.id } : {}),
       };
       const out = { ...state, prospects: [...state.prospects, prospect] };
       const defaultSeq = state.sequences.find((s) => s.isDefault);
@@ -51,7 +79,21 @@ function reducer(state, action) {
     }
 
     case "IMPORT_PROSPECTS": {
-      const newP = action.payload.map((p) => ({ ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: "Not Started" }));
+      const allExisting = [...state.prospects];
+      const newP = action.payload.map((p) => {
+        const existing = findDuplicate(allExisting, p);
+        const newProspect = {
+          ...p,
+          id: nextId(),
+          createdAt: todayStr(),
+          touchpoints: [],
+          status: "Not Started",
+          uploadedBy: state.currentUserId || null,
+          ...(existing ? { isDuplicate: true, duplicateOfId: existing.id } : {}),
+        };
+        allExisting.push(newProspect); // first in batch wins for subsequent rows
+        return newProspect;
+      });
       const defaultSeq = state.sequences.find((s) => s.isDefault);
       const newE = defaultSeq
         ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] }))
@@ -181,12 +223,28 @@ export function StoreProvider({ children }) {
 
   const today = todayStr();
 
-  /* Derived: tasks due today / overdue */
+  /* Current user object */
+  const currentUser = useMemo(
+    () => state.users.find((u) => u.id === state.currentUserId) || null,
+    [state.users, state.currentUserId]
+  );
+
+  /* Prospects visible to the current user: their own uploads + legacy (no uploadedBy) */
+  const myProspects = useMemo(
+    () => state.currentUserId
+      ? state.prospects.filter((p) => !p.uploadedBy || p.uploadedBy === state.currentUserId)
+      : state.prospects,
+    [state.prospects, state.currentUserId]
+  );
+
+  /* Derived: tasks due today / overdue — scoped to current user */
   const tasksToday = useMemo(() => {
     const tasks = [];
+    const myIds = new Set(myProspects.map((p) => p.id));
     state.enrollments.forEach((en) => {
+      if (!myIds.has(en.prospectId)) return;
       const seq = state.sequences.find((s) => s.id === en.sequenceId);
-      const prospect = state.prospects.find((p) => p.id === en.prospectId);
+      const prospect = myProspects.find((p) => p.id === en.prospectId);
       if (!seq || !prospect) return;
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
@@ -199,41 +257,41 @@ export function StoreProvider({ children }) {
       });
     });
     return tasks.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [state.enrollments, state.sequences, state.prospects, today]);
+  }, [state.enrollments, state.sequences, myProspects, today]);
 
-  /* Derived: prospects untouched 28h+ */
+  /* Derived: prospects untouched 28h+ — scoped to current user */
   const overdueProspects = useMemo(
-    () => state.prospects.filter((p) => {
+    () => myProspects.filter((p) => {
       const h = hoursSinceLast(p);
       return h !== null && h >= 28 && !state.dismissedReminders.includes(p.id);
     }),
-    [state.prospects, state.dismissedReminders]
+    [myProspects, state.dismissedReminders]
   );
 
-  /* Derived: global stats */
+  /* Derived: stats — scoped to current user */
   const stats = useMemo(() => {
-    const t = state.prospects.length;
-    const meetings = state.prospects.filter((p) => p.status === "Meeting Booked").length;
-    const replied = state.prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
-    const totalTp = state.prospects.reduce((a, p) => a + p.touchpoints.length, 0);
-    const needsTouch7 = state.prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
-    const won = state.prospects.filter((p) => p.status === "Closed Won").length;
+    const t = myProspects.length;
+    const meetings = myProspects.filter((p) => p.status === "Meeting Booked").length;
+    const replied = myProspects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
+    const totalTp = myProspects.reduce((a, p) => a + p.touchpoints.length, 0);
+    const needsTouch7 = myProspects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
+    const won = myProspects.filter((p) => p.status === "Closed Won").length;
     return {
       total: t, meetings, replied, totalTp, won, needsTouch7,
       replyRate: t ? Math.round((replied / t) * 100) : 0,
       winRate: t ? Math.round((won / t) * 100) : 0,
     };
-  }, [state.prospects]);
+  }, [myProspects]);
 
-  /* Derived: list names */
+  /* Derived: list names — scoped to current user */
   const allLists = useMemo(
-    () => [...new Set(state.prospects.map((p) => p.listName).filter(Boolean))].sort(),
-    [state.prospects]
+    () => [...new Set(myProspects.map((p) => p.listName).filter(Boolean))].sort(),
+    [myProspects]
   );
 
   const value = useMemo(
-    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists }),
-    [state, tasksToday, overdueProspects, stats, allLists]
+    () => ({ state, dispatch, tasksToday, overdueProspects, stats, allLists, currentUser, myProspects }),
+    [state, tasksToday, overdueProspects, stats, allLists, currentUser, myProspects]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
