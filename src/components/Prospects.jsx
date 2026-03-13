@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, CHANNELS, STATUS_COLORS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
 import { Badge } from "./ui";
@@ -24,6 +25,44 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [copied, setCopied] = useState(null); // { id, field }
   const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
   const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
+  const [dupeMap, setDupeMap] = useState({}); // prospectId → { field, matchedName, matchedCompany, ownerEmail }
+  const [checkingDupes, setCheckingDupes] = useState(false);
+  const dupeCheckDone = useRef(false);
+
+  /* Check all prospects against system for cross-user duplicates */
+  const checkForDuplicates = useCallback(async () => {
+    if (prospects.length === 0) return;
+    setCheckingDupes(true);
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ prospects: prospects.map((p) => ({ email: p.email, phone: p.phone, linkedin: p.linkedin, name: p.name, company: p.company })) }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const map = {};
+        (body.matches || []).forEach((m) => {
+          const prospect = prospects[m.inputIndex];
+          if (prospect) {
+            map[prospect.id] = { field: m.field, value: m.value, matchedName: m.matchedName, matchedCompany: m.matchedCompany, ownerEmail: m.ownerEmail };
+          }
+        });
+        setDupeMap(map);
+      }
+    } catch { /* fail silently */ }
+    finally { setCheckingDupes(false); dupeCheckDone.current = true; }
+  }, [prospects]);
+
+  /* Auto-check on first load */
+  useEffect(() => {
+    if (!dupeCheckDone.current && prospects.length > 0 && supabase) {
+      checkForDuplicates();
+    }
+  }, [prospects.length, checkForDuplicates]);
 
   const toggleSort = useCallback((col) => {
     setSortBy((prev) => {
@@ -47,7 +86,8 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  const activeFilterCount = [filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList, filterChannel !== "All", filterDormant !== "All"].filter(Boolean).length;
+  const dupeCount = Object.keys(dupeMap).length;
+  const activeFilterCount = [filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList, filterChannel !== "All", filterDormant !== "All", filterDuplicates].filter(Boolean).length;
 
   const filtered = useMemo(() => {
     return prospects.filter((p) => {
@@ -63,9 +103,10 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         const thresh = filterDormant === "custom" ? Number(customDays) : Number(filterDormant);
         if (d === null || d < thresh) return false;
       }
+      if (filterDuplicates && !dupeMap[p.id]) return false;
       return true;
     });
-  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays]);
+  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays, filterDuplicates, dupeMap]);
 
   const sorted = useMemo(() => {
     if (!sortBy) return filtered;
@@ -87,7 +128,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 
   function clearAll() {
     setFilterStatuses([]); setFilterList(""); setFilterDateFrom(""); setFilterDateTo("");
-    setFilterChannel("All"); setFilterDormant("All"); setCustomDays("");
+    setFilterChannel("All"); setFilterDormant("All"); setCustomDays(""); setFilterDuplicates(false);
   }
 
   function toggleSelected(id) {
@@ -115,6 +156,30 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           </div>
         ))}
       </div>
+
+      {/* Duplicates banner */}
+      {dupeCount > 0 && (
+        <div style={{ margin: "0 32px 16px", background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 10, padding: "12px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#fca5a5" }}>
+              🚨 {dupeCount} prospect{dupeCount !== 1 ? "s" : ""} already exist{dupeCount === 1 ? "s" : ""} in another user's account
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-sm" onClick={() => setFilterDuplicates((f) => !f)}
+                style={{ fontSize: 12, background: filterDuplicates ? "#7f1d1d" : "transparent", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
+                {filterDuplicates ? "Show all" : "Show duplicates only"}
+              </button>
+              <button className="btn btn-sm" onClick={checkForDuplicates} disabled={checkingDupes}
+                style={{ fontSize: 12, background: "transparent", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
+                {checkingDupes ? "Checking…" : "↻ Recheck"}
+              </button>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#fca5a5", opacity: 0.8 }}>
+            These prospects match records owned by other team members. Consider deleting them to avoid duplicate outreach.
+          </div>
+        </div>
+      )}
 
       {/* Overdue banner */}
       {overdueProspects.length > 0 && (
@@ -157,6 +222,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         ))}
         {filterList && <div className="filter-pill" style={{ background: "#0d1a2e", borderColor: "#1e3a5f", color: "#60a5fa" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
         {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "#0d2a1a", borderColor: "#1e5f3a", color: "#34d399" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
+        {filterDuplicates && <div className="filter-pill" style={{ background: "#2a1a1a", borderColor: "#7f1d1d", color: "#fca5a5" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
         {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
       </div>
 
@@ -298,8 +364,9 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               const sl = stalenessLabel(days);
               const isSelected = selectedIds.has(p.id);
               const pendingCount = tasksToday.filter((t) => t.prospect.id === p.id).length;
+              const dupeInfo = dupeMap[p.id];
               return (
-                <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)}>
+                <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)} style={dupeInfo ? { background: "rgba(239,68,68,0.04)" } : undefined}>
                   <td onClick={(e) => { e.stopPropagation(); toggleSelected(p.id); }} style={{ padding: "14px 8px" }}>
                     <input type="checkbox" checked={isSelected} readOnly style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
                   </td>
@@ -307,9 +374,20 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     <div className="flex items-center gap-6">
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
                       <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
+                      {dupeInfo && (
+                        <span title={`Duplicate ${dupeInfo.field} — matches ${dupeInfo.matchedName} at ${dupeInfo.matchedCompany} (${dupeInfo.ownerEmail})`}
+                          style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5", whiteSpace: "nowrap" }}>
+                          🚨 duplicate
+                        </span>
+                      )}
                       {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
                     </div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>
+                    {dupeInfo && (
+                      <div style={{ fontSize: 12, color: "#fca5a5", marginTop: 2, paddingLeft: 12 }}>
+                        Matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} ({dupeInfo.ownerEmail}) by {dupeInfo.field}
+                      </div>
+                    )}
+                    {!dupeInfo && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>}
                   </td>
                   <td>
                     <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>

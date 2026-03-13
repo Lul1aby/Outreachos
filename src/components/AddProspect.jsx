@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, INDUSTRIES, CSV_FIELDS } from "../constants";
@@ -34,6 +34,38 @@ export default function AddProspect({ onClose }) {
   const [csvError, setCsvError] = useState("");
   const [crossUserDupes, setCrossUserDupes] = useState([]); // matches from /api/check-duplicates
   const [checkingDupes, setCheckingDupes] = useState(false);
+  const [excludedRows, setExcludedRows] = useState(new Set()); // indices to skip on import
+
+  /* Single prospect cross-user duplicate check */
+  const [singleCrossDupe, setSingleCrossDupe] = useState(null);
+  const [checkingSingle, setCheckingSingle] = useState(false);
+
+  /* Debounced cross-user check for single prospect */
+  const singleCheckTimer = useRef(null);
+  useEffect(() => {
+    setSingleCrossDupe(null);
+    const hasIdentifier = form.email.trim() || form.phone.trim() || form.linkedin.trim();
+    if (!hasIdentifier) return;
+    clearTimeout(singleCheckTimer.current);
+    singleCheckTimer.current = setTimeout(async () => {
+      setCheckingSingle(true);
+      try {
+        const session = await supabase?.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch("/api/check-duplicates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ prospects: [{ email: form.email, phone: form.phone, linkedin: form.linkedin, name: form.name, company: form.company }] }),
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body.matches?.length > 0) setSingleCrossDupe(body.matches[0]);
+        }
+      } catch { /* fail silently */ }
+      finally { setCheckingSingle(false); }
+    }, 600);
+    return () => clearTimeout(singleCheckTimer.current);
+  }, [form.email, form.phone, form.linkedin]);
 
   function saveProspect() {
     const errs = validateProspect(form);
@@ -84,7 +116,9 @@ export default function AddProspect({ onClose }) {
   }, [csvPreview, state.prospects]);
 
   function commitCsv() {
-    dispatch({ type: "IMPORT_PROSPECTS", payload: csvPreview, meta: { listName: csvListName || null } });
+    const toImport = csvPreview.filter((_, i) => !excludedRows.has(i));
+    if (toImport.length === 0) return;
+    dispatch({ type: "IMPORT_PROSPECTS", payload: toImport, meta: { listName: csvListName || null } });
     onClose();
   }
 
@@ -108,8 +142,16 @@ export default function AddProspect({ onClose }) {
     finally { setCheckingDupes(false); }
   }
 
+  /* Auto-exclude system duplicates when detected */
+  useEffect(() => {
+    if (crossUserDupes.length > 0) {
+      const sysDupeIndices = new Set(crossUserDupes.map((m) => m.inputIndex));
+      setExcludedRows(sysDupeIndices);
+    }
+  }, [crossUserDupes]);
+
   function resetCsv() {
-    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName(""); setCrossUserDupes([]);
+    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName(""); setCrossUserDupes([]); setExcludedRows(new Set());
   }
 
   const upd = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors(null); };
@@ -131,8 +173,16 @@ export default function AddProspect({ onClose }) {
           </div>
           {duplicate && (
             <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "9px 14px", fontSize: 13, color: "var(--warning)", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-              ⚠️ Possible duplicate — <strong>{duplicate.name}</strong> at <strong>{duplicate.company}</strong> already exists ({duplicate.status}). You can still add if this is a different contact.
+              ⚠️ Possible duplicate — <strong>{duplicate.name}</strong> at <strong>{duplicate.company}</strong> already exists in your list ({duplicate.status}).
             </div>
+          )}
+          {singleCrossDupe && (
+            <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 8, padding: "9px 14px", fontSize: 13, color: "#fca5a5", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              🚨 <strong>Already in the system</strong> — <strong>{singleCrossDupe.matchedName}</strong> at <strong>{singleCrossDupe.matchedCompany}</strong> (owned by {singleCrossDupe.ownerEmail}) matches by {singleCrossDupe.field}. Adding this prospect may create duplicate work.
+            </div>
+          )}
+          {checkingSingle && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Checking system for duplicates…</div>
           )}
           <div className="form-row">
             <Input label="Title" value={form.title} onChange={upd("title")} placeholder="VP of Sales" />
@@ -279,7 +329,12 @@ export default function AddProspect({ onClose }) {
               <div style={{ maxHeight: 280, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 10, marginBottom: 18 }}>
                 <table className="table" style={{ marginTop: 0 }}>
                   <thead style={{ position: "sticky", top: 0, background: "var(--surface-alt)" }}>
-                    <tr>{["Name", "Company", "Title", "List", "Status"].map((h) => <th key={h}>{h}</th>)}</tr>
+                    <tr>
+                      <th style={{ width: 32, padding: "12px 8px" }}>
+                        <input type="checkbox" checked={excludedRows.size === 0} onChange={(e) => setExcludedRows(e.target.checked ? new Set() : new Set(csvPreview.map((_, i) => i)))} style={{ cursor: "pointer", accentColor: "var(--primary)" }} title="Include/exclude all" />
+                      </th>
+                      {["Name", "Company", "Title", "List", "Status"].map((h) => <th key={h}>{h}</th>)}
+                    </tr>
                   </thead>
                   <tbody>
                     {csvPreview.map((p, i) => {
@@ -289,9 +344,13 @@ export default function AddProspect({ onClose }) {
                         (e && ex.email && ex.email.toLowerCase() === e)
                       );
                       const isSysDup = crossUserDupes.some((m) => m.inputIndex === i);
-                      const rowBg = isSysDup ? "rgba(239,68,68,0.07)" : isOwnDup ? "rgba(251,146,60,.06)" : undefined;
+                      const isExcluded = excludedRows.has(i);
+                      const rowBg = isExcluded ? "rgba(100,100,100,0.08)" : isSysDup ? "rgba(239,68,68,0.07)" : isOwnDup ? "rgba(251,146,60,.06)" : undefined;
                       return (
-                        <tr key={i} style={{ cursor: "default", background: rowBg }}>
+                        <tr key={i} style={{ cursor: "default", background: rowBg, opacity: isExcluded ? 0.5 : 1 }}>
+                          <td onClick={(e) => e.stopPropagation()} style={{ padding: "8px" }}>
+                            <input type="checkbox" checked={!isExcluded} onChange={() => setExcludedRows((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; })} style={{ cursor: "pointer", accentColor: isSysDup ? "#ef4444" : "var(--primary)" }} />
+                          </td>
                           <td style={{ fontWeight: 500 }}>
                             {p.name}
                             {isSysDup && <span title="Already exists in the system (another user)" style={{ marginLeft: 6, fontSize: 12, color: "#f87171" }}>🚨</span>}
@@ -316,9 +375,30 @@ export default function AddProspect({ onClose }) {
                 </div>
               )}
 
+              {/* Quick actions for duplicates */}
+              {(crossUserDupes.length > 0 || csvDuplicateCount > 0) && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                  {crossUserDupes.length > 0 && (
+                    <button className="btn btn-sm" style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", color: "#fca5a5", fontSize: 12 }}
+                      onClick={() => { const sysDupeIndices = new Set(crossUserDupes.map((m) => m.inputIndex)); setExcludedRows((prev) => { const n = new Set(prev); sysDupeIndices.forEach((i) => n.add(i)); return n; }); }}>
+                      Exclude all system duplicates
+                    </button>
+                  )}
+                  {excludedRows.size > 0 && (
+                    <button className="btn btn-sm btn-ghost" style={{ fontSize: 12 }} onClick={() => setExcludedRows(new Set())}>
+                      Include all
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-8 justify-end">
                 <button className="btn btn-ghost" onClick={() => setCsvStep("map")}>← Back</button>
-                <button className="btn btn-primary" onClick={commitCsv}>⬆ Import {csvPreview.length} Prospects</button>
+                <button className="btn btn-primary" onClick={commitCsv} disabled={csvPreview.length - excludedRows.size === 0}
+                  style={csvPreview.length - excludedRows.size === 0 ? { opacity: 0.5, cursor: "not-allowed" } : {}}>
+                  ⬆ Import {csvPreview.length - excludedRows.size} Prospect{csvPreview.length - excludedRows.size !== 1 ? "s" : ""}
+                  {excludedRows.size > 0 && <span style={{ opacity: 0.7, marginLeft: 4 }}>({excludedRows.size} skipped)</span>}
+                </button>
               </div>
             </>
           )}
