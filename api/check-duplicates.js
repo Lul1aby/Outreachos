@@ -1,7 +1,7 @@
 /**
  * POST /api/check-duplicates
  * Check a list of prospects against ALL users' data for duplicates
- * by email, phone, or LinkedIn URL.
+ * by email, phone, LinkedIn URL, or name+company.
  *
  * Headers: Authorization: Bearer <user-jwt>
  * Body: { prospects: [{ email, phone, linkedin, name, company }] }
@@ -64,9 +64,10 @@ export default async function handler(req, res) {
   }
 
   // Build lookup sets from all other users' prospects
-  const emailLookup   = new Map(); // normalizedEmail → { name, company, ownerEmail }
-  const phoneLookup   = new Map();
+  const emailLookup    = new Map(); // normalizedEmail → { name, company, ownerEmail }
+  const phoneLookup    = new Map();
   const linkedinLookup = new Map();
+  const nameCoLookup   = new Map(); // "name|company" (lowercased) → { name, company, ownerEmail }
 
   for (const row of rows) {
     const owner = emailMap[row.user_id] || "another user";
@@ -80,6 +81,12 @@ export default async function handler(req, res) {
 
       const li = normalizeLinkedIn(p.linkedin);
       if (li) linkedinLookup.set(li, { name: p.name, company: p.company, ownerEmail: owner });
+
+      // Name + Company match
+      if (p.name && p.company) {
+        const nc = (p.name.trim() + "|" + p.company.trim()).toLowerCase();
+        nameCoLookup.set(nc, { name: p.name, company: p.company, ownerEmail: owner });
+      }
     }
   }
 
@@ -110,6 +117,14 @@ export default async function handler(req, res) {
       if (hit && !checked.has("li:" + li)) {
         checked.add("li:" + li);
         matches.push({ inputIndex: i, field: "linkedin", value: p.linkedin, ...hit });
+      }
+    }
+    // Name + Company match (only if no contact-field match was found for this prospect)
+    if (checked.size === 0 && p.name && p.company) {
+      const nc = (p.name.trim() + "|" + p.company.trim()).toLowerCase();
+      const hit = nameCoLookup.get(nc);
+      if (hit) {
+        matches.push({ inputIndex: i, field: "name+company", value: `${p.name} at ${p.company}`, ...hit });
       }
     }
   });
