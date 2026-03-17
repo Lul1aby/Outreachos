@@ -300,23 +300,22 @@ export function StoreProvider({ children }) {
     const key = idbKey(userId);
     if (supabase && userId) {
       try {
-        const { data, error } = await supabase
-          .from("user_data")
-          .select("data")
-          .eq("user_id", userId)
-          .single();
-        if (!error && data?.data) {
-          const merged = mergeLoaded(data.data);
-          if (merged) {
-            dispatch({ type: "HYDRATE", payload: data.data });
-            persistAllowed.current = true;
-            setHydrated(true);
-            return;
-          }
-        }
-        // No cloud data yet — only migrate from this user's own IDB key
-        const idbData = await get(key).catch(() => null);
-        if (idbData && mergeLoaded(idbData)) {
+        // Fetch both sources in parallel — pick whichever is newer
+        const [cloudRes, idbData] = await Promise.all([
+          supabase.from("user_data").select("data").eq("user_id", userId).single(),
+          get(key).catch(() => null),
+        ]);
+        const cloudPayload = (!cloudRes.error && cloudRes.data?.data) ? cloudRes.data.data : null;
+        const cloudValid = cloudPayload && mergeLoaded(cloudPayload);
+        const idbValid = idbData && mergeLoaded(idbData);
+
+        if (cloudValid && idbValid) {
+          // Both exist — use the one saved more recently (_savedAt: 0 for legacy data without it)
+          const best = (idbData._savedAt || 0) > (cloudPayload._savedAt || 0) ? idbData : cloudPayload;
+          dispatch({ type: "HYDRATE", payload: best });
+        } else if (cloudValid) {
+          dispatch({ type: "HYDRATE", payload: cloudPayload });
+        } else if (idbValid) {
           dispatch({ type: "HYDRATE", payload: idbData });
           await supabase.from("user_data").upsert({ user_id: userId, data: idbData, updated_at: new Date().toISOString() });
         }
@@ -396,8 +395,9 @@ export function StoreProvider({ children }) {
 
   useEffect(() => {
     if (!hydrated || !persistAllowed.current) return;
+    const toSave = { ...state, _savedAt: Date.now() };
     // Always write to local IndexedDB immediately (offline cache), scoped per user
-    set(idbKey(user?.id ?? null), state).catch(() => {});
+    set(idbKey(user?.id ?? null), toSave).catch(() => {});
     // Debounce cloud writes to avoid hammering Supabase on every keystroke
     if (supabase && user) {
       clearTimeout(saveTimer.current);
@@ -405,7 +405,7 @@ export function StoreProvider({ children }) {
       saveTimer.current = setTimeout(async () => {
         await supabase
           .from("user_data")
-          .upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() })
+          .upsert({ user_id: user.id, data: toSave, updated_at: new Date().toISOString() })
           .catch(() => {});
         setSyncing(false);
       }, 300);
@@ -433,7 +433,7 @@ export function StoreProvider({ children }) {
           "apikey": key,
           "Prefer": "resolution=merge-duplicates",
         },
-        body: JSON.stringify({ user_id: u.id, data: latestState.current, updated_at: new Date().toISOString() }),
+        body: JSON.stringify({ user_id: u.id, data: { ...latestState.current, _savedAt: Date.now() }, updated_at: new Date().toISOString() }),
       }).catch(() => {});
     }
     window.addEventListener("beforeunload", flush);
@@ -502,7 +502,7 @@ export function StoreProvider({ children }) {
     try {
       await supabase
         .from("user_data")
-        .upsert({ user_id: latestUser.current.id, data: latestState.current, updated_at: new Date().toISOString() });
+        .upsert({ user_id: latestUser.current.id, data: { ...latestState.current, _savedAt: Date.now() }, updated_at: new Date().toISOString() });
     } catch { /* ignore */ }
   }, []);
 
