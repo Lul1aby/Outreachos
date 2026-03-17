@@ -10,9 +10,12 @@ export function nowTimeStr() { return new Date().toTimeString().slice(0, 5); }
 const TERMINAL = new Set(["Not Interested"]);
 
 export function lastTouchDate(prospect) {
-  if (TERMINAL.has(prospect.status)) return null;
   const dates = prospect.touchpoints.map(t => t.date).sort();
   return dates.length ? dates[dates.length - 1] : prospect.createdAt;
+}
+
+export function isTerminalStatus(prospect) {
+  return TERMINAL.has(prospect.status);
 }
 
 export function daysSinceLast(prospect) {
