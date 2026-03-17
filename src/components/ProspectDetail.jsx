@@ -47,7 +47,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const { state, dispatch } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
   const [tab, setTab] = useState("touchpoints");
-  const [research, setResearch] = useState(null);   // { brief, fetchedAt }
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState(null);
   const [hiring, setHiring] = useState(null);        // { brief, fetchedAt }
@@ -102,6 +101,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   /* Inline reminder-style form (we use the touchpoint form here) */
   const touchpoints = prospect?.touchpoints || [];
 
+  const research = prospect?.research || null; // { brief, fetchedAt }
+
   const fetchResearch = useCallback(async () => {
     if (!prospect) return;
     setResearching(true);
@@ -110,17 +111,17 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: prospect.name, company: prospect.company, title: prospect.title, industry: prospect.industry }),
+        body: JSON.stringify({ company: prospect.company, industry: prospect.industry }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Research failed");
-      setResearch({ brief: data.brief, fetchedAt: new Date().toLocaleTimeString() });
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { research: { brief: data.brief, fetchedAt: new Date().toLocaleTimeString() } } } });
     } catch (err) {
       setResearchError(err.message);
     } finally {
       setResearching(false);
     }
-  }, [prospect]);
+  }, [prospect, dispatch]);
 
   const fetchHiring = useCallback(async () => {
     if (!prospect) return;
@@ -533,19 +534,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                 <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>
                   Researched at {research.fetchedAt} · Powered by Claude + web search
                 </div>
-                <div className="flex gap-8">
-                  <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={() => {
-                      const note = `--- Research Brief (${new Date().toLocaleDateString()}) ---\n${research.brief}`;
-                      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { notes: prospect.notes ? prospect.notes + "\n\n" + note : note } } });
-                    }}
-                    title="Save brief to prospect notes"
-                  >
-                    Save to Notes
-                  </button>
-                </div>
+                <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
               </div>
               <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <RenderBrief text={research.brief} />
