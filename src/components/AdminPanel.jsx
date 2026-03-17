@@ -127,7 +127,7 @@ export default function AdminPanel() {
   if (loading) return <div style={{ padding: 32, color: "var(--text-muted)", textAlign: "center" }}>Loading…</div>;
   if (error) return (
     <div style={{ padding: 32 }}>
-      <div style={{ background: "#2a1e1e", border: "1px solid #991b1b", borderRadius: 8, padding: "12px 16px", color: "#f87171" }}>{error}</div>
+      <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "12px 16px", color: "var(--danger)" }}>{error}</div>
     </div>
   );
 
@@ -139,7 +139,7 @@ export default function AdminPanel() {
           <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text)" }}>Admin Panel</div>
           <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
             Signed in as <strong>{user?.email}</strong>
-            {isOwner && <span style={{ marginLeft: 8, fontSize: 11, background: "#1e3a5f", border: "1px solid #2d5a9e", borderRadius: 20, padding: "1px 8px", color: "#60a5fa" }}>Owner</span>}
+            {isOwner && <span style={{ marginLeft: 8, fontSize: 11, background: "var(--info-border)", border: "1px solid var(--info-border)", borderRadius: 20, padding: "1px 8px", color: "var(--info)" }}>Owner</span>}
           </div>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={fetchAll}>↻ Refresh</button>
@@ -150,8 +150,8 @@ export default function AdminPanel() {
         {[
           { label: "Total Prospects", value: totalProspects },
           { label: "Users", value: usersData?.length || 0 },
-          { label: "Cross-User Duplicates", value: totalDupes, color: totalDupes > 0 ? "#f59e0b" : undefined },
-          { label: "Flagged", value: totalFlagged, color: totalFlagged > 0 ? "#ef4444" : undefined },
+          { label: "Cross-User Duplicates", value: totalDupes, color: totalDupes > 0 ? "var(--warning)" : undefined },
+          { label: "Flagged", value: totalFlagged, color: totalFlagged > 0 ? "var(--danger-bright)" : undefined },
         ].map((c) => (
           <div key={c.label} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 20px", minWidth: 130 }}>
             <div style={{ fontSize: 26, fontWeight: 800, color: c.color || "var(--text)" }}>{c.value}</div>
@@ -201,11 +201,11 @@ export default function AdminPanel() {
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 14, fontWeight: 700 }}>{u.userEmail}</span>
-                    {userRole === "admin" && <span style={{ fontSize: 11, background: "#1e3a5f", border: "1px solid #2d5a9e", borderRadius: 20, padding: "1px 8px", color: "#60a5fa" }}>admin</span>}
-                    {ownerEmails.includes(u.userEmail?.toLowerCase()) && <span style={{ fontSize: 11, background: "#1c2a4a", border: "1px solid #3b5998", borderRadius: 20, padding: "1px 8px", color: "#93c5fd" }}>owner</span>}
+                    {userRole === "admin" && <span style={{ fontSize: 11, background: "var(--info-border)", border: "1px solid var(--info-border)", borderRadius: 20, padding: "1px 8px", color: "var(--info)" }}>admin</span>}
+                    {ownerEmails.includes(u.userEmail?.toLowerCase()) && <span style={{ fontSize: 11, background: "var(--info-bg)", border: "1px solid var(--info-border)", borderRadius: 20, padding: "1px 8px", color: "var(--info-light)" }}>owner</span>}
                     <span style={{ fontSize: 12, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 20, padding: "1px 8px", color: "var(--text-muted)" }}>{u.prospects.length} prospects</span>
                     {u.prospects.some((p) => dupKeys.has(`${u.userId}:${p.id}`)) && (
-                      <span style={{ fontSize: 11, background: "#451a03", border: "1px solid #92400e", borderRadius: 20, padding: "1px 8px", color: "#fbbf24" }}>has duplicates</span>
+                      <span style={{ fontSize: 11, background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 20, padding: "1px 8px", color: "var(--warning)" }}>has duplicates</span>
                     )}
                   </div>
                   <span style={{ fontSize: 12, color: "var(--text-dim)" }}>{isExpanded ? "▲" : "▼"}</span>
@@ -240,19 +240,19 @@ export default function AdminPanel() {
                                 <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "center" }}>{p.touchpoints?.length ?? 0}</td>
                                 <td style={{ padding: "8px 12px" }}>
                                   <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                                    {isDupe && <span style={{ fontSize: 11, borderRadius: 20, padding: "2px 8px", background: "#451a03", border: "1px solid #92400e", color: "#fbbf24" }}>duplicate</span>}
-                                    {isFlagged && <span style={{ fontSize: 11, borderRadius: 20, padding: "2px 8px", background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" }}>flagged</span>}
+                                    {isDupe && <span style={{ fontSize: 11, borderRadius: 20, padding: "2px 8px", background: "var(--warning-bg)", border: "1px solid var(--warning-border)", color: "var(--warning)" }}>duplicate</span>}
+                                    {isFlagged && <span style={{ fontSize: 11, borderRadius: 20, padding: "2px 8px", background: "var(--danger-bg-deep)", border: "1px solid var(--danger-border)", color: "var(--danger)" }}>flagged</span>}
                                   </div>
                                 </td>
                                 <td style={{ padding: "8px 12px" }}>
                                   <div style={{ display: "flex", gap: 6 }}>
                                     <button
                                       onClick={() => toggleFlag(key, isFlagged)}
-                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: `1px solid ${isFlagged ? "#7f1d1d" : "var(--border)"}`, background: isFlagged ? "#450a0a" : "var(--surface-raised)", color: isFlagged ? "#fca5a5" : "var(--text-sec)" }}
+                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: `1px solid ${isFlagged ? "var(--danger-border)" : "var(--border)"}`, background: isFlagged ? "var(--danger-bg-deep)" : "var(--surface-raised)", color: isFlagged ? "var(--danger)" : "var(--text-sec)" }}
                                     >{isFlagged ? "Unflag" : "Flag"}</button>
                                     <button
                                       onClick={() => deleteProspect(u.userId, p.id, p.name)}
-                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: "1px solid #7f1d1d", background: "#450a0a", color: "#fca5a5" }}
+                                      style={{ fontSize: 12, padding: "3px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "var(--font)", border: "1px solid var(--danger-border)", background: "var(--danger-bg-deep)", color: "var(--danger)" }}
                                     >Delete</button>
                                   </div>
                                 </td>
@@ -274,7 +274,7 @@ export default function AdminPanel() {
       {panelTab === "users" && (
         <div>
           {!isOwner && (
-            <div style={{ background: "#2a2a1e", border: "1px solid #92400e", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#fbbf24", marginBottom: 16 }}>
+            <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--warning)", marginBottom: 16 }}>
               Only the owner can promote or demote users.
             </div>
           )}
@@ -299,8 +299,8 @@ export default function AdminPanel() {
                       {u.id === user?.id && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>you</div>}
                     </td>
                     <td style={{ padding: "10px 14px" }}>
-                      {currentRole === "owner" && <span style={{ fontSize: 12, background: "#1e3a5f", border: "1px solid #2d5a9e", borderRadius: 20, padding: "2px 10px", color: "#60a5fa" }}>Owner</span>}
-                      {currentRole === "admin" && <span style={{ fontSize: 12, background: "#1a2e1a", border: "1px solid #2d5a2d", borderRadius: 20, padding: "2px 10px", color: "#4ade80" }}>Admin</span>}
+                      {currentRole === "owner" && <span style={{ fontSize: 12, background: "var(--info-border)", border: "1px solid var(--info-border)", borderRadius: 20, padding: "2px 10px", color: "var(--info)" }}>Owner</span>}
+                      {currentRole === "admin" && <span style={{ fontSize: 12, background: "var(--success-bg)", border: "1px solid var(--success-border)", borderRadius: 20, padding: "2px 10px", color: "var(--success-bright)" }}>Admin</span>}
                       {currentRole === "user" && <span style={{ fontSize: 12, background: "var(--surface-raised)", border: "1px solid var(--border)", borderRadius: 20, padding: "2px 10px", color: "var(--text-muted)" }}>User</span>}
                     </td>
                     <td style={{ padding: "10px 14px", color: "var(--text-muted)" }}>{prospectCount}</td>
@@ -309,7 +309,7 @@ export default function AdminPanel() {
                         {!isThisOwner && u.id !== user?.id && (
                           currentRole === "admin"
                             ? <button className="btn btn-ghost btn-sm" disabled={isLoadingRole} onClick={() => changeRole(u.id, "user")}>{isLoadingRole ? "…" : "Demote to User"}</button>
-                            : <button className="btn btn-sm" disabled={isLoadingRole} style={{ border: "1px solid #2d5a2d", background: "#1a2e1a", color: "#4ade80" }} onClick={() => changeRole(u.id, "admin")}>{isLoadingRole ? "…" : "Promote to Admin"}</button>
+                            : <button className="btn btn-sm" disabled={isLoadingRole} style={{ border: "1px solid var(--success-border)", background: "var(--success-bg)", color: "var(--success-bright)" }} onClick={() => changeRole(u.id, "admin")}>{isLoadingRole ? "…" : "Promote to Admin"}</button>
                         )}
                         {(isThisOwner || u.id === user?.id) && <span style={{ fontSize: 12, color: "var(--text-dim)" }}>—</span>}
                       </td>

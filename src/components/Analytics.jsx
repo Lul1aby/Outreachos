@@ -75,7 +75,7 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
               display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
               cursor: "pointer", fontSize: 13, fontWeight: 600,
               borderBottom: "1px solid var(--border)",
-              background: allSelected ? "rgba(99,102,241,0.1)" : "transparent",
+              background: allSelected ? "var(--primary-bg)" : "transparent",
             }}>
               <input
                 type="checkbox"
@@ -89,7 +89,7 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
               <label key={u.id} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
                 cursor: "pointer", fontSize: 13,
-                background: selectedUsers.has(u.id) ? "rgba(99,102,241,0.1)" : "transparent",
+                background: selectedUsers.has(u.id) ? "var(--primary-bg)" : "transparent",
               }}>
                 <input
                   type="checkbox"
@@ -215,11 +215,11 @@ export default function Analytics() {
     const closedNeg = notInt + noResp;
 
     const funnelSteps = [
-      { label: "Total", val: total, color: "#6366f1", pct: 100 },
-      { label: "Touched", val: contacted, color: "#60a5fa", pct: total ? Math.round((contacted / total) * 100) : 0 },
-      { label: "Replied", val: replied, color: "#34d399", pct: total ? Math.round((replied / total) * 100) : 0 },
-      { label: "Meeting", val: meeting, color: "#a78bfa", pct: total ? Math.round((meeting / total) * 100) : 0 },
-      { label: "Opportunity", val: won, color: "#4ade80", pct: total ? Math.round((won / total) * 100) : 0 },
+      { label: "Total", val: total, color: "var(--primary)", pct: 100 },
+      { label: "Touched", val: contacted, color: "var(--info)", pct: total ? Math.round((contacted / total) * 100) : 0 },
+      { label: "Replied", val: replied, color: "var(--success)", pct: total ? Math.round((replied / total) * 100) : 0 },
+      { label: "Meeting", val: meeting, color: "var(--accent)", pct: total ? Math.round((meeting / total) * 100) : 0 },
+      { label: "Opportunity", val: won, color: "var(--success-bright)", pct: total ? Math.round((won / total) * 100) : 0 },
     ];
 
     const dropOffs = [
@@ -289,7 +289,7 @@ export default function Analytics() {
     const maxAdded = Math.max(...last30.map((d) => d.added), 1);
 
     /* Industry performance */
-    const IND_COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f97316", "#f87171"];
+    const IND_COLORS = ["var(--primary)", "var(--accent)", "var(--accent)", "var(--info)", "var(--success)", "var(--warning)", "var(--warning-alt)", "var(--danger)"];
     const industryStats = INDUSTRIES.filter((i) => prospects.filter((p) => p.industry === i).length > 0).map((i, idx) => {
       const ind = prospects.filter((p) => p.industry === i);
       const r = ind.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
@@ -299,10 +299,10 @@ export default function Analytics() {
 
     /* Touchpoint distribution buckets (non-overlapping: upper bound exclusive except last) */
     const buckets = [
-      { label: "0–5 touches",  filter: (p) => p.touchpoints.length <= 5, color: "#60a5fa" },
-      { label: "5–10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "#a78bfa" },
-      { label: "10–15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "#fbbf24" },
-      { label: "15+ touches",  filter: (p) => p.touchpoints.length > 15, color: "#f97316" },
+      { label: "0–5 touches",  filter: (p) => p.touchpoints.length <= 5, color: "var(--info)" },
+      { label: "5–10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "var(--accent)" },
+      { label: "10–15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "var(--warning)" },
+      { label: "15+ touches",  filter: (p) => p.touchpoints.length > 15, color: "var(--warning-alt)" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
       const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
@@ -387,16 +387,16 @@ export default function Analytics() {
       {/* KPI strip */}
       <div className="analytics-kpi-row">
         {[
-          { label: "Total", val: data.total, color: "#6366f1" },
-          { label: "Touched", val: data.contacted, color: "#60a5fa" },
-          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "#34d399" },
-          { label: "Meetings", val: data.meeting, color: "#a78bfa" },
-          { label: "Opportunity", val: data.won, color: "#4ade80" },
-          { label: "Trials", val: data.trials, color: "#38bdf8" },
-          { label: "Call Back", val: data.callBack, color: "#f97316" },
-          { label: "Nurture", val: data.nurture, color: "#c084fc" },
-          { label: "Not Interested", val: data.notInt, color: "#f87171" },
-          { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "#fbbf24" },
+          { label: "Total", val: data.total, color: "var(--primary)" },
+          { label: "Touched", val: data.contacted, color: "var(--info)" },
+          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)" },
+          { label: "Meetings", val: data.meeting, color: "var(--accent)" },
+          { label: "Opportunity", val: data.won, color: "var(--success-bright)" },
+          { label: "Trials", val: data.trials, color: "var(--info-bright)" },
+          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
+          { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
+          { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
+          { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "var(--warning)" },
         ].map((k) => (
           <div key={k.label} className="analytics-kpi">
             <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
@@ -422,10 +422,10 @@ export default function Analytics() {
             ))}
             <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
               {[
-                { label: "No Response", val: data.noResp, color: "#fbbf24" },
-                { label: "Not Interested", val: data.notInt, color: "#f87171" },
-                { label: "Call Back", val: data.callBack, color: "#f97316" },
-                { label: "Nurture", val: data.nurture, color: "#c084fc" },
+                { label: "No Response", val: data.noResp, color: "var(--warning)" },
+                { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
+                { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
+                { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
               ].map((x) => (
                 <div key={x.label} className="flex flex-col gap-4">
                   <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
@@ -433,7 +433,7 @@ export default function Analytics() {
                 </div>
               ))}
               <div className="ml-auto flex flex-col gap-4">
-                <div style={{ fontSize: 15, fontWeight: 700, color: "#ef4444" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
               </div>
             </div>
@@ -446,15 +446,15 @@ export default function Analytics() {
               <div key={d.from}>
                 <div className="flex justify-between mb-6">
                   <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{d.from}</span>
-                  <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399" }}>{d.rate}% drop</span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)" }}>{d.rate}% drop</span>
                 </div>
-                <MiniBar pct={d.rate} color={d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399"} height={6} />
+                <MiniBar pct={d.rate} color={d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)"} height={6} />
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
               </div>
             ))}
             <div className="pt-12 border-t">
               <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
-              <div style={{ fontSize: 23, fontWeight: 700, color: "#a5b4fc" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
+              <div style={{ fontSize: 23, fontWeight: 700, color: "var(--primary-light)" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
               <div style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 2 }}>{data.avgTpAll} avg touchpoints per prospect</div>
             </div>
           </div>
@@ -468,8 +468,8 @@ export default function Analytics() {
           {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
             data.rejByIndustry.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
-                <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
               </div>
             ))}
         </div>
@@ -478,8 +478,8 @@ export default function Analytics() {
           {data.rejByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
             data.rejByChannel.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
-                <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
               </div>
             ))}
         </div>
@@ -503,8 +503,8 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">🔄 Follow Up — by Industry</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
           </div>
           {data.followUpByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No follow-ups yet</div> :
             data.followUpByIndustry.map((r) => (
@@ -512,18 +512,18 @@ export default function Analytics() {
                 <div className="flex justify-between mb-4">
                   <span style={{ fontSize: 14 }}>{r.name}</span>
                   <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                    <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
+                    <span style={{ color: "var(--warning-alt)" }}>{r.callBack}</span> / <span style={{ color: "var(--accent-light)" }}>{r.nurture}</span> · {r.rate}%
                   </span>
                 </div>
-                <MiniBar pct={r.rate} color="#c084fc" />
+                <MiniBar pct={r.rate} color="var(--accent-light)" />
               </div>
             ))}
         </div>
         <div className="card">
           <div className="card-title">🔄 Follow Up — by Channel</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#f97316" }} /> Call Back</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "#c084fc" }} /> Nurture</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
           </div>
           {data.followUpByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
             data.followUpByChannel.map((r) => (
@@ -531,10 +531,10 @@ export default function Analytics() {
                 <div className="flex justify-between mb-4">
                   <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span>
                   <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
-                    <span style={{ color: "#f97316" }}>{r.callBack}</span> / <span style={{ color: "#c084fc" }}>{r.nurture}</span> · {r.rate}%
+                    <span style={{ color: "var(--warning-alt)" }}>{r.callBack}</span> / <span style={{ color: "var(--accent-light)" }}>{r.nurture}</span> · {r.rate}%
                   </span>
                 </div>
-                <MiniBar pct={r.rate} color="#c084fc" />
+                <MiniBar pct={r.rate} color="var(--accent-light)" />
               </div>
             ))}
         </div>
@@ -542,9 +542,9 @@ export default function Analytics() {
           <div className="card-title">📋 Follow Up Pipeline</div>
           <div className="flex flex-col gap-16" style={{ paddingTop: 4 }}>
             {[
-              { label: "Call Back", val: data.callBack, color: "#f97316", bg: "#2a1800", desc: "Awaiting callback" },
-              { label: "Nurture", val: data.nurture, color: "#c084fc", bg: "#1e1a2e", desc: "Long-term nurture" },
-              { label: "Trials", val: data.trials, color: "#38bdf8", bg: "#0d2238", desc: "In trial phase" },
+              { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", bg: "var(--warning-bg)", desc: "Awaiting callback" },
+              { label: "Nurture", val: data.nurture, color: "var(--accent-light)", bg: "var(--accent-bg)", desc: "Long-term nurture" },
+              { label: "Trials", val: data.trials, color: "var(--info-bright)", bg: "var(--info-bg)", desc: "In trial phase" },
             ].map((item) => (
               <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
                 <div className="flex justify-between items-center mb-4">

@@ -177,7 +177,7 @@ export default function AddProspect({ onClose }) {
             </div>
           )}
           {singleCrossDupe && (
-            <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 8, padding: "9px 14px", fontSize: 13, color: "#fca5a5", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "9px 14px", fontSize: 13, color: "var(--danger)", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
               🚨 <strong>Already in the system</strong> — <strong>{singleCrossDupe.matchedName}</strong> at <strong>{singleCrossDupe.matchedCompany}</strong> (owned by {singleCrossDupe.ownerEmail}) matches by {singleCrossDupe.field}. Adding this prospect may create duplicate work.
             </div>
           )}
@@ -270,7 +270,7 @@ export default function AddProspect({ onClose }) {
               <div className="flex flex-col gap-8 mb-20">
                 {CSV_FIELDS.map((f) => (
                   <div key={f.key} className="flex items-center gap-10">
-                    <div style={{ width: 130, flexShrink: 0, fontSize: 14, color: f.required ? "#a78bfa" : "var(--text-sec)", fontWeight: f.required ? 600 : 400 }}>
+                    <div style={{ width: 130, flexShrink: 0, fontSize: 14, color: f.required ? "var(--accent)" : "var(--text-sec)", fontWeight: f.required ? 600 : 400 }}>
                       {f.label}{f.required && <span style={{ fontSize: 14, color: "var(--primary)", marginLeft: 3 }}>*</span>}
                     </div>
                     <select className="form-select" style={{ flex: 1, marginBottom: 0 }} value={csvMapping[f.key] || ""} onChange={(e) => setCsvMapping((m) => ({ ...m, [f.key]: e.target.value || undefined }))}>
@@ -281,7 +281,7 @@ export default function AddProspect({ onClose }) {
                   </div>
                 ))}
               </div>
-              {(!csvMapping.name || !csvMapping.company) && <div style={{ background: "#2a2a1e", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "var(--warning)", marginBottom: 14 }}>Name and Company are required.</div>}
+              {(!csvMapping.name || !csvMapping.company) && <div style={{ background: "var(--warning-bg)", border: "1px solid var(--warning-border)", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "var(--warning)", marginBottom: 14 }}>Name and Company are required.</div>}
               <div className="flex gap-8 justify-end">
                 <button className="btn btn-ghost" onClick={() => setCsvStep("upload")}>← Back</button>
                 <button className="btn btn-primary" disabled={!csvMapping.name || !csvMapping.company} onClick={goToPreview} style={(!csvMapping.name || !csvMapping.company) ? { opacity: 0.5, cursor: "not-allowed" } : {}}>Preview →</button>
@@ -301,18 +301,18 @@ export default function AddProspect({ onClose }) {
               <div style={{ fontSize: 14, color: "var(--text-sec)", marginBottom: 10 }}>
                 <strong style={{ color: "var(--success-bright)" }}>{csvPreview.length} valid prospects</strong> ready to import
                 {csvRaw.length - csvPreview.length > 0 && <span style={{ color: "var(--warning)" }}> · {csvRaw.length - csvPreview.length} skipped (missing name/company)</span>}
-                {csvDuplicateCount > 0 && <span style={{ color: "#fb923c" }}> · ⚠️ {csvDuplicateCount} already in your list</span>}
+                {csvDuplicateCount > 0 && <span style={{ color: "var(--warning-alt)" }}> · ⚠️ {csvDuplicateCount} already in your list</span>}
                 {checkingDupes && <span style={{ color: "var(--text-muted)" }}> · checking system…</span>}
-                {!checkingDupes && crossUserDupes.length > 0 && <span style={{ color: "#f87171" }}> · 🚨 {new Set(crossUserDupes.map((m) => m.inputIndex)).size} already in system</span>}
+                {!checkingDupes && crossUserDupes.length > 0 && <span style={{ color: "var(--danger)" }}> · 🚨 {new Set(crossUserDupes.map((m) => m.inputIndex)).size} already in system</span>}
               </div>
 
               {/* Cross-user duplicate banner */}
               {!checkingDupes && crossUserDupes.length > 0 && (
-                <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#fca5a5", marginBottom: 14 }}>
+                <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "var(--danger)", marginBottom: 14 }}>
                   <strong>🚨 System duplicates detected</strong> — the following prospects already exist in another user's account:
                   <ul style={{ margin: "6px 0 0 0", paddingLeft: 18, display: "flex", flexDirection: "column", gap: 3 }}>
                     {crossUserDupes.slice(0, 8).map((m, i) => (
-                      <li key={i} style={{ fontSize: 12, color: "#fca5a5" }}>
+                      <li key={i} style={{ fontSize: 12, color: "var(--danger)" }}>
                         <strong>{csvPreview[m.inputIndex]?.name}</strong> — duplicate <strong>{m.field}</strong>
                         {m.field === "email" && <span> (<span style={{ fontFamily: "monospace" }}>{m.value}</span>)</span>}
                         {m.field === "phone" && <span> ({m.value})</span>}
@@ -349,17 +349,17 @@ export default function AddProspect({ onClose }) {
                       return (
                         <tr key={i} style={{ cursor: "default", background: rowBg, opacity: isExcluded ? 0.5 : 1 }}>
                           <td onClick={(e) => e.stopPropagation()} style={{ padding: "8px" }}>
-                            <input type="checkbox" checked={!isExcluded} onChange={() => setExcludedRows((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; })} style={{ cursor: "pointer", accentColor: isSysDup ? "#ef4444" : "var(--primary)" }} />
+                            <input type="checkbox" checked={!isExcluded} onChange={() => setExcludedRows((prev) => { const n = new Set(prev); n.has(i) ? n.delete(i) : n.add(i); return n; })} style={{ cursor: "pointer", accentColor: isSysDup ? "var(--danger-bright)" : "var(--primary)" }} />
                           </td>
                           <td style={{ fontWeight: 500 }}>
                             {p.name}
-                            {isSysDup && <span title="Already exists in the system (another user)" style={{ marginLeft: 6, fontSize: 12, color: "#f87171" }}>🚨</span>}
-                            {!isSysDup && isOwnDup && <span title="Already in your list" style={{ marginLeft: 6, fontSize: 12, color: "#fb923c" }}>⚠️</span>}
+                            {isSysDup && <span title="Already exists in the system (another user)" style={{ marginLeft: 6, fontSize: 12, color: "var(--danger)" }}>🚨</span>}
+                            {!isSysDup && isOwnDup && <span title="Already in your list" style={{ marginLeft: 6, fontSize: 12, color: "var(--warning-alt)" }}>⚠️</span>}
                           </td>
                           <td style={{ color: "var(--text-sec)" }}>{p.company}</td>
                           <td style={{ color: "var(--text-sec)" }}>{p.title || <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
                           <td>{p.listName ? <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--border-hover)" }}>{p.listName}</span> : <span style={{ color: "var(--text-dim)" }}>—</span>}</td>
-                          <td><span className="badge" style={{ background: "#1a1a2e", color: "#6b7280", borderColor: "#2d2d4e" }}>Not Started</span></td>
+                          <td><span className="badge" style={{ background: "var(--st-ns-bg)", color: "var(--st-ns-text)", borderColor: "var(--st-ns-border)" }}>Not Started</span></td>
                         </tr>
                       );
                     })}
@@ -370,8 +370,8 @@ export default function AddProspect({ onClose }) {
               {/* Legend */}
               {(csvDuplicateCount > 0 || crossUserDupes.length > 0) && (
                 <div style={{ display: "flex", gap: 14, fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
-                  {crossUserDupes.length > 0 && <span><span style={{ color: "#f87171" }}>🚨</span> Already in system (another user)</span>}
-                  {csvDuplicateCount > 0 && <span><span style={{ color: "#fb923c" }}>⚠️</span> Already in your list</span>}
+                  {crossUserDupes.length > 0 && <span><span style={{ color: "var(--danger)" }}>🚨</span> Already in system (another user)</span>}
+                  {csvDuplicateCount > 0 && <span><span style={{ color: "var(--warning-alt)" }}>⚠️</span> Already in your list</span>}
                 </div>
               )}
 
@@ -379,7 +379,7 @@ export default function AddProspect({ onClose }) {
               {(crossUserDupes.length > 0 || csvDuplicateCount > 0) && (
                 <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                   {crossUserDupes.length > 0 && (
-                    <button className="btn btn-sm" style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", color: "#fca5a5", fontSize: 12 }}
+                    <button className="btn btn-sm" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", color: "var(--danger)", fontSize: 12 }}
                       onClick={() => { const sysDupeIndices = new Set(crossUserDupes.map((m) => m.inputIndex)); setExcludedRows((prev) => { const n = new Set(prev); sysDupeIndices.forEach((i) => n.add(i)); return n; }); }}>
                       Exclude all system duplicates
                     </button>

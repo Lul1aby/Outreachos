@@ -102,12 +102,12 @@ export default function AuthPage() {
           padding: "28px 32px",
         }}>
           {message && (
-            <div style={{ background: "#0d2e1a", border: "1px solid #1a5c36", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 14, color: "#4ade80" }}>
+            <div style={{ background: "var(--success-bg)", border: "1px solid var(--success-border)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 14, color: "var(--success-bright)" }}>
               {message}
             </div>
           )}
           {error && (
-            <div style={{ background: "#2a1e1e", border: "1px solid #991b1b", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 14, color: "#f87171" }}>
+            <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, padding: "10px 14px", marginBottom: 20, fontSize: 14, color: "var(--danger)" }}>
               {error}
             </div>
           )}

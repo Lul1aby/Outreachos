@@ -10,7 +10,7 @@ export default function Account({ theme, setTheme }) {
   const isAdmin = isOwner || user?.app_metadata?.role === "admin";
 
   const role = isOwner ? "Owner" : isAdmin ? "Admin" : "User";
-  const roleColor = isOwner ? "#f59e0b" : isAdmin ? "#a78bfa" : "var(--text-muted)";
+  const roleColor = isOwner ? "var(--warning)" : isAdmin ? "var(--accent)" : "var(--text-muted)";
 
   async function handleSignOut() {
     await flushSave();
@@ -31,7 +31,7 @@ export default function Account({ theme, setTheme }) {
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
           <div style={{
             width: 52, height: 52, borderRadius: "50%",
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            background: "linear-gradient(135deg, var(--primary), var(--accent))",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0,
           }}>
@@ -95,7 +95,7 @@ export default function Account({ theme, setTheme }) {
           </div>
           <button
             className="btn"
-            style={{ border: "1px solid #7f1d1d", background: "#450a0a", color: "#fca5a5", whiteSpace: "nowrap" }}
+            style={{ border: "1px solid var(--danger-border)", background: "var(--danger-bg-deep)", color: "var(--danger)", whiteSpace: "nowrap" }}
             onClick={handleSignOut}
           >
             Sign out

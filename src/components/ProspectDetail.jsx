@@ -195,11 +195,11 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Duplicate warning — shown only when this prospect matches another user's record (i.e. current user is NOT the original owner) */}
       {dupeInfo && (
-        <div style={{ background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#fca5a5", marginBottom: 4 }}>
+        <div style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
             🚨 Duplicate prospect
           </div>
-          <div style={{ fontSize: 13, color: "#fca5a5", opacity: 0.9 }}>
+          <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>
             This prospect already exists in <strong>{dupeInfo.ownerEmail}</strong>'s account — matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} by {dupeInfo.field}. Consider deleting to avoid duplicate outreach.
           </div>
         </div>
@@ -215,8 +215,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Google Calendar scheduler — shown when Meeting Booked */}
       {prospect.status === "Meeting Booked" && (
-        <div style={{ background: "var(--surface)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ade80", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--success-border)", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--success-bright)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
             📅 Schedule Meeting
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -251,7 +251,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
             </div>
             <button
               className="btn btn-primary btn-sm"
-              style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
+              style={{ background: "var(--success-border)", border: "1px solid var(--success-bright)" }}
               onClick={() => {
                 const [y, m, d] = meetDate.split("-");
                 const [hh, mm] = meetTime.split(":");
@@ -379,8 +379,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
           {/* Google Calendar shortcut when logging a Meeting Booked */}
           {tpForm.status === "Meeting Booked" && (
-            <div style={{ background: "var(--bg)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginTop: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#4ade80", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+            <div style={{ background: "var(--bg)", border: "1px solid var(--success-border)", borderRadius: 10, padding: "14px 16px", marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--success-bright)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
                 📅 Schedule Meeting
               </div>
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -404,7 +404,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                 </div>
                 <button
                   className="btn btn-primary btn-sm"
-                  style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
+                  style={{ background: "var(--success-border)", border: "1px solid var(--success-bright)" }}
                   onClick={() => {
                     const [y, m, d] = meetDate.split("-");
                     const [hh, mm] = meetTime.split(":");
@@ -455,8 +455,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           )}
 
           {researchError && (
-            <div style={{ padding: "16px", background: "#2a1e1e", border: "1px solid #991b1b", borderRadius: 8, marginBottom: 12 }}>
-              <div style={{ color: "#f87171", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Research failed</div>
+            <div style={{ padding: "16px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, marginBottom: 12 }}>
+              <div style={{ color: "var(--danger)", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Research failed</div>
               <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 12 }}>{researchError}</div>
               <button className="btn btn-ghost btn-sm" onClick={fetchResearch}>Try Again</button>
             </div>
@@ -515,8 +515,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
             )}
 
             {hiringError && (
-              <div style={{ padding: "14px", background: "#2a1e1e", border: "1px solid #991b1b", borderRadius: 8 }}>
-                <div style={{ color: "#f87171", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Lookup failed</div>
+              <div style={{ padding: "14px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8 }}>
+                <div style={{ color: "var(--danger)", fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Lookup failed</div>
                 <div style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 10 }}>{hiringError}</div>
                 <button className="btn btn-ghost btn-sm" onClick={fetchHiring}>Try Again</button>
               </div>

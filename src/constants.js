@@ -12,18 +12,18 @@ export const CHANNEL_OUTCOMES = {
 };
 
 export const STATUS_COLORS = {
-  "Not Started":    { bg: "#1a1a2e", text: "#6b7280", border: "#2d2d4e" },
-  "Replied":        { bg: "#1a3a2e", text: "#34d399", border: "#065f46" },
-  "Meeting Booked": { bg: "#2d1f4a", text: "#a78bfa", border: "#5b21b6" },
-  "No Response":    { bg: "#2a2a1e", text: "#fbbf24", border: "#92400e" },
-  "Not Interested": { bg: "#2a1e1e", text: "#f87171", border: "#991b1b" },
-  "Opportunity":    { bg: "#0d2e1a", text: "#4ade80", border: "#14532d" },
-  "Trials":         { bg: "#0d2238", text: "#38bdf8", border: "#0369a1" },
-  "Call Back":      { bg: "#2a1800", text: "#f97316", border: "#c2410c" },
-  "Nurture":        { bg: "#1e1a2e", text: "#c084fc", border: "#7e22ce" },
-  "DNP/Busy":       { bg: "#1e1e1e", text: "#9ca3af", border: "#374151" },
-  "Connected +ve":  { bg: "#0d2e1a", text: "#6ee7b7", border: "#065f46" },
-  "Wrong/Invalid":  { bg: "#2a1e1e", text: "#fb923c", border: "#9a3412" },
+  "Not Started":    { bg: "var(--st-ns-bg)", text: "var(--st-ns-text)", border: "var(--st-ns-border)" },
+  "Replied":        { bg: "var(--st-re-bg)", text: "var(--st-re-text)", border: "var(--st-re-border)" },
+  "Meeting Booked": { bg: "var(--st-mb-bg)", text: "var(--st-mb-text)", border: "var(--st-mb-border)" },
+  "No Response":    { bg: "var(--st-nr-bg)", text: "var(--st-nr-text)", border: "var(--st-nr-border)" },
+  "Not Interested": { bg: "var(--st-ni-bg)", text: "var(--st-ni-text)", border: "var(--st-ni-border)" },
+  "Opportunity":    { bg: "var(--st-op-bg)", text: "var(--st-op-text)", border: "var(--st-op-border)" },
+  "Trials":         { bg: "var(--st-tr-bg)", text: "var(--st-tr-text)", border: "var(--st-tr-border)" },
+  "Call Back":      { bg: "var(--st-cb-bg)", text: "var(--st-cb-text)", border: "var(--st-cb-border)" },
+  "Nurture":        { bg: "var(--st-nu-bg)", text: "var(--st-nu-text)", border: "var(--st-nu-border)" },
+  "DNP/Busy":       { bg: "var(--st-db-bg)", text: "var(--st-db-text)", border: "var(--st-db-border)" },
+  "Connected +ve":  { bg: "var(--st-cv-bg)", text: "var(--st-cv-text)", border: "var(--st-cv-border)" },
+  "Wrong/Invalid":  { bg: "var(--st-wi-bg)", text: "var(--st-wi-text)", border: "var(--st-wi-border)" },
 };
 
 export const CHANNEL_ICONS = {

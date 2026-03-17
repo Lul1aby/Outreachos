@@ -140,11 +140,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       {/* Stats row */}
       <div className="stat-row">
         {[
-          { label: "Total Prospects", val: stats.total, accent: "#6366f1" },
-          { label: "Total Touchpoints", val: stats.totalTp, accent: "#8b5cf6" },
-          { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "#34d399" },
-          { label: "Meetings Booked", val: stats.meetings, accent: "#a78bfa" },
-          { label: "Untouched 7d+", val: stats.needsTouch7, accent: "#f97316", filter: "7" },
+          { label: "Total Prospects", val: stats.total, accent: "var(--primary)" },
+          { label: "Total Touchpoints", val: stats.totalTp, accent: "var(--accent)" },
+          { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "var(--success)" },
+          { label: "Meetings Booked", val: stats.meetings, accent: "var(--accent)" },
+          { label: "Untouched 7d+", val: stats.needsTouch7, accent: "var(--warning-alt)", filter: "7" },
         ].map((s) => (
           <div
             key={s.label}
@@ -159,23 +159,23 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 
       {/* Duplicates banner */}
       {dupeCount > 0 && (
-        <div style={{ margin: "0 32px 16px", background: "#2a1a1a", border: "1px solid #7f1d1d", borderRadius: 10, padding: "12px 16px" }}>
+        <div style={{ margin: "0 32px 16px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 10, padding: "12px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#fca5a5" }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)" }}>
               🚨 {dupeCount} prospect{dupeCount !== 1 ? "s" : ""} already exist{dupeCount === 1 ? "s" : ""} in another user's account
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-sm" onClick={() => setFilterDuplicates((f) => !f)}
-                style={{ fontSize: 12, background: filterDuplicates ? "#7f1d1d" : "transparent", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
+                style={{ fontSize: 12, background: filterDuplicates ? "var(--danger-border)" : "transparent", border: "1px solid var(--danger-border)", color: "var(--danger)" }}>
                 {filterDuplicates ? "Show all" : "Show duplicates only"}
               </button>
               <button className="btn btn-sm" onClick={checkForDuplicates} disabled={checkingDupes}
-                style={{ fontSize: 12, background: "transparent", border: "1px solid #7f1d1d", color: "#fca5a5" }}>
+                style={{ fontSize: 12, background: "transparent", border: "1px solid var(--danger-border)", color: "var(--danger)" }}>
                 {checkingDupes ? "Checking…" : "↻ Recheck"}
               </button>
             </div>
           </div>
-          <div style={{ fontSize: 12, color: "#fca5a5", opacity: 0.8 }}>
+          <div style={{ fontSize: 12, color: "var(--danger)", opacity: 0.8 }}>
             These prospects match records owned by other team members. Consider deleting them to avoid duplicate outreach.
           </div>
         </div>
@@ -198,7 +198,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 <div key={p.id} className="overdue-chip" onClick={() => onSelect(p.id)}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
                   <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</span>
-                  <span className="mono" style={{ fontSize: 14, color: "#f97316", background: "#2a1800", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--warning-alt)", background: "var(--warning-bg)", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
                   <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
                 </div>
               );
@@ -220,9 +220,9 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         {filterStatuses.map((s) => (
           <div key={s} className="filter-pill">{s}<button onClick={() => setFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
         ))}
-        {filterList && <div className="filter-pill" style={{ background: "#0d1a2e", borderColor: "#1e3a5f", color: "#60a5fa" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
-        {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "#0d2a1a", borderColor: "#1e5f3a", color: "#34d399" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
-        {filterDuplicates && <div className="filter-pill" style={{ background: "#2a1a1a", borderColor: "#7f1d1d", color: "#fca5a5" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
+        {filterList && <div className="filter-pill" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)", color: "var(--info)" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
+        {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
+        {filterDuplicates && <div className="filter-pill" style={{ background: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger)" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
         {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
       </div>
 
@@ -255,11 +255,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               <div className="flex flex-col gap-10">
                 <div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
-                  <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ colorScheme: "dark" }} />
+                  <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
                 </div>
                 <div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
-                  <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ colorScheme: "dark" }} />
+                  <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
                 </div>
                 <div className="flex gap-6 flex-wrap">
                   {[{ label: "Last 7d", d: 7 }, { label: "Last 30d", d: 30 }, { label: "Last 90d", d: 90 }].map((q) => {
@@ -275,11 +275,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               {allLists.length === 0 && <div style={{ fontSize: 14, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
               <div className="flex flex-col gap-6 mb-16">
                 {allLists.map((l) => (
-                  <label key={l} className="checkbox-row" onClick={() => setFilterList(filterList === l ? "" : l)} style={{ padding: "6px 10px", borderRadius: 7, background: filterList === l ? "#0d1a2e" : "transparent", border: `1px solid ${filterList === l ? "#1e3a5f" : "transparent"}` }}>
-                    <div className={`checkbox-box${filterList === l ? " checked" : ""}`} style={filterList === l ? { borderColor: "#3b82f6", background: "#1e3a5f" } : {}}>
-                      {filterList === l && <span style={{ color: "#60a5fa", fontSize: 14 }}>✓</span>}
+                  <label key={l} className="checkbox-row" onClick={() => setFilterList(filterList === l ? "" : l)} style={{ padding: "6px 10px", borderRadius: 7, background: filterList === l ? "var(--info-bg)" : "transparent", border: `1px solid ${filterList === l ? "var(--info-border)" : "transparent"}` }}>
+                    <div className={`checkbox-box${filterList === l ? " checked" : ""}`} style={filterList === l ? { borderColor: "var(--info-light)", background: "var(--info-border)" } : {}}>
+                      {filterList === l && <span style={{ color: "var(--info)", fontSize: 14 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: 14, color: filterList === l ? "#93c5fd" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
+                    <span style={{ fontSize: 14, color: filterList === l ? "var(--info-light)" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
                     <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.listName === l).length}</span>
                   </label>
                 ))}
@@ -302,7 +302,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           return (
             <button key={opt.key} className={`dormant-chip${filterDormant === opt.key ? " active" : ""}`} onClick={() => { setFilterDormant(opt.key); setCustomDays(""); }}>
               {opt.label}
-              {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "#2a1800" : "var(--border)", color: filterDormant === opt.key ? "#f97316" : "var(--text-muted)" }}>{count}</span>}
+              {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "var(--warning-bg)" : "var(--border)", color: filterDormant === opt.key ? "var(--warning-alt)" : "var(--text-muted)" }}>{count}</span>}
             </button>
           );
         })}
@@ -321,7 +321,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           <div className="select-bar">
             <span style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
             <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Tasks</button>
-            <button className="btn btn-sm" style={{ background: "#2a1e1e", border: "1px solid #991b1b", color: "#f87171" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
+            <button className="btn btn-sm" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", color: "var(--danger)" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
             <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
             <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
           </div>
@@ -376,14 +376,14 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                       <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
                       {dupeInfo && (
                         <span title={`Duplicate ${dupeInfo.field} — matches ${dupeInfo.matchedName} at ${dupeInfo.matchedCompany} (${dupeInfo.ownerEmail})`}
-                          style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5", whiteSpace: "nowrap" }}>
+                          style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "var(--danger-bg-deep)", border: "1px solid var(--danger-border)", color: "var(--danger)", whiteSpace: "nowrap" }}>
                           🚨 duplicate
                         </span>
                       )}
-                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
+                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
                     </div>
                     {dupeInfo && (
-                      <div style={{ fontSize: 12, color: "#fca5a5", marginTop: 2, paddingLeft: 12 }}>
+                      <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2, paddingLeft: 12 }}>
                         Matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} ({dupeInfo.ownerEmail}) by {dupeInfo.field}
                       </div>
                     )}
@@ -391,7 +391,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   </td>
                   <td>
                     <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>
-                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "#3b82f6", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
+                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "var(--info-light)", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
                   </td>
                   <td><Badge status={p.status} /></td>
                   <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
@@ -400,13 +400,13 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                       {p.email && (
                         <button onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
                           ✉️ <span className="truncate">{p.email}</span>
-                          {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                          {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
                         </button>
                       )}
                       {p.phone && (
                         <button onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
                           📞 {p.phone}
-                          {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "#34d399", marginLeft: 4 }}>✓</span>}
+                          {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
                         </button>
                       )}
                       {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}

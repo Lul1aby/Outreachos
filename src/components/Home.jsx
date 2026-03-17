@@ -5,7 +5,7 @@ import { STATUSES, STATUS_COLORS } from "../constants";
 import { daysSinceLast, greeting, stalenessColor, todayStr } from "../utils";
 import { Badge } from "./ui";
 
-function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, #6366f1, #8b5cf6)", avatarColor = "#fff", extra }) {
+function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--primary), var(--accent))", avatarColor = "#fff", extra }) {
   return (
     <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
       <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{p.name[0]}</div>
@@ -61,12 +61,12 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
   }, [allLists, prospects]);
 
   const kpis = [
-    { label: "Total Prospects", val: prospects.length, accent: "#6366f1", icon: "👥", sub: `+${addedThisWeek} this week` },
-    { label: "Tasks Due", val: tasksToday.length, accent: tasksToday.length > 0 ? "#ef4444" : "#34d399", icon: "✅", sub: tasksToday.length > 0 ? "needs action" : "all clear", click: () => onNavigate("tasks") },
-    { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "#34d399", icon: "💬", sub: `${stats.replied} replied` },
-    { label: "Meetings", val: stats.meetings, accent: "#a78bfa", icon: "📅", sub: "booked" },
-    { label: "Win Rate", val: `${stats.winRate}%`, accent: "#4ade80", icon: "🏆", sub: `${stats.won} won` },
-    { label: "Stale 3d+", val: stats.needsTouch3, accent: stats.needsTouch3 > 0 ? "#fb923c" : "#4b5563", icon: "⏰", sub: "need a touch", click: () => onNavigate("list", { dormant: "3" }) },
+    { label: "Total Prospects", val: prospects.length, accent: "var(--primary)", icon: "👥", sub: `+${addedThisWeek} this week` },
+    { label: "Tasks Due", val: tasksToday.length, accent: tasksToday.length > 0 ? "var(--danger-bright)" : "var(--success)", icon: "✅", sub: tasksToday.length > 0 ? "needs action" : "all clear", click: () => onNavigate("tasks") },
+    { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "var(--success)", icon: "💬", sub: `${stats.replied} replied` },
+    { label: "Meetings", val: stats.meetings, accent: "var(--accent)", icon: "📅", sub: "booked" },
+    { label: "Win Rate", val: `${stats.winRate}%`, accent: "var(--success-bright)", icon: "🏆", sub: `${stats.won} won` },
+    { label: "Stale 3d+", val: stats.needsTouch3, accent: stats.needsTouch3 > 0 ? "var(--warning-alt)" : "var(--text-dim)", icon: "⏰", sub: "need a touch", click: () => onNavigate("list", { dormant: "3" }) },
   ];
 
   /* ── List detail drill-down ── */
@@ -84,10 +84,10 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
         </div>
         <div className="flex gap-12 mb-20">
           {[
-            { label: "Prospects", val: l.members.length, color: "#a5b4fc" },
-            { label: "Reply Rate", val: `${l.replyRate}%`, color: "#34d399" },
-            { label: "Meetings", val: l.meetings, color: "#a78bfa" },
-            { label: "Stale 7d+", val: l.needsTouch, color: l.needsTouch > 0 ? "#f97316" : "#4b5563" },
+            { label: "Prospects", val: l.members.length, color: "var(--primary-light)" },
+            { label: "Reply Rate", val: `${l.replyRate}%`, color: "var(--success)" },
+            { label: "Meetings", val: l.meetings, color: "var(--accent)" },
+            { label: "Stale 7d+", val: l.needsTouch, color: l.needsTouch > 0 ? "var(--warning-alt)" : "var(--text-dim)" },
           ].map((s) => (
             <div key={s.label} className="stat-card" style={{ flex: 1 }}>
               <div className="stat-label">{s.label}</div>
@@ -144,12 +144,12 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
                 </span>
               )}
               {stats.needsTouch3 > 0 && (
-                <span style={{ fontSize: 13, color: "#fb923c", cursor: "pointer" }} onClick={() => onNavigate("list", { dormant: "3" })}>
+                <span style={{ fontSize: 13, color: "var(--warning-alt)", cursor: "pointer" }} onClick={() => onNavigate("list", { dormant: "3" })}>
                   ⏰ <strong>{stats.needsTouch3}</strong> prospect{stats.needsTouch3 > 1 ? "s" : ""} need a nudge
                 </span>
               )}
               {stats.meetings > 0 && (
-                <span style={{ fontSize: 13, color: "#a78bfa" }}>
+                <span style={{ fontSize: 13, color: "var(--accent)" }}>
                   📅 <strong>{stats.meetings}</strong> meeting{stats.meetings > 1 ? "s" : ""} booked
                 </span>
               )}
@@ -197,7 +197,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
             ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No hot prospects yet — keep reaching out!</div>
             : <div className="flex flex-col gap-10">
                 {hotProspects.map((p) => (
-                  <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="#0d2e1a" avatarColor="#4ade80" />
+                  <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="var(--success-bg)" avatarColor="var(--success-bright)" />
                 ))}
               </div>
           }
@@ -209,13 +209,13 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
             <div className="home-panel-title">⏰ Needs Attention</div>
           </div>
           {needsAttention.length === 0
-            ? <div style={{ fontSize: 14, color: "#34d399" }}>All prospects touched in the last 3 days 🎉</div>
+            ? <div style={{ fontSize: 14, color: "var(--success)" }}>All prospects touched in the last 3 days 🎉</div>
             : <div className="flex flex-col gap-10">
                 {needsAttention.map((p) => {
                   const d = daysSinceLast(p);
                   const c = stalenessColor(d);
                   return (
-                    <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="#1a1a2e" avatarColor={c}
+                    <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="var(--border)" avatarColor={c}
                       extra={<span className="mono nowrap" style={{ fontSize: 14, color: c }}>{d}d ago</span>}
                     />
                   );
@@ -292,12 +292,12 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
             }}
           />
           {importStatus?.startsWith("ok:") && (
-            <span style={{ fontSize: 13, color: "#34d399", fontWeight: 600 }}>
+            <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>
               ✓ Restored {importStatus.slice(3)} prospects
             </span>
           )}
           {importStatus?.startsWith("err:") && (
-            <span style={{ fontSize: 13, color: "#f87171" }}>
+            <span style={{ fontSize: 13, color: "var(--danger)" }}>
               ✕ {importStatus.slice(4)}
             </span>
           )}
@@ -327,7 +327,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
             <div key={l.name} className="list-card" onClick={() => setListDetail(l.name)}>
               <div className="flex items-start justify-between mb-10">
                 <div style={{ fontSize: 15, fontWeight: 700 }}>📋 {l.name}</div>
-                <div style={{ fontSize: 21, fontWeight: 700, color: "#a5b4fc" }}>{l.members.length}</div>
+                <div style={{ fontSize: 21, fontWeight: 700, color: "var(--primary-light)" }}>{l.members.length}</div>
               </div>
               <div className="pipeline-bar" style={{ marginBottom: 10, height: 5, borderRadius: 3 }}>
                 {STATUSES.map((s) => {
@@ -336,9 +336,9 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
                 })}
               </div>
               <div className="flex gap-16">
-                <div><span style={{ fontSize: 15, fontWeight: 700, color: "#34d399" }}>{l.replyRate}%</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>replies</div></div>
-                <div><span style={{ fontSize: 15, fontWeight: 700, color: "#a78bfa" }}>{l.meetings}</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>meetings</div></div>
-                {l.needsTouch > 0 && <div className="ml-auto"><span style={{ fontSize: 15, fontWeight: 700, color: "#f97316" }}>{l.needsTouch}</span><div className="mono" style={{ fontSize: 14, color: "#f97316" }}>stale</div></div>}
+                <div><span style={{ fontSize: 15, fontWeight: 700, color: "var(--success)" }}>{l.replyRate}%</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>replies</div></div>
+                <div><span style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>{l.meetings}</span><div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>meetings</div></div>
+                {l.needsTouch > 0 && <div className="ml-auto"><span style={{ fontSize: 15, fontWeight: 700, color: "var(--warning-alt)" }}>{l.needsTouch}</span><div className="mono" style={{ fontSize: 14, color: "var(--warning-alt)" }}>stale</div></div>}
               </div>
             </div>
           ))}
