@@ -6,7 +6,7 @@ export function todayStr() { return new Date().toISOString().slice(0, 10); }
 
 /* ── Time helpers ── */
 
-const TERMINAL = new Set(["Closed Won", "Closed Lost", "Not Interested"]);
+const TERMINAL = new Set(["Not Interested"]);
 
 export function lastTouchDate(prospect) {
   if (TERMINAL.has(prospect.status)) return null;
@@ -41,7 +41,8 @@ export function stalenessColor(days) {
   if (days === null) return "#4b5563";
   if (days >= 30) return "#ef4444";
   if (days >= 15) return "#f97316";
-  if (days >= 7) return "#fbbf24";
+  if (days >= 7)  return "#fbbf24";
+  if (days >= 3)  return "#fb923c";
   return "#34d399";
 }
 
@@ -95,8 +96,8 @@ export function autoMapCSV(headers) {
 }
 
 export function downloadTemplate() {
-  const hdr = "name,company,title,industry,email,phone,linkedin,status,notes";
-  const row = "Jane Smith,Acme Corp,VP of Sales,SaaS,jane@acme.com,+1 555-0000,linkedin.com/in/janesmith,Not Started,Met at SaaStr";
+  const hdr = "name,company,title,industry,email,phone,linkedin,status,list,notes";
+  const row = "Jane Smith,Acme Corp,VP of Sales,SaaS,jane@acme.com,+1 555-0000,linkedin.com/in/janesmith,Not Started,Cold Outbound Q1,Met at SaaStr";
   const blob = new Blob([hdr + "\n" + row], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -104,6 +105,14 @@ export function downloadTemplate() {
   a.download = "prospects_template.csv";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/* ── URL helpers ── */
+
+export function normalizeLinkedIn(url) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  return "https://" + url;
 }
 
 /* ── Validation ── */

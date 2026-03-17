@@ -1,11 +1,196 @@
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store";
+import { supabase } from "../supabase";
 import { STATUSES, INDUSTRIES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
+import { fmtDate, daysSinceLast } from "../utils";
 import { MiniBar } from "./ui";
 
+function escapeCSV(val) {
+  if (val === null || val === undefined) return "";
+  const s = String(val);
+  return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ownEmail, ownProspectCount }) {
+  const [open, setOpen] = useState(false);
+
+  // All users: own account first, then others from admin data (excluding own to avoid duplicate)
+  const users = [
+    { id: "own", email: ownEmail || "My Account", count: ownProspectCount },
+    ...(adminAllData || [])
+      .filter((u) => u.userEmail?.toLowerCase() !== ownEmail?.toLowerCase())
+      .map((u) => ({ id: u.userId, email: u.userEmail, count: (u.prospects || []).length })),
+  ];
+
+  const allIds = users.map((u) => u.id);
+  const allSelected = allIds.every((id) => selectedUsers.has(id));
+
+  function toggle(id) {
+    setSelectedUsers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      if (next.size === 0) next.add("own");
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedUsers(new Set(["own"]));
+    } else {
+      setSelectedUsers(new Set(allIds));
+    }
+  }
+
+  const label = allSelected
+    ? "All Users"
+    : selectedUsers.size === 1 && selectedUsers.has("own")
+    ? (ownEmail || "My Account")
+    : `${selectedUsers.size} users selected`;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--mono)", marginRight: 8 }}>Viewing:</span>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          fontSize: 13, padding: "6px 12px", borderRadius: 6, cursor: "pointer",
+          border: "1px solid var(--border)", background: "var(--surface-raised)",
+          color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 260,
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ opacity: 0.5, flexShrink: 0 }}>▾</span>
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
+          <div style={{
+            position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 100,
+            background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
+            minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", padding: "6px 0",
+          }}>
+            {/* Select All */}
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
+              cursor: "pointer", fontSize: 13, fontWeight: 600,
+              borderBottom: "1px solid var(--border)",
+              background: allSelected ? "var(--primary-bg)" : "transparent",
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+                style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
+              />
+              Select All
+            </label>
+            {users.map((u) => (
+              <label key={u.id} style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
+                cursor: "pointer", fontSize: 13,
+                background: selectedUsers.has(u.id) ? "var(--primary-bg)" : "transparent",
+              }}>
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(u.id)}
+                  onChange={() => toggle(u.id)}
+                  style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
+                />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  👤 {u.email}{u.id === "own" ? " (you)" : ""}
+                </span>
+                {u.count !== null && (
+                  <span style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>({u.count})</span>
+                )}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Analytics() {
-  const { state } = useStore();
-  const { prospects } = state;
+  const { state, allLists, user } = useStore();
+  const [selectedList, setSelectedList] = useState("__all__");
+
+  /* ── Admin: data source selector ── */
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "")
+    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const isAdmin = !!user?.email && (adminEmails.includes(user.email.toLowerCase()) || user?.app_metadata?.role === "admin");
+
+  const [selectedUsers, setSelectedUsers] = useState(() => new Set(["own"]));
+  const [adminAllData, setAdminAllData] = useState(null); // [{ userId, userEmail, prospects }]
+  const [adminLoading, setAdminLoading] = useState(false);
+
+  const needsAdminData = isAdmin && !(selectedUsers.size === 1 && selectedUsers.has("own"));
+
+  useEffect(() => {
+    if (!isAdmin || adminAllData) return;
+    setAdminLoading(true);
+    (async () => {
+      try {
+        const session = await supabase?.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        const res = await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        });
+        const body = await res.json();
+        if (res.ok) setAdminAllData(body.users || []);
+      } catch { /* fail silently */ }
+      finally { setAdminLoading(false); }
+    })();
+  }, [isAdmin]);
+
+  // Source prospects based on selection
+  const sourceProspects = useMemo(() => {
+    if (!isAdmin) return state.prospects;
+    const own = selectedUsers.has("own") ? state.prospects : [];
+    const fromOthers = (adminAllData || [])
+      .filter((u) => selectedUsers.has(u.userId))
+      .flatMap((u) => u.prospects || []);
+    return [...own, ...fromOthers];
+  }, [isAdmin, selectedUsers, adminAllData, state.prospects]);
+
+  const sourceLists = useMemo(() =>
+    [...new Set(sourceProspects.map((p) => p.listName).filter(Boolean))].sort(),
+  [sourceProspects]);
+
+  const downloadReport = useCallback(() => {
+    const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
+    const rows = [
+      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used"],
+      ...src.map((p) => {
+        const days = daysSinceLast(p);
+        const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1).date : "";
+        const channels = [...new Set(p.touchpoints.map((t) => t.channel))].join("; ");
+        return [
+          p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "",
+          p.email || "", p.phone || "", p.linkedin || "",
+          fmtDate(p.createdAt), p.touchpoints.length,
+          lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "",
+          channels,
+        ];
+      }),
+    ];
+    const csv = rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
+    const label = selectedList === "__all__" ? "all-prospects" : selectedList.replace(/\s+/g, "-").toLowerCase();
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `outreach-report-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sourceProspects, selectedList]);
+
+  const prospects = useMemo(() => {
+    if (selectedList === "__all__") return sourceProspects;
+    return sourceProspects.filter((p) => p.listName === selectedList);
+  }, [sourceProspects, selectedList]);
 
   const data = useMemo(() => {
     const total = prospects.length;
@@ -19,50 +204,67 @@ export default function Analytics() {
 
     /* Funnel */
     const contacted = prospects.filter((p) => p.touchpoints.length > 0).length;
-    const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
-    const meeting = prospects.filter((p) => ["Meeting Booked", "Closed Won"].includes(p.status)).length;
-    const won = prospects.filter((p) => p.status === "Closed Won").length;
-    const lost = prospects.filter((p) => p.status === "Closed Lost").length;
+    const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+    const meeting = prospects.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+    const won = prospects.filter((p) => p.status === "Opportunity").length;
     const notInt = prospects.filter((p) => p.status === "Not Interested").length;
     const noResp = prospects.filter((p) => p.status === "No Response").length;
-    const closedNeg = notInt + lost + noResp;
+    const callBack = prospects.filter((p) => p.status === "Call Back").length;
+    const nurture = prospects.filter((p) => p.status === "Nurture").length;
+    const trials = prospects.filter((p) => p.status === "Trials").length;
+    const closedNeg = notInt + noResp;
 
     const funnelSteps = [
-      { label: "Total", val: total, color: "#6366f1", pct: 100 },
-      { label: "Contacted", val: contacted, color: "#60a5fa", pct: total ? Math.round((contacted / total) * 100) : 0 },
-      { label: "Replied", val: replied, color: "#34d399", pct: total ? Math.round((replied / total) * 100) : 0 },
-      { label: "Meeting", val: meeting, color: "#a78bfa", pct: total ? Math.round((meeting / total) * 100) : 0 },
-      { label: "Won", val: won, color: "#4ade80", pct: total ? Math.round((won / total) * 100) : 0 },
+      { label: "Total", val: total, color: "var(--primary)", pct: 100 },
+      { label: "Touched", val: contacted, color: "var(--info)", pct: total ? Math.round((contacted / total) * 100) : 0 },
+      { label: "Replied", val: replied, color: "var(--success)", pct: total ? Math.round((replied / total) * 100) : 0 },
+      { label: "Meeting", val: meeting, color: "var(--accent)", pct: total ? Math.round((meeting / total) * 100) : 0 },
+      { label: "Opportunity", val: won, color: "var(--success-bright)", pct: total ? Math.round((won / total) * 100) : 0 },
     ];
 
     const dropOffs = [
-      { from: "Contacted→Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
+      { from: "Touched→Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
       { from: "Replied→Meeting", lost: replied - meeting, rate: replied ? Math.round((1 - meeting / replied) * 100) : 0 },
-      { from: "Meeting→Won", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
+      { from: "Meeting→Opportunity", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
     ];
 
     /* Rejection by industry/channel */
     const rejByIndustry = INDUSTRIES.map((i) => {
       const ind = prospects.filter((p) => p.industry === i);
-      const neg = ind.filter((p) => ["Not Interested", "Closed Lost", "No Response"].includes(p.status)).length;
+      const neg = ind.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
       return { name: i, total: ind.length, neg, rate: ind.length ? Math.round((neg / ind.length) * 100) : 0 };
     }).filter((r) => r.neg > 0).sort((a, b) => b.rate - a.rate);
 
     const rejByChannel = CHANNELS.map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const neg = touched.filter((p) => ["Not Interested", "Closed Lost", "No Response"].includes(p.status)).length;
+      const neg = touched.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
       return { name: c, total: touched.length, neg, rate: touched.length ? Math.round((neg / touched.length) * 100) : 0 };
     }).filter((r) => r.total > 0).sort((a, b) => b.rate - a.rate);
+
+    /* Follow Up by industry/channel */
+    const followUpByIndustry = INDUSTRIES.map((i) => {
+      const ind = prospects.filter((p) => p.industry === i);
+      const cb = ind.filter((p) => p.status === "Call Back").length;
+      const nu = ind.filter((p) => p.status === "Nurture").length;
+      return { name: i, total: ind.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: ind.length ? Math.round(((cb + nu) / ind.length) * 100) : 0 };
+    }).filter((r) => r.followUp > 0).sort((a, b) => b.followUp - a.followUp);
+
+    const followUpByChannel = CHANNELS.map((c) => {
+      const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
+      const cb = touched.filter((p) => p.status === "Call Back").length;
+      const nu = touched.filter((p) => p.status === "Nurture").length;
+      return { name: c, total: touched.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: touched.length ? Math.round(((cb + nu) / touched.length) * 100) : 0 };
+    }).filter((r) => r.total > 0).sort((a, b) => b.followUp - a.followUp);
 
     /* Channel reply rate */
     const channelReply = CHANNELS.map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const r = touched.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = touched.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 
     /* Touchpoints → reply */
-    const withReply = prospects.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status));
+    const withReply = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status));
     const avgTpToReply = withReply.length ? Math.round((withReply.reduce((a, p) => a + p.touchpoints.length, 0) / withReply.length) * 10) / 10 : 0;
     const avgTpAll = total ? Math.round((prospects.reduce((a, p) => a + p.touchpoints.length, 0) / total) * 10) / 10 : 0;
 
@@ -81,58 +283,120 @@ export default function Analytics() {
     const last30 = Array.from({ length: 30 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (29 - i));
       const key = d.toISOString().slice(0, 10);
-      return { key, label: d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" }), count: actMap[key] || 0, added: addMap[key] || 0 };
+      return { key, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), count: actMap[key] || 0, added: addMap[key] || 0 };
     });
     const maxAct = Math.max(...last30.map((d) => d.count), 1);
     const maxAdded = Math.max(...last30.map((d) => d.added), 1);
 
     /* Industry performance */
-    const IND_COLORS = ["#6366f1", "#8b5cf6", "#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f97316", "#f87171"];
+    const IND_COLORS = ["var(--primary)", "var(--accent)", "var(--accent)", "var(--info)", "var(--success)", "var(--warning)", "var(--warning-alt)", "var(--danger)"];
     const industryStats = INDUSTRIES.filter((i) => prospects.filter((p) => p.industry === i).length > 0).map((i, idx) => {
       const ind = prospects.filter((p) => p.industry === i);
-      const r = ind.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
-      const m = ind.filter((p) => ["Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = ind.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const m = ind.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { name: i, total: ind.length, replied: r, meetings: m, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
-    /* Touchpoint distribution buckets */
+    /* Touchpoint distribution buckets (non-overlapping: upper bound exclusive except last) */
     const buckets = [
-      { label: "0 touches", filter: (p) => p.touchpoints.length === 0, color: "#4b5563" },
-      { label: "1–2 touches", filter: (p) => p.touchpoints.length >= 1 && p.touchpoints.length <= 2, color: "#60a5fa" },
-      { label: "3–5 touches", filter: (p) => p.touchpoints.length >= 3 && p.touchpoints.length <= 5, color: "#a78bfa" },
-      { label: "6+ touches", filter: (p) => p.touchpoints.length >= 6, color: "#fbbf24" },
+      { label: "0–5 touches",  filter: (p) => p.touchpoints.length <= 5, color: "var(--info)" },
+      { label: "5–10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "var(--accent)" },
+      { label: "10–15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "var(--warning)" },
+      { label: "15+ touches",  filter: (p) => p.touchpoints.length > 15, color: "var(--warning-alt)" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
-      const r = group.filter((p) => ["Replied", "Meeting Booked", "Closed Won"].includes(p.status)).length;
+      const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { ...b, count: group.length, replyRate: group.length ? Math.round((r / group.length) * 100) : 0 };
     });
 
     return {
-      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, lost, closedNeg,
+      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg,
+      callBack, nurture, trials, followUpByIndustry, followUpByChannel,
       rejByIndustry, rejByChannel, channelReply, byChannel,
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
       last30, maxAct, maxAdded, industryStats, buckets,
     };
   }, [prospects]);
 
+  if (adminLoading && !adminAllData) {
+    return (
+      <div style={{ padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 10, color: "var(--text-muted)" }}>
+        <span style={{ fontSize: 22 }}>📊</span> Loading analytics data…
+      </div>
+    );
+  }
+
+  if (sourceProspects.length === 0) {
+    return (
+      <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12, textAlign: "center" }}>
+        {isAdmin && (
+          <div style={{ marginBottom: 8 }}>
+            <AdminSourceSelector
+              selectedUsers={selectedUsers}
+              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
+              adminAllData={adminAllData}
+              ownEmail={user?.email}
+              ownProspectCount={state.prospects.length}
+            />
+          </div>
+        )}
+        <div style={{ fontSize: 42 }}>📊</div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>No data yet</div>
+        <div style={{ fontSize: 14, color: "var(--text-muted)", maxWidth: 320 }}>
+          {!(selectedUsers.size === 1 && selectedUsers.has("own")) ? "Selected users have no prospects yet." : "Add prospects or import a CSV to start seeing analytics."}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: "24px 32px" }} className="flex flex-col gap-20">
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
-        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+      <div className="flex items-center justify-between flex-wrap gap-12">
+        <div>
+          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+        </div>
+        <div className="flex items-center gap-8 flex-wrap">
+          {/* Admin: data source selector */}
+          {isAdmin && (
+            <AdminSourceSelector
+              selectedUsers={selectedUsers}
+              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
+              adminAllData={adminAllData}
+              ownEmail={user?.email}
+              ownProspectCount={state.prospects.length}
+            />
+          )}
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
+          <select
+            className="form-select"
+            style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }}
+            value={selectedList}
+            onChange={(e) => setSelectedList(e.target.value)}
+          >
+            <option value="__all__">All Lists</option>
+            {sourceLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
+          </select>
+          <button className="btn btn-outline btn-sm" onClick={downloadReport} title="Download activity report as CSV" style={{ whiteSpace: "nowrap" }}>
+            ⬇ Download Report
+          </button>
+        </div>
       </div>
 
       {/* KPI strip */}
       <div className="analytics-kpi-row">
         {[
-          { label: "Total", val: data.total, color: "#6366f1" },
-          { label: "Contacted", val: data.contacted, color: "#60a5fa" },
-          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "#34d399" },
-          { label: "Meetings", val: data.meeting, color: "#a78bfa" },
-          { label: "Won", val: data.won, color: "#4ade80" },
-          { label: "Not Interested", val: data.notInt, color: "#f87171" },
-          { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "#fbbf24" },
+          { label: "Total", val: data.total, color: "var(--primary)" },
+          { label: "Touched", val: data.contacted, color: "var(--info)" },
+          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)" },
+          { label: "Meetings", val: data.meeting, color: "var(--accent)" },
+          { label: "Opportunity", val: data.won, color: "var(--success-bright)" },
+          { label: "Trials", val: data.trials, color: "var(--info-bright)" },
+          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
+          { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
+          { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
+          { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "var(--warning)" },
         ].map((k) => (
           <div key={k.label} className="analytics-kpi">
             <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
@@ -156,20 +420,21 @@ export default function Analytics() {
                 <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
               </div>
             ))}
-            <div className="flex gap-20 pt-12 border-t mt-8">
+            <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
               {[
-                { label: "No Response", val: data.noResp, color: "#fbbf24" },
-                { label: "Not Interested", val: data.notInt, color: "#f87171" },
-                { label: "Closed Lost", val: data.lost, color: "#6b7280" },
+                { label: "No Response", val: data.noResp, color: "var(--warning)" },
+                { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
+                { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
+                { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
               ].map((x) => (
                 <div key={x.label} className="flex flex-col gap-4">
-                  <div style={{ fontSize: 14, fontWeight: 700, color: x.color }}>{x.val}</div>
-                  <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>{x.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
                 </div>
               ))}
               <div className="ml-auto flex flex-col gap-4">
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#ef4444" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
-                <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>dead rate</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
               </div>
             </div>
           </div>
@@ -180,17 +445,17 @@ export default function Analytics() {
             {data.dropOffs.map((d) => (
               <div key={d.from}>
                 <div className="flex justify-between mb-6">
-                  <span style={{ fontSize: 11, color: "var(--text-sec)" }}>{d.from}</span>
-                  <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399" }}>{d.rate}% drop</span>
+                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{d.from}</span>
+                  <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)" }}>{d.rate}% drop</span>
                 </div>
-                <MiniBar pct={d.rate} color={d.rate > 60 ? "#ef4444" : d.rate > 30 ? "#f97316" : "#34d399"} height={6} />
-                <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
+                <MiniBar pct={d.rate} color={d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)"} height={6} />
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
               </div>
             ))}
             <div className="pt-12 border-t">
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: "#a5b4fc" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
-              <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>{data.avgTpAll} avg touchpoints per prospect</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
+              <div style={{ fontSize: 23, fontWeight: 700, color: "var(--primary-light)" }}>{data.avgVelocity ? `${data.avgVelocity}d` : "—"}</div>
+              <div style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 2 }}>{data.avgTpAll} avg touchpoints per prospect</div>
             </div>
           </div>
         </div>
@@ -200,21 +465,21 @@ export default function Analytics() {
       <div className="analytics-grid-3">
         <div className="card">
           <div className="card-title">❌ Not Interested — by Industry</div>
-          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
+          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
             data.rejByIndustry.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12 }}>{r.name}</span><span className="mono" style={{ fontSize: 11, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
-                <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
               </div>
             ))}
         </div>
         <div className="card">
           <div className="card-title">❌ Not Interested — by Channel</div>
-          {data.rejByChannel.length === 0 ? <div style={{ fontSize: 13, color: "var(--text-dim)" }}>No data yet</div> :
+          {data.rejByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
             data.rejByChannel.map((r) => (
               <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 11, color: r.rate > 50 ? "#f87171" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
-                <MiniBar pct={r.rate} color={r.rate > 50 ? "#ef4444" : r.rate > 25 ? "#f97316" : "#fbbf24"} />
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
               </div>
             ))}
         </div>
@@ -225,11 +490,74 @@ export default function Analytics() {
             const pct = data.total ? (cnt / data.total) * 100 : 0;
             return (
               <div key={s} className="mb-8">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 12, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
                 <MiniBar pct={pct} color={STATUS_COLORS[s].text} />
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Follow Up analysis */}
+      <div className="analytics-grid-3">
+        <div className="card">
+          <div className="card-title">🔄 Follow Up — by Industry</div>
+          <div className="flex gap-16 mb-12">
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
+          </div>
+          {data.followUpByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No follow-ups yet</div> :
+            data.followUpByIndustry.map((r) => (
+              <div key={r.name} className="mb-10">
+                <div className="flex justify-between mb-4">
+                  <span style={{ fontSize: 14 }}>{r.name}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                    <span style={{ color: "var(--warning-alt)" }}>{r.callBack}</span> / <span style={{ color: "var(--accent-light)" }}>{r.nurture}</span> · {r.rate}%
+                  </span>
+                </div>
+                <MiniBar pct={r.rate} color="var(--accent-light)" />
+              </div>
+            ))}
+        </div>
+        <div className="card">
+          <div className="card-title">🔄 Follow Up — by Channel</div>
+          <div className="flex gap-16 mb-12">
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
+          </div>
+          {data.followUpByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
+            data.followUpByChannel.map((r) => (
+              <div key={r.name} className="mb-10">
+                <div className="flex justify-between mb-4">
+                  <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                    <span style={{ color: "var(--warning-alt)" }}>{r.callBack}</span> / <span style={{ color: "var(--accent-light)" }}>{r.nurture}</span> · {r.rate}%
+                  </span>
+                </div>
+                <MiniBar pct={r.rate} color="var(--accent-light)" />
+              </div>
+            ))}
+        </div>
+        <div className="card">
+          <div className="card-title">📋 Follow Up Pipeline</div>
+          <div className="flex flex-col gap-16" style={{ paddingTop: 4 }}>
+            {[
+              { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", bg: "var(--warning-bg)", desc: "Awaiting callback" },
+              { label: "Nurture", val: data.nurture, color: "var(--accent-light)", bg: "var(--accent-bg)", desc: "Long-term nurture" },
+              { label: "Trials", val: data.trials, color: "var(--info-bright)", bg: "var(--info-bg)", desc: "In trial phase" },
+            ].map((item) => (
+              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
+                <div className="flex justify-between items-center mb-4">
+                  <span style={{ fontSize: 14, color: item.color, fontWeight: 600 }}>{item.label}</span>
+                  <span style={{ fontSize: 23, fontWeight: 700, color: item.color }}>{item.val}</span>
+                </div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{item.desc}</div>
+                <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
+                  <div style={{ height: "100%", width: `${data.total ? (item.val / data.total) * 100 : 0}%`, background: item.color, borderRadius: 2 }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -239,14 +567,14 @@ export default function Analytics() {
         <div className="channel-eff-grid">
           {data.channelReply.map((c) => (
             <div key={c.name} className="channel-eff-card">
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
+              <div style={{ fontSize: 21, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
+              <div style={{ fontSize: 21, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
               <div style={{ height: 40, background: "var(--border)", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
                 <div style={{ width: "100%", height: `${c.rate}%`, background: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", opacity: 0.75 }} />
               </div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} touched</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{c.totalTp} total touches</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} touched</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{c.totalTp} total touches</div>
             </div>
           ))}
         </div>
@@ -257,15 +585,27 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Activity — Last 30 Days</div>
           <div className="flex gap-16 mb-12">
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
-            <div className="flex items-center gap-6" style={{ fontSize: 11, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
+            <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
           </div>
-          <div className="activity-chart">
+          {/* Bars area */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
+            {data.last30.map((d) => (
+              <div key={d.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 1, height: "100%" }}>
+                <div style={{ width: "80%", borderRadius: "2px 2px 0 0", height: Math.max((d.count / data.maxAct) * 70, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.9 }} title={`${d.count} touchpoints`} />
+                <div style={{ width: "80%", borderRadius: "2px 2px 0 0", height: Math.max((d.added / data.maxAdded) * 20, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.7 }} title={`${d.added} added`} />
+              </div>
+            ))}
+          </div>
+          {/* Baseline */}
+          <div style={{ height: 1, background: "var(--border)", marginBottom: 6 }} />
+          {/* Date labels - horizontal, always at bottom */}
+          <div style={{ display: "flex", gap: 2 }}>
             {data.last30.map((d, i) => (
-              <div key={d.key} className="activity-bar-col">
-                <div className="activity-bar" style={{ height: Math.max((d.count / data.maxAct) * 60, d.count > 0 ? 3 : 0), background: "#6366f1", opacity: 0.85 }} title={`${d.count} touchpoints`} />
-                <div className="activity-bar" style={{ height: Math.max((d.added / data.maxAdded) * 24, d.added > 0 ? 2 : 0), background: "#34d399", opacity: 0.5 }} title={`${d.added} added`} />
-                {i % 5 === 0 && <div className="mono" style={{ fontSize: 8, color: "#374151", transform: "rotate(-45deg)", whiteSpace: "nowrap", marginTop: 4 }}>{d.label}</div>}
+              <div key={d.key} style={{ flex: 1, textAlign: "center" }}>
+                {i % 5 === 0 && (
+                  <div className="mono" style={{ fontSize: 12, color: "var(--text-sec)" }}>{d.label}</div>
+                )}
               </div>
             ))}
           </div>
@@ -274,14 +614,14 @@ export default function Analytics() {
           <div className="card-title">Industry Performance</div>
           <div className="flex flex-col">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
-              {["Industry", "#", "Reply", "Mtg"].map((h) => <div key={h} className="mono" style={{ fontSize: 9, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+              {["Industry", "#", "Reply", "Mtg"].map((h) => <div key={h} className="mono" style={{ fontSize: 14, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
             </div>
             {data.industryStats.map((ind) => (
               <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
-                <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 12, color: "var(--text-sec)" }}>{ind.name}</span></div>
-                <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{ind.total}</div>
-                <div className="mono" style={{ fontSize: 12, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
-                <div className="mono" style={{ fontSize: 12, color: "#a78bfa" }}>{ind.meetings}</div>
+                <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind.name}</span></div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ind.total}</div>
+                <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
+                <div className="mono" style={{ fontSize: 14, color: "#a78bfa" }}>{ind.meetings}</div>
               </div>
             ))}
           </div>
@@ -294,15 +634,15 @@ export default function Analytics() {
         <div className="touch-dist-grid">
           {data.buckets.map((b) => (
             <div key={b.label} className="touch-dist-card">
-              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
-              <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
+              <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
               <div style={{ height: 4, background: "var(--border)", borderRadius: 2, marginBottom: 6 }}>
                 <div style={{ height: "100%", width: `${data.total ? (b.count / data.total) * 100 : 0}%`, background: b.color, borderRadius: 2 }} />
               </div>
               <div className="flex justify-between">
-                <span className="mono" style={{ fontSize: 10, color: "var(--text-muted)" }}>reply rate</span>
-                <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: b.replyRate > 30 ? "#34d399" : b.replyRate > 10 ? "#fbbf24" : "#f87171" }}>{b.replyRate}%</span>
+                <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>reply rate</span>
+                <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: b.replyRate > 30 ? "#34d399" : b.replyRate > 10 ? "#fbbf24" : "#f87171" }}>{b.replyRate}%</span>
               </div>
             </div>
           ))}

@@ -1,18 +1,29 @@
+import { useState, useCallback } from "react";
 import { useStore } from "../store";
 import { CHANNEL_ICONS } from "../constants";
-import { todayStr } from "../utils";
+import { todayStr, normalizeLinkedIn } from "../utils";
 import { Badge } from "./ui";
 
 export default function Tasks({ onSelect, onNavigate }) {
   const { tasksToday, dispatch } = useStore();
   const today = todayStr();
+  const [copied, setCopied] = useState(null); // { enrollmentId, field }
+
+  const copyContact = useCallback((e, text, enrollmentId, field) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied({ enrollmentId, field });
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  }, []);
 
   return (
     <div style={{ padding: "24px 32px" }}>
       <div className="flex items-center justify-between mb-24">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>✅ Today's Tasks</div>
-          <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 3 }}>
+          <div style={{ fontSize: 19, fontWeight: 700 }}>✅ Today's Tasks</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 3 }}>
             {tasksToday.length === 0 ? "All caught up 🎉" : `${tasksToday.length} task${tasksToday.length > 1 ? "s" : ""} due`}
           </div>
         </div>
@@ -49,11 +60,21 @@ export default function Tasks({ onSelect, onNavigate }) {
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
                   <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
                 </div>
-                {task.step.note && <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
+                {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 <div className="task-contacts">
-                  {p.email && <a href={`mailto:${p.email}`} className="task-contact-link contact-link-email">✉️ {p.email}</a>}
-                  {p.phone && <a href={`tel:${p.phone}`} className="task-contact-link contact-link-phone">📞 {p.phone}</a>}
-                  {p.linkedin && <a href={`https://${p.linkedin}`} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
+                  {p.email && (
+                    <button onClick={(e) => copyContact(e, p.email, task.enrollmentId, "email")} className="task-contact-link contact-link-email" title="Click to copy email">
+                      ✉️ {p.email}
+                      {copied?.enrollmentId === task.enrollmentId && copied?.field === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                    </button>
+                  )}
+                  {p.phone && (
+                    <button onClick={(e) => copyContact(e, p.phone, task.enrollmentId, "phone")} className="task-contact-link contact-link-phone" title="Click to copy phone">
+                      📞 {p.phone}
+                      {copied?.enrollmentId === task.enrollmentId && copied?.field === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                    </button>
+                  )}
+                  {p.linkedin && <a href={normalizeLinkedIn(p.linkedin)} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
                 </div>
               </div>
               <div className="task-actions">

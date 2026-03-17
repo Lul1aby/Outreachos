@@ -1,10 +1,12 @@
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store";
-import { STATUSES, CHANNELS, STATUS_COLORS } from "../constants";
+import { supabase } from "../supabase";
+import { STATUSES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
 import { Badge } from "./ui";
 
-export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint }) {
+export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint, onAdd }) {
   const { state, dispatch, stats, allLists, overdueProspects, tasksToday } = useStore();
   const { prospects, dismissedReminders } = state;
 
@@ -21,6 +23,77 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [customDays, setCustomDays] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [copied, setCopied] = useState(null); // { id, field }
+  const [taskPopover, setTaskPopover] = useState(null); // { id, top, left } or null
+  const taskPopoverRef = useRef(null);
+  const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
+  const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
+  const [filterDuplicates, setFilterDuplicates] = useState(false);
+  const [dupeMap, setDupeMap] = useState({}); // prospectId → { field, matchedName, matchedCompany, ownerEmail }
+  const [checkingDupes, setCheckingDupes] = useState(false);
+  const dupeCheckDone = useRef(false);
+
+  /* Check all prospects against system for cross-user duplicates */
+  const checkForDuplicates = useCallback(async () => {
+    if (prospects.length === 0) return;
+    setCheckingDupes(true);
+    try {
+      const session = await supabase?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/check-duplicates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ prospects: prospects.map((p) => ({ email: p.email, phone: p.phone, linkedin: p.linkedin, name: p.name, company: p.company })) }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const map = {};
+        (body.matches || []).forEach((m) => {
+          const prospect = prospects[m.inputIndex];
+          if (prospect) {
+            map[prospect.id] = { field: m.field, value: m.value, matchedName: m.matchedName, matchedCompany: m.matchedCompany, ownerEmail: m.ownerEmail };
+          }
+        });
+        setDupeMap(map);
+      }
+    } catch { /* fail silently */ }
+    finally { setCheckingDupes(false); dupeCheckDone.current = true; }
+  }, [prospects]);
+
+  /* Auto-check on first load */
+  useEffect(() => {
+    if (!dupeCheckDone.current && prospects.length > 0 && supabase) {
+      checkForDuplicates();
+    }
+  }, [prospects.length, checkForDuplicates]);
+
+  /* Close task popover on outside click or scroll */
+  useEffect(() => {
+    if (!taskPopover) return;
+    const close = (e) => {
+      if (taskPopoverRef.current && !taskPopoverRef.current.contains(e.target)) setTaskPopover(null);
+    };
+    const closeScroll = () => setTaskPopover(null);
+    document.addEventListener("mousedown", close);
+    window.addEventListener("scroll", closeScroll, true);
+    return () => { document.removeEventListener("mousedown", close); window.removeEventListener("scroll", closeScroll, true); };
+  }, [taskPopover]);
+
+  const toggleSort = useCallback((col) => {
+    setSortBy((prev) => {
+      if (prev === col) { setSortDir((d) => d === "asc" ? "desc" : "asc"); return col; }
+      setSortDir("asc"); return col;
+    });
+  }, []);
+
+  const copyContact = useCallback((e, text, id, field) => {
+    e.stopPropagation();
+    e.preventDefault();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied({ id, field });
+      setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {});
+  }, []);
 
   const onSearch = useCallback((val) => {
     setSearch(val);
@@ -28,7 +101,8 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  const activeFilterCount = [filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList, filterChannel !== "All", filterDormant !== "All"].filter(Boolean).length;
+  const dupeCount = Object.keys(dupeMap).length;
+  const activeFilterCount = [filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList, filterChannel !== "All", filterDormant !== "All", filterDuplicates].filter(Boolean).length;
 
   const filtered = useMemo(() => {
     return prospects.filter((p) => {
@@ -44,13 +118,32 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         const thresh = filterDormant === "custom" ? Number(customDays) : Number(filterDormant);
         if (d === null || d < thresh) return false;
       }
+      if (filterDuplicates && !dupeMap[p.id]) return false;
       return true;
     });
-  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays]);
+  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays, filterDuplicates, dupeMap]);
+
+  const sorted = useMemo(() => {
+    if (!sortBy) return filtered;
+    return [...filtered].sort((a, b) => {
+      let av, bv;
+      if (sortBy === "name")     { av = a.name.toLowerCase();    bv = b.name.toLowerCase(); }
+      if (sortBy === "company")  { av = a.company.toLowerCase(); bv = b.company.toLowerCase(); }
+      if (sortBy === "title")    { av = (a.title || "").toLowerCase(); bv = (b.title || "").toLowerCase(); }
+      if (sortBy === "status")   { av = a.status; bv = b.status; }
+      if (sortBy === "activity") {
+        const da = daysSinceLast(a); const db = daysSinceLast(b);
+        av = da === null ? 9999 : da; bv = db === null ? 9999 : db;
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sortBy, sortDir]);
 
   function clearAll() {
     setFilterStatuses([]); setFilterList(""); setFilterDateFrom(""); setFilterDateTo("");
-    setFilterChannel("All"); setFilterDormant("All"); setCustomDays("");
+    setFilterChannel("All"); setFilterDormant("All"); setCustomDays(""); setFilterDuplicates(false);
   }
 
   function toggleSelected(id) {
@@ -62,11 +155,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       {/* Stats row */}
       <div className="stat-row">
         {[
-          { label: "Total Prospects", val: stats.total, accent: "#6366f1" },
-          { label: "Total Touchpoints", val: stats.totalTp, accent: "#8b5cf6" },
-          { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "#34d399" },
-          { label: "Meetings Booked", val: stats.meetings, accent: "#a78bfa" },
-          { label: "Untouched 7d+", val: stats.needsTouch7, accent: "#f97316", filter: "7" },
+          { label: "Total Prospects", val: stats.total, accent: "var(--primary)" },
+          { label: "Total Touchpoints", val: stats.totalTp, accent: "var(--accent)" },
+          { label: "Reply Rate", val: `${stats.replyRate}%`, accent: "var(--success)" },
+          { label: "Meetings Booked", val: stats.meetings, accent: "var(--accent)" },
+          { label: "Untouched 7d+", val: stats.needsTouch7, accent: "var(--warning-alt)", filter: "7" },
         ].map((s) => (
           <div
             key={s.label}
@@ -79,6 +172,30 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         ))}
       </div>
 
+      {/* Duplicates banner */}
+      {dupeCount > 0 && (
+        <div style={{ margin: "0 32px 16px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 10, padding: "12px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--danger)" }}>
+              🚨 {dupeCount} prospect{dupeCount !== 1 ? "s" : ""} already exist{dupeCount === 1 ? "s" : ""} in another user's account
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-sm" onClick={() => setFilterDuplicates((f) => !f)}
+                style={{ fontSize: 12, background: filterDuplicates ? "var(--danger-border)" : "transparent", border: "1px solid var(--danger-border)", color: "var(--danger)" }}>
+                {filterDuplicates ? "Show all" : "Show duplicates only"}
+              </button>
+              <button className="btn btn-sm" onClick={checkForDuplicates} disabled={checkingDupes}
+                style={{ fontSize: 12, background: "transparent", border: "1px solid var(--danger-border)", color: "var(--danger)" }}>
+                {checkingDupes ? "Checking…" : "↻ Recheck"}
+              </button>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--danger)", opacity: 0.8 }}>
+            These prospects match records owned by other team members. Consider deleting them to avoid duplicate outreach.
+          </div>
+        </div>
+      )}
+
       {/* Overdue banner */}
       {overdueProspects.length > 0 && (
         <div className="overdue-banner">
@@ -86,7 +203,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
             <div className="overdue-title">
               <span>⏰</span> {overdueProspects.length} prospect{overdueProspects.length > 1 ? "s" : ""} haven't been touched in 28+ hours
             </div>
-            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
+            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
           </div>
           <div className="overdue-chips">
             {overdueProspects.slice(0, 8).map((p) => {
@@ -94,14 +211,14 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               const label = h >= 48 ? `${Math.floor(h / 24)}d ago` : `${h}h ago`;
               return (
                 <div key={p.id} className="overdue-chip" onClick={() => onSelect(p.id)}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.name}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-sec)" }}>{p.company}</span>
-                  <span className="mono" style={{ fontSize: 10, color: "#f97316", background: "#2a1800", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
-                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 14, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
+                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--warning-alt)", background: "var(--warning-bg)", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
+                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
                 </div>
               );
             })}
-            {overdueProspects.length > 8 && <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
+            {overdueProspects.length > 8 && <span style={{ fontSize: 14, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
           </div>
         </div>
       )}
@@ -111,15 +228,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         <input className="filter-input" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="🔍  Search name, company, title, list…" />
         <button className={`filter-toggle${showFilters || activeFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
           <span>⚙ Filters</span>
-          {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 11, fontWeight: 700 }}>{activeFilterCount}</span>}
-          <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
+          {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{activeFilterCount}</span>}
+          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
         </button>
         {/* Active filter pills */}
         {filterStatuses.map((s) => (
           <div key={s} className="filter-pill">{s}<button onClick={() => setFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
         ))}
-        {filterList && <div className="filter-pill" style={{ background: "#0d1a2e", borderColor: "#1e3a5f", color: "#60a5fa" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
-        {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "#0d2a1a", borderColor: "#1e5f3a", color: "#34d399" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
+        {filterList && <div className="filter-pill" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)", color: "var(--info)" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
+        {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
+        {filterDuplicates && <div className="filter-pill" style={{ background: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger)" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
         {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
       </div>
 
@@ -137,10 +255,10 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   return (
                     <label key={s} className="checkbox-row" onClick={() => setFilterStatuses((prev) => checked ? prev.filter((x) => x !== s) : [...prev, s])}>
                       <div className={`checkbox-box${checked ? " checked" : ""}`} style={{ borderColor: checked ? c.border : undefined, background: checked ? c.bg : undefined }}>
-                        {checked && <span style={{ color: c.text, fontSize: 10 }}>✓</span>}
+                        {checked && <span style={{ color: c.text, fontSize: 14 }}>✓</span>}
                       </div>
-                      <span style={{ fontSize: 12, color: checked ? c.text : "var(--text-sec)", flex: 1 }}>{s}</span>
-                      <span className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{prospects.filter((p) => p.status === s).length}</span>
+                      <span style={{ fontSize: 14, color: checked ? c.text : "var(--text-sec)", flex: 1 }}>{s}</span>
+                      <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.status === s).length}</span>
                     </label>
                   );
                 })}
@@ -151,12 +269,12 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               <div className="form-label" style={{ marginBottom: 10 }}>Date Added</div>
               <div className="flex flex-col gap-10">
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
-                  <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ colorScheme: "dark" }} />
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
+                  <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
                 </div>
                 <div>
-                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
-                  <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ colorScheme: "dark" }} />
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
+                  <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
                 </div>
                 <div className="flex gap-6 flex-wrap">
                   {[{ label: "Last 7d", d: 7 }, { label: "Last 30d", d: 30 }, { label: "Last 90d", d: 90 }].map((q) => {
@@ -169,15 +287,15 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
             {/* List + Channel */}
             <div>
               <div className="form-label" style={{ marginBottom: 10 }}>List Name</div>
-              {allLists.length === 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
+              {allLists.length === 0 && <div style={{ fontSize: 14, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
               <div className="flex flex-col gap-6 mb-16">
                 {allLists.map((l) => (
-                  <label key={l} className="checkbox-row" onClick={() => setFilterList(filterList === l ? "" : l)} style={{ padding: "6px 10px", borderRadius: 7, background: filterList === l ? "#0d1a2e" : "transparent", border: `1px solid ${filterList === l ? "#1e3a5f" : "transparent"}` }}>
-                    <div className={`checkbox-box${filterList === l ? " checked" : ""}`} style={filterList === l ? { borderColor: "#3b82f6", background: "#1e3a5f" } : {}}>
-                      {filterList === l && <span style={{ color: "#60a5fa", fontSize: 10 }}>✓</span>}
+                  <label key={l} className="checkbox-row" onClick={() => setFilterList(filterList === l ? "" : l)} style={{ padding: "6px 10px", borderRadius: 7, background: filterList === l ? "var(--info-bg)" : "transparent", border: `1px solid ${filterList === l ? "var(--info-border)" : "transparent"}` }}>
+                    <div className={`checkbox-box${filterList === l ? " checked" : ""}`} style={filterList === l ? { borderColor: "var(--info-light)", background: "var(--info-border)" } : {}}>
+                      {filterList === l && <span style={{ color: "var(--info)", fontSize: 14 }}>✓</span>}
                     </div>
-                    <span style={{ fontSize: 12, color: filterList === l ? "#93c5fd" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
-                    <span className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{prospects.filter((p) => p.listName === l).length}</span>
+                    <span style={{ fontSize: 14, color: filterList === l ? "var(--info-light)" : "var(--text-sec)", flex: 1 }}>📋 {l}</span>
+                    <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.listName === l).length}</span>
                   </label>
                 ))}
               </div>
@@ -193,33 +311,34 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 
       {/* Dormant chips */}
       <div className="dormant-bar">
-        <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
+        <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
         {[{ key: "All", label: "Show All" }, { key: "7", label: "7d+" }, { key: "15", label: "15d+" }, { key: "30", label: "30d+" }].map((opt) => {
           const count = opt.key === "All" ? null : prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
           return (
             <button key={opt.key} className={`dormant-chip${filterDormant === opt.key ? " active" : ""}`} onClick={() => { setFilterDormant(opt.key); setCustomDays(""); }}>
               {opt.label}
-              {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "#2a1800" : "var(--border)", color: filterDormant === opt.key ? "#f97316" : "var(--text-muted)" }}>{count}</span>}
+              {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "var(--warning-bg)" : "var(--border)", color: filterDormant === opt.key ? "var(--warning-alt)" : "var(--text-muted)" }}>{count}</span>}
             </button>
           );
         })}
         <div className="flex items-center" style={{ background: "var(--surface)", border: `1px solid ${filterDormant === "custom" ? "var(--warning-alt)" : "var(--input-border)"}`, borderRadius: 20, overflow: "hidden" }}>
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
-          <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 12, outline: "none", fontFamily: "var(--mono)" }} />
-          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
+          <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 14, outline: "none", fontFamily: "var(--mono)" }} />
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
         </div>
         {filterDormant !== "All" && <button className="dormant-chip" onClick={() => { setFilterDormant("All"); setCustomDays(""); }}>✕ Clear</button>}
-        <span className="mono ml-auto" style={{ fontSize: 12, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+        <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
       </div>
 
       {/* Table */}
       <div style={{ padding: "0 32px 32px" }}>
         {selectedIds.size > 0 && (
           <div className="select-bar">
-            <span style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
-            <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Tasks</button>
-            <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 12, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
-            <span className="mono ml-auto" style={{ fontSize: 11, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
+            <span style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
+            <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Sequence Steps</button>
+            <button className="btn btn-sm" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", color: "var(--danger)" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
+            <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
+            <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
           </div>
         )}
 
@@ -227,49 +346,96 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           <thead>
             <tr>
               <th style={{ width: 32, padding: "12px 8px" }}>
-                <input type="checkbox" checked={selectedIds.size === filtered.length && filtered.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(filtered.map((p) => p.id)) : new Set())} style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
+                <input type="checkbox" checked={selectedIds.size === sorted.length && sorted.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(sorted.map((p) => p.id)) : new Set())} style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
               </th>
-              {["Prospect", "Company / List", "Status", "Last Activity", "Contact", ""].map((h) => <th key={h}>{h}</th>)}
+              {[
+                { label: "Prospect",        col: "name" },
+                { label: "Company / List",  col: "company" },
+                { label: "Status",          col: "status" },
+                { label: "Last Activity",   col: "activity" },
+                { label: "Contact",         col: null },
+                { label: "",               col: null },
+              ].map(({ label, col }) => (
+                <th key={label}
+                  onClick={col ? () => toggleSort(col) : undefined}
+                  style={col ? { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" } : {}}
+                  title={col ? `Sort by ${label}` : undefined}
+                >
+                  {label}
+                  {col && (
+                    <span style={{ marginLeft: 5, opacity: sortBy === col ? 1 : 0.3, fontSize: 11 }}>
+                      {sortBy === col ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
+                    </span>
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.map((p) => {
+            {sorted.map((p) => {
               const days = daysSinceLast(p);
               const hours = hoursSinceLast(p);
               const sc = stalenessColor(days);
               const sl = stalenessLabel(days);
               const isSelected = selectedIds.has(p.id);
               const pendingCount = tasksToday.filter((t) => t.prospect.id === p.id).length;
+              const dupeInfo = dupeMap[p.id];
               return (
-                <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)}>
+                <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)} style={dupeInfo ? { background: "rgba(239,68,68,0.04)" } : undefined}>
                   <td onClick={(e) => { e.stopPropagation(); toggleSelected(p.id); }} style={{ padding: "14px 8px" }}>
                     <input type="checkbox" checked={isSelected} readOnly style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
                   </td>
                   <td>
                     <div className="flex items-center gap-6">
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{p.name}</div>
-                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 10, background: "#2a1800", color: "#f97316", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
+                      {dupeInfo && (
+                        <span title={`Duplicate ${dupeInfo.field} — matches ${dupeInfo.matchedName} at ${dupeInfo.matchedCompany} (${dupeInfo.ownerEmail})`}
+                          style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "var(--danger-bg-deep)", border: "1px solid var(--danger-border)", color: "var(--danger)", whiteSpace: "nowrap" }}>
+                          🚨 duplicate
+                        </span>
+                      )}
+                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>
+                    {dupeInfo && (
+                      <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2, paddingLeft: 12 }}>
+                        Matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} ({dupeInfo.ownerEmail}) by {dupeInfo.field}
+                      </div>
+                    )}
+                    {!dupeInfo && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>}
                   </td>
                   <td>
-                    <div style={{ fontSize: 13, color: "var(--text-sec)" }}>{p.company}</div>
-                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 11, color: "#3b82f6", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
+                    <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>
+                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "var(--info-light)", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
                   </td>
                   <td><Badge status={p.status} /></td>
-                  <td><span className="mono" style={{ fontSize: 12, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
+                  <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
                   <td>
                     <div className="flex flex-col gap-4">
-                      {p.email && <a href={`mailto:${p.email}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-email" title={p.email}>✉️ <span className="truncate">{p.email}</span></a>}
-                      {p.phone && <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()} className="contact-link contact-link-phone" title={p.phone}>📞 {p.phone}</a>}
-                      {!p.email && !p.phone && <span style={{ fontSize: 11, color: "var(--text-dim)" }}>—</span>}
+                      {p.email && (
+                        <button onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
+                          ✉️ <span className="truncate">{p.email}</span>
+                          {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                        </button>
+                      )}
+                      {p.phone && (
+                        <button onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
+                          📞 {p.phone}
+                          {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+                        </button>
+                      )}
+                      {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
                     </div>
                   </td>
                   <td>
                     <div className="flex gap-6 items-center">
                       {pendingCount > 0 && (
-                        <button title={`Complete all ${pendingCount} pending tasks`} onClick={(e) => { e.stopPropagation(); dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [p.id] }); }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => {
+                          e.stopPropagation();
+                          if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
+                        }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           ⚡ <span className="mono">{pendingCount}</span>
                         </button>
                       )}
@@ -279,12 +445,60 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 </tr>
               );
             })}
-            {filtered.length === 0 && (
-              <tr><td colSpan={7} className="empty" style={{ paddingTop: 48 }}>No prospects found. Add one to get started.</td></tr>
+            {sorted.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ paddingTop: 56, paddingBottom: 40, textAlign: "center" }}>
+                  {prospects.length === 0 ? (
+                    <div>
+                      <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>No prospects yet</div>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 16 }}>Add your first prospect or import a CSV to get started.</div>
+                      {onAdd && <button className="btn btn-primary" onClick={onAdd}>+ Add Prospect</button>}
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>No prospects match your filters.</div>
+                      <button className="btn btn-ghost btn-sm" onClick={clearAll}>Clear filters</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Task popover — rendered via portal so it's not clipped by table rows */}
+      {taskPopover && createPortal(
+        <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover"
+          style={{ top: taskPopover.top, left: taskPopover.left }}>
+          <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
+            <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
+          </div>
+          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+            {tasksToday.filter((t) => t.prospect.id === taskPopover.id).map((task) => {
+              const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+              return (
+                <div key={`${task.enrollmentId}-${task.step.id}`} className="task-popover-item">
+                  <span style={{ fontSize: 15, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{task.step.channel}</div>
+                    <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
+                    </div>
+                    {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
+            <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { const id = taskPopover.id; setTaskPopover(null); onLogTouchpoint(id); }}>+ Log to complete</button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
