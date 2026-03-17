@@ -362,13 +362,12 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                             </div>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                               <input type="date" className="form-input" style={{ marginBottom: 0, width: "auto" }} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} />
-                              <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={editForm.time || ""} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))} />
                             </div>
                             <textarea className="form-textarea" rows={2} style={{ marginBottom: 0 }} value={editForm.note} placeholder="Note…" onChange={(e) => setEditForm((f) => ({ ...f, note: e.target.value }))} />
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => { setEditingTp(null); setEditForm(null); }}>Cancel</button>
                               <button className="btn btn-primary btn-sm" onClick={() => {
-                                dispatch({ type: "EDIT_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id, updates: { channel: editForm.channel, status: editForm.status, date: editForm.date, time: editForm.time, note: editForm.note.trim() } } });
+                                dispatch({ type: "EDIT_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id, updates: { channel: editForm.channel, status: editForm.status, date: editForm.date, time: nowTimeStr(), note: editForm.note.trim() } } });
                                 setEditingTp(null);
                                 setEditForm(null);
                               }}>Save</button>
