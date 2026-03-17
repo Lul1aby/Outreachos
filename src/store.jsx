@@ -117,7 +117,9 @@ function reducer(state, action) {
         const updatedTps = [...p.touchpoints, { ...touchpoint, id: nextId() }];
 
         // Start with the direct outcome the user selected
-        let autoStatus = newStatus || p.status;
+        // Activity-only outcomes (Sent, Connection Req Sent, Pending) don't change prospect status
+        const ACTIVITY_ONLY = new Set(["Sent", "Connection Req Sent", "Pending"]);
+        let autoStatus = ACTIVITY_ONLY.has(newStatus) ? p.status : (newStatus || p.status);
 
         // Rule A: 3 consecutive DNP/Busy calls → move to Nurture
         if (touchpoint.channel === "Call") {

@@ -300,6 +300,30 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
             </div>
           ) : (
             <div style={{ position: "relative" }}>
+              {/* Channel activity summary */}
+              {(() => {
+                const emailCount = touchpoints.filter((t) => t.channel === "Email").length;
+                const linkedInTps = touchpoints.filter((t) => t.channel === "LinkedIn");
+                const connStatus = linkedInTps.find((t) => t.status === "Accepted") ? "Accepted" : linkedInTps.find((t) => t.status === "Pending" || t.status === "Connection Req Sent") ? "Pending" : null;
+                if (!emailCount && !linkedInTps.length) return null;
+                return (
+                  <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+                    {emailCount > 0 && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 12px" }}>
+                        <span>✉️</span>
+                        <span style={{ fontWeight: 700, color: "var(--primary-light)" }}>{emailCount}</span>
+                        <span style={{ color: "var(--text-muted)" }}>{emailCount === 1 ? "email sent" : "emails sent"}</span>
+                      </div>
+                    )}
+                    {connStatus && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, background: connStatus === "Accepted" ? "#052e16" : "#1c1917", border: `1px solid ${connStatus === "Accepted" ? "#166534" : "#92400e"}`, borderRadius: 8, padding: "5px 12px" }}>
+                        <span>💼</span>
+                        <span style={{ fontWeight: 700, color: connStatus === "Accepted" ? "#4ade80" : "#fbbf24" }}>LinkedIn: {connStatus}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {/* Timeline line */}
               <div style={{ position: "absolute", left: 19, top: 8, bottom: 8, width: 2, background: "var(--border)", borderRadius: 2 }} />
               <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
