@@ -162,7 +162,7 @@ export default function Analytics() {
   const downloadReport = useCallback(() => {
     const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
     const rows = [
-      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used"],
+      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used", "Notes"],
       ...src.map((p) => {
         const days = daysSinceLast(p);
         const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1).date : "";
@@ -172,7 +172,7 @@ export default function Analytics() {
           p.email || "", p.phone || "", p.linkedin || "",
           fmtDate(p.createdAt), p.touchpoints.length,
           lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "",
-          channels,
+          channels, p.notes || "",
         ];
       }),
     ];

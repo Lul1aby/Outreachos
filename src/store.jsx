@@ -160,6 +160,21 @@ function reducer(state, action) {
       return { ...state, prospects: updatedProspects, enrollments: updatedEnrollments };
     }
 
+    case "EDIT_TOUCHPOINT": {
+      const { prospectId, touchpointId, updates } = action.payload;
+      return {
+        ...state,
+        prospects: state.prospects.map((p) =>
+          p.id !== prospectId ? p : {
+            ...p,
+            touchpoints: p.touchpoints.map((t) =>
+              t.id !== touchpointId ? t : { ...t, ...updates }
+            ),
+          }
+        ),
+      };
+    }
+
     case "DELETE_TOUCHPOINT":
       return {
         ...state,

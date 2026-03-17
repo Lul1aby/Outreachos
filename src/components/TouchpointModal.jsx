@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CHANNELS, CHANNEL_OUTCOMES, CHANNEL_ICONS } from "../constants";
-import { todayStr } from "../utils";
+import { todayStr, nowTimeStr } from "../utils";
 import { useStore } from "../store";
 import { Modal, Select, Textarea, Input, CalendarPicker } from "./ui";
 
@@ -9,7 +9,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
   const prospect = state.prospects.find((p) => p.id === prospectId);
   const [form, setForm] = useState(() => {
     const channel = "Call";
-    return { channel, date: todayStr(), status: CHANNEL_OUTCOMES[channel][0], note: "" };
+    return { channel, date: todayStr(), time: nowTimeStr(), status: CHANNEL_OUTCOMES[channel][0], note: "" };
   });
 
   /* Meeting scheduler */
@@ -47,7 +47,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
   }
 
   function save() {
-    const tp = { channel: form.channel, date: form.date, note: form.note.trim(), status: form.status };
+    const tp = { channel: form.channel, date: form.date, time: form.time, note: form.note.trim(), status: form.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
     if (form.status === "Meeting Booked") {
       const url = buildCalUrl();
@@ -86,6 +86,12 @@ export default function TouchpointModal({ prospectId, onClose }) {
         type="date"
         value={form.date}
         onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+      />
+      <Input
+        label="Time"
+        type="time"
+        value={form.time}
+        onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
       />
       <Select
         label="Outcome"

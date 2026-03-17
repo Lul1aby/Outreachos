@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
-import { todayStr, normalizeLinkedIn } from "../utils";
+import { todayStr, nowTimeStr, normalizeLinkedIn } from "../utils";
 import { Modal, Badge, StatusPill, Input, CalendarPicker } from "./ui";
 
 /* Render Claude's markdown-style brief into readable JSX */
@@ -81,8 +81,10 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect?.id]);
 
   /* Inline touchpoint form state */
-  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
   const [copied, setCopied] = useState(null);
+  const [editingTp, setEditingTp] = useState(null); // touchpoint id being edited
+  const [editForm, setEditForm] = useState(null);
 
   /* Meeting scheduler state */
   const [meetDate, setMeetDate] = useState(todayStr());
@@ -141,9 +143,9 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect]);
 
   const logInline = useCallback(() => {
-    const tp = { channel: tpForm.channel, date: tpForm.date, note: tpForm.note.trim(), status: tpForm.status };
+    const tp = { channel: tpForm.channel, date: tpForm.date, time: tpForm.time, note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
-    setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+    setTpForm({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
     // Reset meeting scheduler so next open shows fresh date/time
     setMeetDate(todayStr());
     setMeetTime("10:00");
@@ -304,6 +306,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                 {[...touchpoints].sort((a, b) => b.date.localeCompare(a.date)).map((tp, idx, arr) => {
                   const prevTp = arr[idx + 1]; // older entry
                   const statusChanged = !prevTp || prevTp.status !== tp.status;
+                  const isEditing = editingTp === tp.id;
                   return (
                     <div key={tp.id} style={{ display: "flex", gap: 14, paddingBottom: 16, position: "relative" }}>
                       {/* Dot */}
@@ -314,34 +317,73 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                           fontSize: 13, position: "relative", zIndex: 1,
                           boxShadow: statusChanged ? "0 0 0 3px var(--primary-bg)" : undefined,
                         }}>
-                          {CHANNEL_ICONS[tp.channel]}
+                          {CHANNEL_ICONS[isEditing ? editForm.channel : tp.channel]}
                         </div>
                       </div>
                       {/* Content */}
-                      <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 14px" }}>
-                        {/* Header row */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: tp.note ? 8 : 0 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{tp.channel}</span>
-                          <Badge status={tp.status} />
-                          {statusChanged && idx > 0 && (
-                            <span style={{ fontSize: 11, background: "var(--primary-bg)", border: "1px solid var(--primary)", borderRadius: 20, padding: "1px 8px", color: "var(--primary-light)" }}>
-                              status updated
-                            </span>
-                          )}
-                          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
-                            {new Date(tp.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-                          </span>
-                          <button
-                            className="btn btn-danger btn-sm btn-icon"
-                            title="Delete touchpoint"
-                            style={{ marginLeft: 4, padding: "2px 7px", fontSize: 13 }}
-                            onClick={() => dispatch({ type: "DELETE_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id } })}
-                          >×</button>
-                        </div>
-                        {tp.note && (
-                          <div style={{ fontSize: 13, color: "var(--text-sec)", lineHeight: 1.6, borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
-                            {tp.note}
+                      <div style={{ flex: 1, background: "var(--surface)", border: `1px solid ${isEditing ? "var(--primary)" : "var(--border)"}`, borderRadius: 10, padding: "10px 14px" }}>
+                        {isEditing ? (
+                          /* Edit mode */
+                          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                              <select className="form-select" style={{ marginBottom: 0, width: "auto" }} value={editForm.channel} onChange={(e) => {
+                                const channel = e.target.value;
+                                setEditForm((f) => ({ ...f, channel, status: CHANNEL_OUTCOMES[channel].includes(f.status) ? f.status : CHANNEL_OUTCOMES[channel][0] }));
+                              }}>
+                                {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
+                              </select>
+                              <select className="form-select" style={{ marginBottom: 0, width: "auto" }} value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}>
+                                {CHANNEL_OUTCOMES[editForm.channel].map((s) => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <input type="date" className="form-input" style={{ marginBottom: 0, width: "auto" }} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} />
+                              <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={editForm.time || ""} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))} />
+                            </div>
+                            <textarea className="form-textarea" rows={2} style={{ marginBottom: 0 }} value={editForm.note} placeholder="Note…" onChange={(e) => setEditForm((f) => ({ ...f, note: e.target.value }))} />
+                            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                              <button className="btn btn-ghost btn-sm" onClick={() => { setEditingTp(null); setEditForm(null); }}>Cancel</button>
+                              <button className="btn btn-primary btn-sm" onClick={() => {
+                                dispatch({ type: "EDIT_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id, updates: { channel: editForm.channel, status: editForm.status, date: editForm.date, time: editForm.time, note: editForm.note.trim() } } });
+                                setEditingTp(null);
+                                setEditForm(null);
+                              }}>Save</button>
+                            </div>
                           </div>
+                        ) : (
+                          /* View mode */
+                          <>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: tp.note ? 8 : 0 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{tp.channel}</span>
+                              <Badge status={tp.status} />
+                              {statusChanged && idx > 0 && (
+                                <span style={{ fontSize: 11, background: "var(--primary-bg)", border: "1px solid var(--primary)", borderRadius: 20, padding: "1px 8px", color: "var(--primary-light)" }}>
+                                  status updated
+                                </span>
+                              )}
+                              <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--mono)", whiteSpace: "nowrap" }}>
+                                {tp.time && <>{tp.time} · </>}
+                                {new Date(tp.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                              <button
+                                className="btn btn-ghost btn-sm btn-icon"
+                                title="Edit touchpoint"
+                                style={{ padding: "2px 7px", fontSize: 13 }}
+                                onClick={() => { setEditingTp(tp.id); setEditForm({ channel: tp.channel, status: tp.status, date: tp.date, time: tp.time || "", note: tp.note || "" }); }}
+                              >✏️</button>
+                              <button
+                                className="btn btn-danger btn-sm btn-icon"
+                                title="Delete touchpoint"
+                                style={{ padding: "2px 7px", fontSize: 13 }}
+                                onClick={() => dispatch({ type: "DELETE_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id } })}
+                              >×</button>
+                            </div>
+                            {tp.note && (
+                              <div style={{ fontSize: 13, color: "var(--text-sec)", lineHeight: 1.6, borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 4 }}>
+                                {tp.note}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -366,6 +408,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
             </select>
             <CalendarPicker value={tpForm.date} onChange={(d) => setTpForm((f) => ({ ...f, date: d }))} />
+            <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={tpForm.time} onChange={(e) => setTpForm((f) => ({ ...f, time: e.target.value }))} />
           </div>
           <div className="inline-row">
             <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>
