@@ -164,6 +164,13 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     }
   }, [prospects, dispatch]);
 
+  const deleteCompanyResearch = useCallback((company) => {
+    const companyProspects = prospects.filter((p) => p.company === company);
+    companyProspects.forEach((p) => {
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: p.id, updates: { research: null } } });
+    });
+  }, [prospects, dispatch]);
+
   const toggleCompanyExpand = useCallback((company) => {
     setExpandedCompanies((prev) => {
       const n = new Set(prev);
@@ -670,6 +677,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     isResearching={isResearching}
                     resError={resError}
                     onFetchResearch={() => fetchCompanyResearch(company, firstP.industry)}
+                    onDeleteResearch={() => deleteCompanyResearch(company)}
                     renderRow={renderRow}
                     colCount={colCount}
                   />
@@ -739,7 +747,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 }
 
 /* ── Company Group sub-component ── */
-function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, research, isResearching, resError, onFetchResearch, renderRow, colCount }) {
+function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, research, isResearching, resError, onFetchResearch, onDeleteResearch, renderRow, colCount }) {
   const [showResearch, setShowResearch] = useState(false);
 
   const statusSummary = useMemo(() => {
@@ -760,7 +768,10 @@ function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, rese
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>🔍 Research — {company}</span>
-        <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); setShowResearch(false); }}>✕ Close</button>
+        <div style={{ display: "flex", gap: 4 }}>
+          {research && <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, color: "var(--danger)" }} onClick={(e) => { e.stopPropagation(); onDeleteResearch(); setShowResearch(false); }}>🗑 Delete</button>}
+          <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); setShowResearch(false); }}>✕ Close</button>
+        </div>
       </div>
       {isResearching && (
         <div style={{ textAlign: "center", padding: "12px" }}>

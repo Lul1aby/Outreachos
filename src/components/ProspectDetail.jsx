@@ -534,7 +534,10 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                 <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>
                   Researched at {research.fetchedAt} · Powered by Claude + web search
                 </div>
-                <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
+                  <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} onClick={() => dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { research: null } } })} title="Delete research">🗑 Delete</button>
+                </div>
               </div>
               <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <RenderBrief text={research.brief} />
