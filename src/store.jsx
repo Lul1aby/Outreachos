@@ -202,7 +202,7 @@ function reducer(state, action) {
       return {
         ...state,
         enrollments: state.enrollments.map((e) =>
-          e.id === action.payload.enrollmentId
+          e.id === action.payload.enrollmentId && !e.completedSteps.includes(action.payload.stepId)
             ? { ...e, completedSteps: [...e.completedSteps, action.payload.stepId] }
             : e
         ),

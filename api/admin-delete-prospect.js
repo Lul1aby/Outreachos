@@ -59,9 +59,13 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: "Prospect not found." });
   }
 
+  // Also remove enrollments for the deleted prospect to prevent orphan tasks
+  const enrollments = row.data?.enrollments || [];
+  const updatedEnrollments = enrollments.filter((e) => e.prospectId !== prospectId && String(e.prospectId) !== String(prospectId));
+
   const { error: updateErr } = await adminClient
     .from("user_data")
-    .update({ data: { ...row.data, prospects: updated } })
+    .update({ data: { ...row.data, prospects: updated, enrollments: updatedEnrollments } })
     .eq("user_id", targetUserId);
 
   if (updateErr) return res.status(500).json({ error: updateErr.message });
