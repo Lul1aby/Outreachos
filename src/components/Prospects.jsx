@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
-import { STATUSES, CHANNELS, STATUS_COLORS } from "../constants";
+import { STATUSES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
 import { Badge } from "./ui";
 
@@ -23,6 +23,8 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copied, setCopied] = useState(null); // { id, field }
+  const [taskPopover, setTaskPopover] = useState(null); // prospectId whose tasks popover is open
+  const taskPopoverRef = useRef(null);
   const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
   const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
   const [filterDuplicates, setFilterDuplicates] = useState(false);
@@ -63,6 +65,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       checkForDuplicates();
     }
   }, [prospects.length, checkForDuplicates]);
+
+  /* Close task popover on outside click */
+  useEffect(() => {
+    if (!taskPopover) return;
+    const handler = (e) => {
+      if (taskPopoverRef.current && !taskPopoverRef.current.contains(e.target)) setTaskPopover(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [taskPopover]);
 
   const toggleSort = useCallback((col) => {
     setSortBy((prev) => {
@@ -320,7 +332,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         {selectedIds.size > 0 && (
           <div className="select-bar">
             <span style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
-            <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Tasks</button>
+            <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Sequence Steps</button>
             <button className="btn btn-sm" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", color: "var(--danger)" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
             <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
             <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>
@@ -413,11 +425,41 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     </div>
                   </td>
                   <td>
-                    <div className="flex gap-6 items-center">
+                    <div className="flex gap-6 items-center" style={{ position: "relative" }}>
                       {pendingCount > 0 && (
-                        <button title={`Complete all ${pendingCount} pending tasks`} onClick={(e) => { e.stopPropagation(); dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [p.id] }); }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          ⚡ <span className="mono">{pendingCount}</span>
-                        </button>
+                        <div style={{ position: "relative" }}>
+                          <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => { e.stopPropagation(); setTaskPopover(taskPopover === p.id ? null : p.id); }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            ⚡ <span className="mono">{pendingCount}</span>
+                          </button>
+                          {taskPopover === p.id && (
+                            <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover">
+                              <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
+                                <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
+                              </div>
+                              <div style={{ maxHeight: 240, overflowY: "auto" }}>
+                                {tasksToday.filter((t) => t.prospect.id === p.id).map((task) => {
+                                  const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+                                  return (
+                                    <div key={`${task.enrollmentId}-${task.step.id}`} className="task-popover-item">
+                                      <span style={{ fontSize: 15, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{task.step.channel}</div>
+                                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                                          Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
+                                        </div>
+                                        {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
+                                <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { setTaskPopover(null); onLogTouchpoint(p.id); }}>+ Log to complete</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); onLogTouchpoint(p.id); }} className="btn btn-ghost btn-sm">+ Log</button>
                     </div>
