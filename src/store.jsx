@@ -2,7 +2,7 @@ import { createContext, useContext, useReducer, useEffect, useMemo, useState, us
 import { get, set } from "idb-keyval";
 import { supabase } from "./supabase";
 import { DEFAULT_SEQUENCE } from "./constants";
-import { nextId, todayStr, daysSinceLast, hoursSinceLast } from "./utils";
+import { nextId, todayStr, daysSinceLast, hoursSinceLast, isTerminalStatus } from "./utils";
 
 const STORAGE_KEY_PREFIX = "outreach-os-data";
 const LS_KEY = "outreach-os-data"; // used only for one-time migration from localStorage
@@ -467,7 +467,7 @@ export function StoreProvider({ children }) {
   const overdueProspects = useMemo(
     () => state.prospects.filter((p) => {
       const h = hoursSinceLast(p);
-      return h !== null && h >= 28 && !state.dismissedReminders.includes(p.id);
+      return h !== null && h >= 28 && !isTerminalStatus(p) && !state.dismissedReminders.includes(p.id);
     }),
     [state.prospects, state.dismissedReminders]
   );

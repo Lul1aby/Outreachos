@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, CHANNELS, INDUSTRIES, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
-import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
+import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel, isTerminalStatus } from "../utils";
 import { Badge } from "./ui";
 
 /* ── Inline research brief renderer (same as ProspectDetail) ── */
@@ -285,7 +285,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 🚨 duplicate
               </span>
             )}
-            {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
+            {hours !== null && hours >= 28 && !isTerminalStatus(p) && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
           </div>
           {dupeInfo && (
             <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2, paddingLeft: 12 }}>
