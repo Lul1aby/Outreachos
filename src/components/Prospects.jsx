@@ -748,6 +748,51 @@ function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, rese
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 3);
   }, [prospects]);
 
+  /* Research panel content (reused in both layouts) */
+  const researchContent = (
+    <div style={{
+      background: "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(59,130,246,0.03))",
+      border: "1px solid var(--border)",
+      borderLeft: "3px solid var(--primary)",
+      padding: "14px 20px",
+      margin: 0,
+      borderRadius: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>🔍 Research — {company}</span>
+        <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); setShowResearch(false); }}>✕ Close</button>
+      </div>
+      {isResearching && (
+        <div style={{ textAlign: "center", padding: "12px" }}>
+          <div style={{ fontSize: 14, color: "var(--text-muted)" }}>⏳ Researching {company}… This takes 10–20 seconds</div>
+        </div>
+      )}
+      {resError && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: "var(--danger)", fontSize: 13 }}>Research failed: {resError}</span>
+          <button className="btn btn-ghost btn-sm" onClick={onFetchResearch}>Try Again</button>
+        </div>
+      )}
+      {research && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>Researched at {research.fetchedAt}</span>
+            <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); onFetchResearch(); }}>↻ Refresh</button>
+          </div>
+          <RenderBrief text={research.brief} />
+        </div>
+      )}
+      {!research && !isResearching && !resError && (
+        <div style={{ textAlign: "center", padding: "8px" }}>
+          <button className="btn btn-primary btn-sm" onClick={onFetchResearch}>🔍 Research {company}</button>
+        </div>
+      )}
+    </div>
+  );
+
+  /* Side-by-side layout: research + prospects visible together */
+  const showSplitView = showResearch && isExpanded;
+
   return (
     <>
       {/* Company header row */}
@@ -777,7 +822,13 @@ function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, rese
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 className={`btn btn-sm${showResearch ? " btn-primary" : " btn-ghost"}`}
-                onClick={(e) => { e.stopPropagation(); setShowResearch((s) => !s); if (!research && !isResearching) onFetchResearch(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const willShow = !showResearch;
+                  setShowResearch(willShow);
+                  if (willShow && !isExpanded) onToggle(); // auto-expand to show prospects alongside research
+                  if (willShow && !research && !isResearching) onFetchResearch();
+                }}
                 style={{ fontSize: 12 }}
               >
                 🔍 {research ? "Research" : "Get Research"}
@@ -787,49 +838,48 @@ function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, rese
         </td>
       </tr>
 
-      {/* Inline research panel */}
-      {showResearch && (
+      {/* Split view: research left + prospects right */}
+      {showSplitView && (
         <tr>
           <td colSpan={colCount} style={{ padding: 0 }}>
-            <div style={{
-              background: "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(59,130,246,0.03))",
-              border: "1px solid var(--border)",
-              borderLeft: "3px solid var(--primary)",
-              padding: "14px 20px",
-              margin: 0,
-            }}>
-              {isResearching && (
-                <div style={{ textAlign: "center", padding: "12px" }}>
-                  <div style={{ fontSize: 14, color: "var(--text-muted)" }}>⏳ Researching {company}… This takes 10–20 seconds</div>
-                </div>
-              )}
-              {resError && (
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ color: "var(--danger)", fontSize: 13 }}>Research failed: {resError}</span>
-                  <button className="btn btn-ghost btn-sm" onClick={onFetchResearch}>Try Again</button>
-                </div>
-              )}
-              {research && (
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>Researched at {research.fetchedAt}</span>
-                    <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); onFetchResearch(); }}>↻ Refresh</button>
-                  </div>
-                  <RenderBrief text={research.brief} />
-                </div>
-              )}
-              {!research && !isResearching && !resError && (
-                <div style={{ textAlign: "center", padding: "8px" }}>
-                  <button className="btn btn-primary btn-sm" onClick={onFetchResearch}>🔍 Research {company}</button>
-                </div>
-              )}
+            <div style={{ display: "flex", gap: 0, minHeight: 120 }}>
+              {/* Research panel — left side */}
+              <div style={{ flex: "0 0 38%", maxWidth: "38%", overflowY: "auto", maxHeight: 420, padding: "8px 8px 8px 0" }}>
+                {researchContent}
+              </div>
+              {/* Prospect list — right side */}
+              <div style={{ flex: 1, overflowY: "auto", maxHeight: 420, borderLeft: "1px solid var(--border)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "var(--surface)", position: "sticky", top: 0, zIndex: 1 }}>
+                      <th style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontWeight: 600 }}>Prospect</th>
+                      <th style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontWeight: 600 }}>Status</th>
+                      <th style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontWeight: 600 }}>Last Activity</th>
+                      <th style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontWeight: 600 }}>Contact</th>
+                      <th style={{ padding: "6px 8px", fontSize: 11, color: "var(--text-muted)", textAlign: "left", fontWeight: 600 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {prospects.map(renderRow)}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </td>
         </tr>
       )}
 
-      {/* Prospect rows (shown when expanded) */}
-      {isExpanded && prospects.map(renderRow)}
+      {/* Research-only panel (when prospects are collapsed) */}
+      {showResearch && !isExpanded && (
+        <tr>
+          <td colSpan={colCount} style={{ padding: "8px 0" }}>
+            {researchContent}
+          </td>
+        </tr>
+      )}
+
+      {/* Prospect rows only (no research open) */}
+      {isExpanded && !showResearch && prospects.map(renderRow)}
     </>
   );
 }
