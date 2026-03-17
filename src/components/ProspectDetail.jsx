@@ -81,7 +81,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect?.id]);
 
   /* Inline touchpoint form state */
-  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
   const [copied, setCopied] = useState(null);
   const [editingTp, setEditingTp] = useState(null); // touchpoint id being edited
   const [editForm, setEditForm] = useState(null);
@@ -143,9 +143,9 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect]);
 
   const logInline = useCallback(() => {
-    const tp = { channel: tpForm.channel, date: tpForm.date, time: tpForm.time, note: tpForm.note.trim(), status: tpForm.status };
+    const tp = { channel: tpForm.channel, date: tpForm.date, time: nowTimeStr(), note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
-    setTpForm({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+    setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
     // Reset meeting scheduler so next open shows fresh date/time
     setMeetDate(todayStr());
     setMeetTime("10:00");
@@ -432,7 +432,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
             </select>
             <CalendarPicker value={tpForm.date} onChange={(d) => setTpForm((f) => ({ ...f, date: d }))} />
-            <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={tpForm.time} onChange={(e) => setTpForm((f) => ({ ...f, time: e.target.value }))} />
           </div>
           <div className="inline-row">
             <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>
