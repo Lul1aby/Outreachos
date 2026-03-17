@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
@@ -23,7 +24,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [copied, setCopied] = useState(null); // { id, field }
-  const [taskPopover, setTaskPopover] = useState(null); // prospectId whose tasks popover is open
+  const [taskPopover, setTaskPopover] = useState(null); // { id, top, left } or null
   const taskPopoverRef = useRef(null);
   const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
   const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
@@ -66,14 +67,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     }
   }, [prospects.length, checkForDuplicates]);
 
-  /* Close task popover on outside click */
+  /* Close task popover on outside click or scroll */
   useEffect(() => {
     if (!taskPopover) return;
-    const handler = (e) => {
+    const close = (e) => {
       if (taskPopoverRef.current && !taskPopoverRef.current.contains(e.target)) setTaskPopover(null);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    const closeScroll = () => setTaskPopover(null);
+    document.addEventListener("mousedown", close);
+    window.addEventListener("scroll", closeScroll, true);
+    return () => { document.removeEventListener("mousedown", close); window.removeEventListener("scroll", closeScroll, true); };
   }, [taskPopover]);
 
   const toggleSort = useCallback((col) => {
@@ -425,41 +428,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     </div>
                   </td>
                   <td>
-                    <div className="flex gap-6 items-center" style={{ position: "relative" }}>
+                    <div className="flex gap-6 items-center">
                       {pendingCount > 0 && (
-                        <div style={{ position: "relative" }}>
-                          <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => { e.stopPropagation(); setTaskPopover(taskPopover === p.id ? null : p.id); }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            ⚡ <span className="mono">{pendingCount}</span>
-                          </button>
-                          {taskPopover === p.id && (
-                            <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover">
-                              <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
-                                <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
-                              </div>
-                              <div style={{ maxHeight: 240, overflowY: "auto" }}>
-                                {tasksToday.filter((t) => t.prospect.id === p.id).map((task) => {
-                                  const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
-                                  return (
-                                    <div key={`${task.enrollmentId}-${task.step.id}`} className="task-popover-item">
-                                      <span style={{ fontSize: 15, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
-                                      <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{task.step.channel}</div>
-                                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                                          Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
-                                        </div>
-                                        {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
-                                <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { setTaskPopover(null); onLogTouchpoint(p.id); }}>+ Log to complete</button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => {
+                          e.stopPropagation();
+                          if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
+                        }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          ⚡ <span className="mono">{pendingCount}</span>
+                        </button>
                       )}
                       <button onClick={(e) => { e.stopPropagation(); onLogTouchpoint(p.id); }} className="btn btn-ghost btn-sm">+ Log</button>
                     </div>
@@ -489,6 +467,38 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           </tbody>
         </table>
       </div>
+
+      {/* Task popover — rendered via portal so it's not clipped by table rows */}
+      {taskPopover && createPortal(
+        <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover"
+          style={{ top: taskPopover.top, left: taskPopover.left }}>
+          <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
+            <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
+          </div>
+          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+            {tasksToday.filter((t) => t.prospect.id === taskPopover.id).map((task) => {
+              const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+              return (
+                <div key={`${task.enrollmentId}-${task.step.id}`} className="task-popover-item">
+                  <span style={{ fontSize: 15, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{task.step.channel}</div>
+                    <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
+                    </div>
+                    {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
+            <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { const id = taskPopover.id; setTaskPopover(null); onLogTouchpoint(id); }}>+ Log to complete</button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
