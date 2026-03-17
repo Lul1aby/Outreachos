@@ -3,7 +3,7 @@ export const STATUSES = ["Not Started", "Replied", "Meeting Booked", "No Respons
 export const INDUSTRIES = ["Enterprise", "Commercial", "SMB", "Staffing", "GCC"];
 
 export const CHANNEL_OUTCOMES = {
-  "Call":      ["DNP/Busy", "Connected +ve", "Nurture", "Not Interested", "Wrong/Invalid", "Meeting Booked"],
+  "Call":      ["DNP/Busy", "Connected +ve", "Call Back", "Nurture", "Not Interested", "Wrong/Invalid", "Meeting Booked"],
   "Email":     ["Sent", "Replied", "Not Interested", "Nurture", "Meeting Booked"],
   "LinkedIn":  ["Connection Req Sent", "Accepted", "Pending", "Replied", "Not Interested", "Nurture", "Meeting Booked"],
   "WhatsApp":  ["No Response", "Not Interested", "Meeting Booked"],
