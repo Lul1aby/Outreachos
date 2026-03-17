@@ -449,6 +449,7 @@ export function StoreProvider({ children }) {
       const seq = state.sequences.find((s) => s.id === en.sequenceId);
       const prospect = state.prospects.find((p) => p.id === en.prospectId);
       if (!seq || !prospect) return;
+      if (isTerminalStatus(prospect)) return;
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
         const [sy, sm, sd] = en.startDate.split("-").map(Number);
