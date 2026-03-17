@@ -3,6 +3,7 @@ let _idCounter = Date.now();
 export function nextId() { return ++_idCounter; }
 
 export function todayStr() { return new Date().toISOString().slice(0, 10); }
+export function nowTimeStr() { return new Date().toTimeString().slice(0, 5); }
 
 /* ── Time helpers ── */
 

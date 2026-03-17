@@ -117,7 +117,9 @@ function reducer(state, action) {
         const updatedTps = [...p.touchpoints, { ...touchpoint, id: nextId() }];
 
         // Start with the direct outcome the user selected
-        let autoStatus = newStatus || p.status;
+        // Activity-only outcomes (Sent, Connection Req Sent, Pending) don't change prospect status
+        const ACTIVITY_ONLY = new Set(["Sent", "Connection Req Sent", "Pending"]);
+        let autoStatus = ACTIVITY_ONLY.has(newStatus) ? p.status : (newStatus || p.status);
 
         // Rule A: 3 consecutive DNP/Busy calls → move to Nurture
         if (touchpoint.channel === "Call") {
@@ -158,6 +160,21 @@ function reducer(state, action) {
       });
 
       return { ...state, prospects: updatedProspects, enrollments: updatedEnrollments };
+    }
+
+    case "EDIT_TOUCHPOINT": {
+      const { prospectId, touchpointId, updates } = action.payload;
+      return {
+        ...state,
+        prospects: state.prospects.map((p) =>
+          p.id !== prospectId ? p : {
+            ...p,
+            touchpoints: p.touchpoints.map((t) =>
+              t.id !== touchpointId ? t : { ...t, ...updates }
+            ),
+          }
+        ),
+      };
     }
 
     case "DELETE_TOUCHPOINT":

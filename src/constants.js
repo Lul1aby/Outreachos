@@ -4,12 +4,15 @@ export const INDUSTRIES = ["Enterprise", "Commercial", "SMB", "Staffing", "GCC"]
 
 export const CHANNEL_OUTCOMES = {
   "Call":      ["DNP/Busy", "Connected +ve", "Nurture", "Not Interested", "Wrong/Invalid", "Meeting Booked"],
-  "Email":     ["No Response", "Not Interested", "Nurture", "Meeting Booked"],
-  "LinkedIn":  ["No Response", "Not Interested", "Nurture", "Meeting Booked"],
+  "Email":     ["Sent", "Replied", "Not Interested", "Nurture", "Meeting Booked"],
+  "LinkedIn":  ["Connection Req Sent", "Accepted", "Pending", "Replied", "Not Interested", "Nurture", "Meeting Booked"],
   "WhatsApp":  ["No Response", "Not Interested", "Meeting Booked"],
   "SMS":       ["No Response", "Not Interested", "Meeting Booked"],
   "Other":     ["No Response", "Not Interested", "Meeting Booked"],
 };
+
+/* Channels where outcome is optional (logged as activity without requiring a response outcome) */
+export const OPTIONAL_OUTCOME_CHANNELS = new Set(["Email", "LinkedIn"]);
 
 export const STATUS_COLORS = {
   "Not Started":    { bg: "var(--st-ns-bg)", text: "var(--st-ns-text)", border: "var(--st-ns-border)" },
@@ -24,6 +27,10 @@ export const STATUS_COLORS = {
   "DNP/Busy":       { bg: "var(--st-db-bg)", text: "var(--st-db-text)", border: "var(--st-db-border)" },
   "Connected +ve":  { bg: "var(--st-cv-bg)", text: "var(--st-cv-text)", border: "var(--st-cv-border)" },
   "Wrong/Invalid":  { bg: "var(--st-wi-bg)", text: "var(--st-wi-text)", border: "var(--st-wi-border)" },
+  "Sent":              { bg: "var(--st-ns-bg)", text: "var(--st-ns-text)", border: "var(--st-ns-border)" },
+  "Connection Req Sent": { bg: "#1e1b4b", text: "#818cf8", border: "#4338ca" },
+  "Accepted":         { bg: "#052e16", text: "#4ade80", border: "#166534" },
+  "Pending":          { bg: "#1c1917", text: "#fbbf24", border: "#92400e" },
 };
 
 export const CHANNEL_ICONS = {
