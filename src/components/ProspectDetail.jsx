@@ -47,7 +47,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const { state, dispatch } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
   const [tab, setTab] = useState("touchpoints");
-  const [research, setResearch] = useState(null);   // { brief, fetchedAt }
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState(null);
   const [hiring, setHiring] = useState(null);        // { brief, fetchedAt }
@@ -81,7 +80,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect?.id]);
 
   /* Inline touchpoint form state */
-  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+  const [tpForm, setTpForm] = useState({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
   const [copied, setCopied] = useState(null);
   const [editingTp, setEditingTp] = useState(null); // touchpoint id being edited
   const [editForm, setEditForm] = useState(null);
@@ -102,6 +101,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   /* Inline reminder-style form (we use the touchpoint form here) */
   const touchpoints = prospect?.touchpoints || [];
 
+  const research = prospect?.research || null; // { brief, fetchedAt }
+
   const fetchResearch = useCallback(async () => {
     if (!prospect) return;
     setResearching(true);
@@ -110,17 +111,17 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: prospect.name, company: prospect.company, title: prospect.title, industry: prospect.industry }),
+        body: JSON.stringify({ company: prospect.company, industry: prospect.industry }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Research failed");
-      setResearch({ brief: data.brief, fetchedAt: new Date().toLocaleTimeString() });
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { research: { brief: data.brief, fetchedAt: new Date().toLocaleTimeString() } } } });
     } catch (err) {
       setResearchError(err.message);
     } finally {
       setResearching(false);
     }
-  }, [prospect]);
+  }, [prospect, dispatch]);
 
   const fetchHiring = useCallback(async () => {
     if (!prospect) return;
@@ -143,9 +144,9 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect]);
 
   const logInline = useCallback(() => {
-    const tp = { channel: tpForm.channel, date: tpForm.date, time: tpForm.time, note: tpForm.note.trim(), status: tpForm.status };
+    const tp = { channel: tpForm.channel, date: tpForm.date, time: nowTimeStr(), note: tpForm.note.trim(), status: tpForm.status };
     dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
-    setTpForm({ channel: "Call", date: todayStr(), time: nowTimeStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+    setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
     // Reset meeting scheduler so next open shows fresh date/time
     setMeetDate(todayStr());
     setMeetTime("10:00");
@@ -362,13 +363,12 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                             </div>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                               <input type="date" className="form-input" style={{ marginBottom: 0, width: "auto" }} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} />
-                              <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={editForm.time || ""} onChange={(e) => setEditForm((f) => ({ ...f, time: e.target.value }))} />
                             </div>
                             <textarea className="form-textarea" rows={2} style={{ marginBottom: 0 }} value={editForm.note} placeholder="Note…" onChange={(e) => setEditForm((f) => ({ ...f, note: e.target.value }))} />
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => { setEditingTp(null); setEditForm(null); }}>Cancel</button>
                               <button className="btn btn-primary btn-sm" onClick={() => {
-                                dispatch({ type: "EDIT_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id, updates: { channel: editForm.channel, status: editForm.status, date: editForm.date, time: editForm.time, note: editForm.note.trim() } } });
+                                dispatch({ type: "EDIT_TOUCHPOINT", payload: { prospectId: prospect.id, touchpointId: tp.id, updates: { channel: editForm.channel, status: editForm.status, date: editForm.date, time: nowTimeStr(), note: editForm.note.trim() } } });
                                 setEditingTp(null);
                                 setEditForm(null);
                               }}>Save</button>
@@ -432,7 +432,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_ICONS[c]} {c}</option>)}
             </select>
             <CalendarPicker value={tpForm.date} onChange={(d) => setTpForm((f) => ({ ...f, date: d }))} />
-            <input type="time" className="form-input" style={{ marginBottom: 0, width: 120 }} value={tpForm.time} onChange={(e) => setTpForm((f) => ({ ...f, time: e.target.value }))} />
           </div>
           <div className="inline-row">
             <select className="form-select" value={tpForm.status} onChange={(e) => setTpForm((f) => ({ ...f, status: e.target.value }))}>
@@ -535,19 +534,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                 <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>
                   Researched at {research.fetchedAt} · Powered by Claude + web search
                 </div>
-                <div className="flex gap-8">
-                  <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={() => {
-                      const note = `--- Research Brief (${new Date().toLocaleDateString()}) ---\n${research.brief}`;
-                      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { notes: prospect.notes ? prospect.notes + "\n\n" + note : note } } });
-                    }}
-                    title="Save brief to prospect notes"
-                  >
-                    Save to Notes
-                  </button>
-                </div>
+                <button className="btn btn-ghost btn-sm" onClick={fetchResearch} title="Refresh research">↻ Refresh</button>
               </div>
               <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 18px" }}>
                 <RenderBrief text={research.brief} />
