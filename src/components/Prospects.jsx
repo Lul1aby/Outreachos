@@ -2,9 +2,37 @@ import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
-import { STATUSES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
+import { STATUSES, CHANNELS, INDUSTRIES, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel } from "../utils";
 import { Badge } from "./ui";
+
+/* ── Inline research brief renderer (same as ProspectDetail) ── */
+function RenderBrief({ text }) {
+  const lines = text.split("\n");
+  return (
+    <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-sec)" }}>
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} style={{ height: 4 }} />;
+        if (/^\*\*[^*]+\*\*$/.test(trimmed)) {
+          return <div key={i} style={{ fontWeight: 700, color: "var(--text)", marginTop: 10, marginBottom: 2, fontSize: 13 }}>{trimmed.replace(/\*\*/g, "")}</div>;
+        }
+        if (/^[-•*]\s/.test(trimmed)) {
+          const content = trimmed.replace(/^[-•*]\s/, "").replace(/\*\*(.+?)\*\*/g, "BOLD_START$1BOLD_END");
+          const parts = content.split(/(BOLD_START|BOLD_END)/);
+          let bold = false;
+          return (
+            <div key={i} style={{ display: "flex", gap: 5, marginBottom: 2 }}>
+              <span style={{ color: "var(--primary-light)", flexShrink: 0 }}>›</span>
+              <span>{parts.map((p, j) => { if (p === "BOLD_START") { bold = true; return null; } if (p === "BOLD_END") { bold = false; return null; } return bold ? <strong key={j} style={{ color: "var(--text)" }}>{p}</strong> : p; })}</span>
+            </div>
+          );
+        }
+        return <div key={i} style={{ marginBottom: 2 }}>{trimmed}</div>;
+      })}
+    </div>
+  );
+}
 
 export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoint, onAdd }) {
   const { state, dispatch, stats, allLists, overdueProspects, tasksToday } = useStore();
@@ -23,15 +51,28 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [customDays, setCustomDays] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [copied, setCopied] = useState(null); // { id, field }
-  const [taskPopover, setTaskPopover] = useState(null); // { id, top, left } or null
+  const [copied, setCopied] = useState(null);
+  const [taskPopover, setTaskPopover] = useState(null);
   const taskPopoverRef = useRef(null);
-  const [sortBy, setSortBy] = useState(null);   // "name"|"company"|"status"|"activity"|"title"
-  const [sortDir, setSortDir] = useState("asc"); // "asc"|"desc"
+  const [sortBy, setSortBy] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
   const [filterDuplicates, setFilterDuplicates] = useState(false);
-  const [dupeMap, setDupeMap] = useState({}); // prospectId → { field, matchedName, matchedCompany, ownerEmail }
+  const [dupeMap, setDupeMap] = useState({});
   const [checkingDupes, setCheckingDupes] = useState(false);
   const dupeCheckDone = useRef(false);
+
+  /* ── NEW: CRM-grade filters ── */
+  const [filterIndustries, setFilterIndustries] = useState([]);
+  const [filterCompany, setFilterCompany] = useState("");
+  const [filterTouchpoints, setFilterTouchpoints] = useState("All"); // "All"|"0"|"1-3"|"4-6"|"7+"
+  const [filterHasEmail, setFilterHasEmail] = useState(false);
+  const [filterHasPhone, setFilterHasPhone] = useState(false);
+
+  /* ── NEW: Group by Company toggle ── */
+  const [groupByCompany, setGroupByCompany] = useState(false);
+  const [expandedCompanies, setExpandedCompanies] = useState(new Set());
+  const [researchingCompany, setResearchingCompany] = useState(null);
+  const [researchErrors, setResearchErrors] = useState({});
 
   /* Check all prospects against system for cross-user duplicates */
   const checkForDuplicates = useCallback(async () => {
@@ -60,14 +101,12 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     finally { setCheckingDupes(false); dupeCheckDone.current = true; }
   }, [prospects]);
 
-  /* Auto-check on first load */
   useEffect(() => {
     if (!dupeCheckDone.current && prospects.length > 0 && supabase) {
       checkForDuplicates();
     }
   }, [prospects.length, checkForDuplicates]);
 
-  /* Close task popover on outside click or scroll */
   useEffect(() => {
     if (!taskPopover) return;
     const close = (e) => {
@@ -101,8 +140,53 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
+  /* ── NEW: Fetch company research ── */
+  const fetchCompanyResearch = useCallback(async (company, industry) => {
+    setResearchingCompany(company);
+    setResearchErrors((prev) => { const n = { ...prev }; delete n[company]; return n; });
+    try {
+      const res = await fetch("/api/research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company, industry }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Research failed");
+      // Save to all prospects of this company
+      const companyProspects = prospects.filter((p) => p.company === company);
+      companyProspects.forEach((p) => {
+        dispatch({ type: "UPDATE_PROSPECT", payload: { id: p.id, updates: { research: { brief: data.brief, fetchedAt: new Date().toLocaleTimeString() } } } });
+      });
+    } catch (err) {
+      setResearchErrors((prev) => ({ ...prev, [company]: err.message }));
+    } finally {
+      setResearchingCompany(null);
+    }
+  }, [prospects, dispatch]);
+
+  const toggleCompanyExpand = useCallback((company) => {
+    setExpandedCompanies((prev) => {
+      const n = new Set(prev);
+      n.has(company) ? n.delete(company) : n.add(company);
+      return n;
+    });
+  }, []);
+
   const dupeCount = Object.keys(dupeMap).length;
-  const activeFilterCount = [filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList, filterChannel !== "All", filterDormant !== "All", filterDuplicates].filter(Boolean).length;
+  const activeFilterCount = [
+    filterStatuses.length > 0, filterDateFrom || filterDateTo, filterList,
+    filterChannel !== "All", filterDormant !== "All", filterDuplicates,
+    filterIndustries.length > 0, filterCompany, filterTouchpoints !== "All",
+    filterHasEmail, filterHasPhone,
+  ].filter(Boolean).length;
+
+  /* ── All industries present in data ── */
+  const allIndustries = useMemo(() => {
+    const set = new Set(prospects.map((p) => p.industry).filter(Boolean));
+    // Include constants too
+    INDUSTRIES.forEach((i) => set.add(i));
+    return [...set].sort();
+  }, [prospects]);
 
   const filtered = useMemo(() => {
     return prospects.filter((p) => {
@@ -119,9 +203,21 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         if (d === null || d < thresh) return false;
       }
       if (filterDuplicates && !dupeMap[p.id]) return false;
+      // NEW filters
+      if (filterIndustries.length > 0 && !filterIndustries.includes(p.industry || "")) return false;
+      if (filterCompany && !p.company.toLowerCase().includes(filterCompany.toLowerCase())) return false;
+      if (filterTouchpoints !== "All") {
+        const tc = p.touchpoints.length;
+        if (filterTouchpoints === "0" && tc !== 0) return false;
+        if (filterTouchpoints === "1-3" && (tc < 1 || tc > 3)) return false;
+        if (filterTouchpoints === "4-6" && (tc < 4 || tc > 6)) return false;
+        if (filterTouchpoints === "7+" && tc < 7) return false;
+      }
+      if (filterHasEmail && !p.email) return false;
+      if (filterHasPhone && !p.phone) return false;
       return true;
     });
-  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays, filterDuplicates, dupeMap]);
+  }, [prospects, debouncedSearch, filterStatuses, filterChannel, filterList, filterDateFrom, filterDateTo, filterDormant, customDays, filterDuplicates, dupeMap, filterIndustries, filterCompany, filterTouchpoints, filterHasEmail, filterHasPhone]);
 
   const sorted = useMemo(() => {
     if (!sortBy) return filtered;
@@ -141,14 +237,118 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     });
   }, [filtered, sortBy, sortDir]);
 
+  /* ── NEW: Group sorted prospects by company ── */
+  const companyGroups = useMemo(() => {
+    if (!groupByCompany) return null;
+    const map = new Map();
+    sorted.forEach((p) => {
+      const key = p.company || "Unknown";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(p);
+    });
+    // Sort groups by count (largest first)
+    return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [sorted, groupByCompany]);
+
   function clearAll() {
     setFilterStatuses([]); setFilterList(""); setFilterDateFrom(""); setFilterDateTo("");
     setFilterChannel("All"); setFilterDormant("All"); setCustomDays(""); setFilterDuplicates(false);
+    setFilterIndustries([]); setFilterCompany(""); setFilterTouchpoints("All");
+    setFilterHasEmail(false); setFilterHasPhone(false);
   }
 
   function toggleSelected(id) {
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
+
+  /* ── Render a prospect table row ── */
+  function renderRow(p) {
+    const days = daysSinceLast(p);
+    const hours = hoursSinceLast(p);
+    const sc = stalenessColor(days);
+    const sl = stalenessLabel(days);
+    const isSelected = selectedIds.has(p.id);
+    const pendingCount = tasksToday.filter((t) => t.prospect.id === p.id).length;
+    const dupeInfo = dupeMap[p.id];
+    return (
+      <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)} style={dupeInfo ? { background: "rgba(239,68,68,0.04)" } : undefined}>
+        <td onClick={(e) => { e.stopPropagation(); toggleSelected(p.id); }} style={{ padding: "14px 8px" }}>
+          <input type="checkbox" checked={isSelected} readOnly style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
+        </td>
+        <td>
+          <div className="flex items-center gap-6">
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
+            {dupeInfo && (
+              <span title={`Duplicate ${dupeInfo.field} — matches ${dupeInfo.matchedName} at ${dupeInfo.matchedCompany} (${dupeInfo.ownerEmail})`}
+                style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "var(--danger-bg-deep)", border: "1px solid var(--danger-border)", color: "var(--danger)", whiteSpace: "nowrap" }}>
+                🚨 duplicate
+              </span>
+            )}
+            {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
+          </div>
+          {dupeInfo && (
+            <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2, paddingLeft: 12 }}>
+              Matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} ({dupeInfo.ownerEmail}) by {dupeInfo.field}
+            </div>
+          )}
+          {!dupeInfo && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>}
+        </td>
+        {!groupByCompany && (
+          <td>
+            <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>
+            {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "var(--info-light)", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
+          </td>
+        )}
+        <td><Badge status={p.status} /></td>
+        <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
+        <td>
+          <div className="flex flex-col gap-4">
+            {p.email && (
+              <button onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
+                ✉️ <span className="truncate">{p.email}</span>
+                {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+              </button>
+            )}
+            {p.phone && (
+              <button onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
+                📞 {p.phone}
+                {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
+              </button>
+            )}
+            {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
+          </div>
+        </td>
+        <td>
+          <div className="flex gap-6 items-center">
+            {pendingCount > 0 && (
+              <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => {
+                e.stopPropagation();
+                if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
+              }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                ⚡ <span className="mono">{pendingCount}</span>
+              </button>
+            )}
+            <button onClick={(e) => { e.stopPropagation(); onLogTouchpoint(p.id); }} className="btn btn-ghost btn-sm">+ Log</button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  /* ── Table header columns ── */
+  const tableHeaders = [
+    { label: "Prospect", col: "name" },
+    ...(!groupByCompany ? [{ label: "Company / List", col: "company" }] : []),
+    { label: "Status", col: "status" },
+    { label: "Last Activity", col: "activity" },
+    { label: "Contact", col: null },
+    { label: "", col: null },
+  ];
+
+  const colCount = tableHeaders.length + 1; // +1 for checkbox
 
   return (
     <div>
@@ -223,9 +423,16 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         </div>
       )}
 
-      {/* Search + filter toggle */}
+      {/* Search + filter toggle + group toggle */}
       <div className="filter-bar">
         <input className="filter-input" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="🔍  Search name, company, title, list…" />
+        <button
+          className={`filter-toggle${groupByCompany ? " active" : ""}`}
+          onClick={() => setGroupByCompany((g) => !g)}
+          title="Group prospects by company — view research alongside outreach"
+        >
+          <span>🏢 Company View</span>
+        </button>
         <button className={`filter-toggle${showFilters || activeFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
           <span>⚙ Filters</span>
           {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{activeFilterCount}</span>}
@@ -235,20 +442,27 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         {filterStatuses.map((s) => (
           <div key={s} className="filter-pill">{s}<button onClick={() => setFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
         ))}
+        {filterIndustries.map((ind) => (
+          <div key={ind} className="filter-pill" style={{ background: "#1e1b4b", borderColor: "#4338ca", color: "#818cf8" }}>{ind}<button onClick={() => setFilterIndustries((p) => p.filter((x) => x !== ind))}>×</button></div>
+        ))}
+        {filterCompany && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#a78bfa" }}>🏢 {filterCompany}<button onClick={() => setFilterCompany("")}>×</button></div>}
+        {filterTouchpoints !== "All" && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📊 {filterTouchpoints} touches<button onClick={() => setFilterTouchpoints("All")}>×</button></div>}
+        {filterHasEmail && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>✉️ Has Email<button onClick={() => setFilterHasEmail(false)}>×</button></div>}
+        {filterHasPhone && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>📞 Has Phone<button onClick={() => setFilterHasPhone(false)}>×</button></div>}
         {filterList && <div className="filter-pill" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)", color: "var(--info)" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
         {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
         {filterDuplicates && <div className="filter-pill" style={{ background: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger)" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
         {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
       </div>
 
-      {/* Advanced filter panel */}
+      {/* Advanced filter panel — 4-column grid */}
       {showFilters && (
         <div className="filter-panel">
-          <div className="filter-grid">
-            {/* Status */}
+          <div className="filter-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            {/* Column 1: Status */}
             <div>
               <div className="form-label" style={{ marginBottom: 10 }}>Status</div>
-              <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-6" style={{ maxHeight: 320, overflowY: "auto" }}>
                 {STATUSES.map((s) => {
                   const c = STATUS_COLORS[s];
                   const checked = filterStatuses.includes(s);
@@ -264,10 +478,84 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 })}
               </div>
             </div>
-            {/* Date range */}
+
+            {/* Column 2: Industry + Company */}
+            <div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Industry</div>
+              <div className="flex flex-col gap-6 mb-16">
+                {allIndustries.map((ind) => {
+                  const checked = filterIndustries.includes(ind);
+                  const count = prospects.filter((p) => p.industry === ind).length;
+                  return (
+                    <label key={ind} className="checkbox-row" onClick={() => setFilterIndustries((prev) => checked ? prev.filter((x) => x !== ind) : [...prev, ind])}>
+                      <div className={`checkbox-box${checked ? " checked" : ""}`} style={checked ? { borderColor: "#4338ca", background: "#1e1b4b" } : {}}>
+                        {checked && <span style={{ color: "#818cf8", fontSize: 14 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 14, color: checked ? "#818cf8" : "var(--text-sec)", flex: 1 }}>{ind}</span>
+                      <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{count}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Company</div>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Filter by company name…"
+                value={filterCompany}
+                onChange={(e) => setFilterCompany(e.target.value)}
+              />
+            </div>
+
+            {/* Column 3: Engagement */}
+            <div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Touchpoint Count</div>
+              <div className="flex flex-col gap-6 mb-16">
+                {[
+                  { key: "All", label: "All" },
+                  { key: "0", label: "Untouched (0)" },
+                  { key: "1-3", label: "Low (1–3)" },
+                  { key: "4-6", label: "Medium (4–6)" },
+                  { key: "7+", label: "High (7+)" },
+                ].map((opt) => {
+                  const active = filterTouchpoints === opt.key;
+                  let count;
+                  if (opt.key === "All") count = prospects.length;
+                  else if (opt.key === "0") count = prospects.filter((p) => p.touchpoints.length === 0).length;
+                  else if (opt.key === "1-3") count = prospects.filter((p) => p.touchpoints.length >= 1 && p.touchpoints.length <= 3).length;
+                  else if (opt.key === "4-6") count = prospects.filter((p) => p.touchpoints.length >= 4 && p.touchpoints.length <= 6).length;
+                  else count = prospects.filter((p) => p.touchpoints.length >= 7).length;
+                  return (
+                    <label key={opt.key} className="checkbox-row" onClick={() => setFilterTouchpoints(opt.key)} style={{ padding: "5px 8px", borderRadius: 6, background: active ? "var(--primary-bg)" : "transparent", border: `1px solid ${active ? "var(--primary)" : "transparent"}` }}>
+                      <span style={{ fontSize: 14, color: active ? "var(--primary-light)" : "var(--text-sec)", flex: 1 }}>{opt.label}</span>
+                      <span className="mono" style={{ fontSize: 14, color: active ? "var(--primary-light)" : "var(--text-dim)" }}>{count}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Contact Info</div>
+              <div className="flex flex-col gap-8">
+                <label className="checkbox-row" onClick={() => setFilterHasEmail((f) => !f)}>
+                  <div className={`checkbox-box${filterHasEmail ? " checked" : ""}`} style={filterHasEmail ? { borderColor: "#4338ca", background: "#1e1b4b" } : {}}>
+                    {filterHasEmail && <span style={{ color: "#818cf8", fontSize: 14 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 14, color: filterHasEmail ? "#818cf8" : "var(--text-sec)", flex: 1 }}>✉️ Has Email</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.email).length}</span>
+                </label>
+                <label className="checkbox-row" onClick={() => setFilterHasPhone((f) => !f)}>
+                  <div className={`checkbox-box${filterHasPhone ? " checked" : ""}`} style={filterHasPhone ? { borderColor: "#4338ca", background: "#1e1b4b" } : {}}>
+                    {filterHasPhone && <span style={{ color: "#818cf8", fontSize: 14 }}>✓</span>}
+                  </div>
+                  <span style={{ fontSize: 14, color: filterHasPhone ? "#818cf8" : "var(--text-sec)", flex: 1 }}>📞 Has Phone</span>
+                  <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.phone).length}</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Column 4: Date + List + Channel */}
             <div>
               <div className="form-label" style={{ marginBottom: 10 }}>Date Added</div>
-              <div className="flex flex-col gap-10">
+              <div className="flex flex-col gap-10 mb-16">
                 <div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
                   <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
@@ -283,9 +571,6 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                   })}
                 </div>
               </div>
-            </div>
-            {/* List + Channel */}
-            <div>
               <div className="form-label" style={{ marginBottom: 10 }}>List Name</div>
               {allLists.length === 0 && <div style={{ fontSize: 14, color: "var(--text-dim)", fontStyle: "italic" }}>No lists yet</div>}
               <div className="flex flex-col gap-6 mb-16">
@@ -348,15 +633,8 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               <th style={{ width: 32, padding: "12px 8px" }}>
                 <input type="checkbox" checked={selectedIds.size === sorted.length && sorted.length > 0} onChange={(e) => setSelectedIds(e.target.checked ? new Set(sorted.map((p) => p.id)) : new Set())} style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
               </th>
-              {[
-                { label: "Prospect",        col: "name" },
-                { label: "Company / List",  col: "company" },
-                { label: "Status",          col: "status" },
-                { label: "Last Activity",   col: "activity" },
-                { label: "Contact",         col: null },
-                { label: "",               col: null },
-              ].map(({ label, col }) => (
-                <th key={label}
+              {tableHeaders.map(({ label, col }) => (
+                <th key={label || "actions"}
                   onClick={col ? () => toggleSort(col) : undefined}
                   style={col ? { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" } : {}}
                   title={col ? `Sort by ${label}` : undefined}
@@ -372,82 +650,39 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
             </tr>
           </thead>
           <tbody>
-            {sorted.map((p) => {
-              const days = daysSinceLast(p);
-              const hours = hoursSinceLast(p);
-              const sc = stalenessColor(days);
-              const sl = stalenessLabel(days);
-              const isSelected = selectedIds.has(p.id);
-              const pendingCount = tasksToday.filter((t) => t.prospect.id === p.id).length;
-              const dupeInfo = dupeMap[p.id];
-              return (
-                <tr key={p.id} className={isSelected ? "selected" : ""} onClick={() => onSelect(p.id)} style={dupeInfo ? { background: "rgba(239,68,68,0.04)" } : undefined}>
-                  <td onClick={(e) => { e.stopPropagation(); toggleSelected(p.id); }} style={{ padding: "14px 8px" }}>
-                    <input type="checkbox" checked={isSelected} readOnly style={{ cursor: "pointer", accentColor: "var(--primary)" }} />
-                  </td>
-                  <td>
-                    <div className="flex items-center gap-6">
-                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
-                      {dupeInfo && (
-                        <span title={`Duplicate ${dupeInfo.field} — matches ${dupeInfo.matchedName} at ${dupeInfo.matchedCompany} (${dupeInfo.ownerEmail})`}
-                          style={{ fontSize: 11, borderRadius: 20, padding: "1px 8px", background: "var(--danger-bg-deep)", border: "1px solid var(--danger-border)", color: "var(--danger)", whiteSpace: "nowrap" }}>
-                          🚨 duplicate
-                        </span>
-                      )}
-                      {hours !== null && hours >= 28 && !dismissedReminders.includes(p.id) && <span className="mono" style={{ fontSize: 14, background: "var(--warning-bg)", color: "var(--warning-alt)", borderRadius: 4, padding: "1px 5px" }}>⏰</span>}
-                    </div>
-                    {dupeInfo && (
-                      <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 2, paddingLeft: 12 }}>
-                        Matches <strong>{dupeInfo.matchedName}</strong> at {dupeInfo.matchedCompany} ({dupeInfo.ownerEmail}) by {dupeInfo.field}
-                      </div>
-                    )}
-                    {!dupeInfo && <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 2, paddingLeft: 12 }}>{p.title}</div>}
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</div>
-                    {p.listName && <div onClick={(e) => { e.stopPropagation(); setFilterList(p.listName); }} style={{ fontSize: 14, color: "var(--info-light)", marginTop: 2, cursor: "pointer" }}>📋 {p.listName}</div>}
-                  </td>
-                  <td><Badge status={p.status} /></td>
-                  <td><span className="mono" style={{ fontSize: 14, color: sc, fontWeight: days !== null && days >= 7 ? 600 : 400 }}>{sl}</span></td>
-                  <td>
-                    <div className="flex flex-col gap-4">
-                      {p.email && (
-                        <button onClick={(e) => copyContact(e, p.email, p.id, "email")} className="contact-link contact-link-email" title="Click to copy email">
-                          ✉️ <span className="truncate">{p.email}</span>
-                          {copied?.id === p.id && copied?.field === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
-                        </button>
-                      )}
-                      {p.phone && (
-                        <button onClick={(e) => copyContact(e, p.phone, p.id, "phone")} className="contact-link contact-link-phone" title="Click to copy phone">
-                          📞 {p.phone}
-                          {copied?.id === p.id && copied?.field === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 4 }}>✓</span>}
-                        </button>
-                      )}
-                      {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="flex gap-6 items-center">
-                      {pendingCount > 0 && (
-                        <button title={`View ${pendingCount} pending task${pendingCount > 1 ? "s" : ""}`} onClick={(e) => {
-                          e.stopPropagation();
-                          if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
-                        }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                          ⚡ <span className="mono">{pendingCount}</span>
-                        </button>
-                      )}
-                      <button onClick={(e) => { e.stopPropagation(); onLogTouchpoint(p.id); }} className="btn btn-ghost btn-sm">+ Log</button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {/* ── Grouped by Company view ── */}
+            {groupByCompany && companyGroups ? (
+              companyGroups.map(([company, companyProspects]) => {
+                const isExpanded = expandedCompanies.has(company);
+                const firstP = companyProspects[0];
+                const research = companyProspects.find((p) => p.research)?.research || null;
+                const isResearching = researchingCompany === company;
+                const resError = researchErrors[company];
+                return (
+                  <CompanyGroup
+                    key={company}
+                    company={company}
+                    industry={firstP.industry}
+                    prospects={companyProspects}
+                    isExpanded={isExpanded}
+                    onToggle={() => toggleCompanyExpand(company)}
+                    research={research}
+                    isResearching={isResearching}
+                    resError={resError}
+                    onFetchResearch={() => fetchCompanyResearch(company, firstP.industry)}
+                    renderRow={renderRow}
+                    colCount={colCount}
+                  />
+                );
+              })
+            ) : (
+              /* ── Flat list view ── */
+              sorted.map(renderRow)
+            )}
+
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ paddingTop: 56, paddingBottom: 40, textAlign: "center" }}>
+                <td colSpan={colCount} style={{ paddingTop: 56, paddingBottom: 40, textAlign: "center" }}>
                   {prospects.length === 0 ? (
                     <div>
                       <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
@@ -468,7 +703,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         </table>
       </div>
 
-      {/* Task popover — rendered via portal so it's not clipped by table rows */}
+      {/* Task popover */}
       {taskPopover && createPortal(
         <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover"
           style={{ top: taskPopover.top, left: taskPopover.left }}>
@@ -500,5 +735,101 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         document.body
       )}
     </div>
+  );
+}
+
+/* ── Company Group sub-component ── */
+function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, research, isResearching, resError, onFetchResearch, renderRow, colCount }) {
+  const [showResearch, setShowResearch] = useState(false);
+
+  const statusSummary = useMemo(() => {
+    const map = {};
+    prospects.forEach((p) => { map[p.status] = (map[p.status] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  }, [prospects]);
+
+  return (
+    <>
+      {/* Company header row */}
+      <tr
+        onClick={onToggle}
+        style={{
+          cursor: "pointer",
+          background: "var(--surface)",
+          borderLeft: "3px solid var(--primary)",
+        }}
+      >
+        <td colSpan={colCount} style={{ padding: "10px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600, width: 16, textAlign: "center" }}>
+              {isExpanded ? "▼" : "▶"}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>🏢 {company}</span>
+                {industry && <span style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--border)", borderRadius: 10, padding: "1px 8px" }}>{industry}</span>}
+                <span className="mono" style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{prospects.length} prospect{prospects.length !== 1 ? "s" : ""}</span>
+                {statusSummary.map(([status, count]) => (
+                  <Badge key={status} status={status} />
+                ))}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                className={`btn btn-sm${showResearch ? " btn-primary" : " btn-ghost"}`}
+                onClick={(e) => { e.stopPropagation(); setShowResearch((s) => !s); if (!research && !isResearching) onFetchResearch(); }}
+                style={{ fontSize: 12 }}
+              >
+                🔍 {research ? "Research" : "Get Research"}
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+
+      {/* Inline research panel */}
+      {showResearch && (
+        <tr>
+          <td colSpan={colCount} style={{ padding: 0 }}>
+            <div style={{
+              background: "linear-gradient(135deg, rgba(99,102,241,0.05), rgba(59,130,246,0.03))",
+              border: "1px solid var(--border)",
+              borderLeft: "3px solid var(--primary)",
+              padding: "14px 20px",
+              margin: 0,
+            }}>
+              {isResearching && (
+                <div style={{ textAlign: "center", padding: "12px" }}>
+                  <div style={{ fontSize: 14, color: "var(--text-muted)" }}>⏳ Researching {company}… This takes 10–20 seconds</div>
+                </div>
+              )}
+              {resError && (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ color: "var(--danger)", fontSize: 13 }}>Research failed: {resError}</span>
+                  <button className="btn btn-ghost btn-sm" onClick={onFetchResearch}>Try Again</button>
+                </div>
+              )}
+              {research && (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>Researched at {research.fetchedAt}</span>
+                    <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={(e) => { e.stopPropagation(); onFetchResearch(); }}>↻ Refresh</button>
+                  </div>
+                  <RenderBrief text={research.brief} />
+                </div>
+              )}
+              {!research && !isResearching && !resError && (
+                <div style={{ textAlign: "center", padding: "8px" }}>
+                  <button className="btn btn-primary btn-sm" onClick={onFetchResearch}>🔍 Research {company}</button>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Prospect rows (shown when expanded) */}
+      {isExpanded && prospects.map(renderRow)}
+    </>
   );
 }
