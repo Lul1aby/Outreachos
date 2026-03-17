@@ -68,11 +68,17 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
   const [filterHasEmail, setFilterHasEmail] = useState(false);
   const [filterHasPhone, setFilterHasPhone] = useState(false);
 
-  /* ── NEW: Group by Company toggle ── */
+  /* ── Company view toggle + independent company-level filters ── */
   const [groupByCompany, setGroupByCompany] = useState(false);
   const [expandedCompanies, setExpandedCompanies] = useState(new Set());
   const [researchingCompany, setResearchingCompany] = useState(null);
   const [researchErrors, setResearchErrors] = useState({});
+  const [cvFilterCompany, setCvFilterCompany] = useState("");
+  const [cvFilterIndustries, setCvFilterIndustries] = useState([]);
+  const [cvFilterStatuses, setCvFilterStatuses] = useState([]); // filter companies that have at least one prospect with this status
+  const [cvSearch, setCvSearch] = useState("");
+  const cvSearchTimerRef = useRef(null);
+  const [cvDebouncedSearch, setCvDebouncedSearch] = useState("");
 
   /* Check all prospects against system for cross-user duplicates */
   const checkForDuplicates = useCallback(async () => {
@@ -140,6 +146,12 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     searchTimerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
+  const onCvSearch = useCallback((val) => {
+    setCvSearch(val);
+    clearTimeout(cvSearchTimerRef.current);
+    cvSearchTimerRef.current = setTimeout(() => setCvDebouncedSearch(val), 300);
+  }, []);
+
   /* ── NEW: Fetch company research ── */
   const fetchCompanyResearch = useCallback(async (company, industry) => {
     setResearchingCompany(company);
@@ -185,6 +197,9 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     filterChannel !== "All", filterDormant !== "All", filterDuplicates,
     filterIndustries.length > 0, filterCompany, filterTouchpoints !== "All",
     filterHasEmail, filterHasPhone,
+  ].filter(Boolean).length;
+  const cvActiveFilterCount = [
+    cvFilterCompany, cvFilterIndustries.length > 0, cvFilterStatuses.length > 0,
   ].filter(Boolean).length;
 
   /* ── All industries present in data ── */
@@ -244,24 +259,55 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     });
   }, [filtered, sortBy, sortDir]);
 
-  /* ── NEW: Group sorted prospects by company ── */
+  /* ── Group by company — uses independent company-level filters ── */
   const companyGroups = useMemo(() => {
     if (!groupByCompany) return null;
+    // In company view, group ALL prospects (not the prospect-filtered list)
     const map = new Map();
-    sorted.forEach((p) => {
+    prospects.forEach((p) => {
       const key = p.company || "Unknown";
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(p);
     });
+    let groups = [...map.entries()];
+
+    // Apply company-level filters
+    if (cvDebouncedSearch) {
+      const q = cvDebouncedSearch.toLowerCase();
+      groups = groups.filter(([company, companyProspects]) =>
+        company.toLowerCase().includes(q) ||
+        companyProspects.some((p) => p.name.toLowerCase().includes(q) || (p.title || "").toLowerCase().includes(q))
+      );
+    }
+    if (cvFilterCompany) {
+      const q = cvFilterCompany.toLowerCase();
+      groups = groups.filter(([company]) => company.toLowerCase().includes(q));
+    }
+    if (cvFilterIndustries.length > 0) {
+      groups = groups.filter(([, companyProspects]) =>
+        companyProspects.some((p) => cvFilterIndustries.includes(p.industry || ""))
+      );
+    }
+    if (cvFilterStatuses.length > 0) {
+      groups = groups.filter(([, companyProspects]) =>
+        companyProspects.some((p) => cvFilterStatuses.includes(p.status))
+      );
+    }
+
     // Sort groups by count (largest first)
-    return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
-  }, [sorted, groupByCompany]);
+    return groups.sort((a, b) => b[1].length - a[1].length);
+  }, [prospects, groupByCompany, cvDebouncedSearch, cvFilterCompany, cvFilterIndustries, cvFilterStatuses]);
 
   function clearAll() {
     setFilterStatuses([]); setFilterList(""); setFilterDateFrom(""); setFilterDateTo("");
     setFilterChannel("All"); setFilterDormant("All"); setCustomDays(""); setFilterDuplicates(false);
     setFilterIndustries([]); setFilterCompany(""); setFilterTouchpoints("All");
     setFilterHasEmail(false); setFilterHasPhone(false);
+  }
+
+  function cvClearAll() {
+    setCvFilterCompany(""); setCvFilterIndustries([]); setCvFilterStatuses([]);
+    setCvSearch(""); setCvDebouncedSearch("");
   }
 
   function toggleSelected(id) {
@@ -432,38 +478,127 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 
       {/* Search + filter toggle + group toggle */}
       <div className="filter-bar">
-        <input className="filter-input" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="🔍  Search name, company, title, list…" />
-        <button
-          className={`filter-toggle${groupByCompany ? " active" : ""}`}
-          onClick={() => setGroupByCompany((g) => !g)}
-          title="Group prospects by company — view research alongside outreach"
-        >
-          <span>🏢 Company View</span>
-        </button>
-        <button className={`filter-toggle${showFilters || activeFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
-          <span>⚙ Filters</span>
-          {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{activeFilterCount}</span>}
-          <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
-        </button>
-        {/* Active filter pills */}
-        {filterStatuses.map((s) => (
-          <div key={s} className="filter-pill">{s}<button onClick={() => setFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
-        ))}
-        {filterIndustries.map((ind) => (
-          <div key={ind} className="filter-pill" style={{ background: "#1e1b4b", borderColor: "#4338ca", color: "#818cf8" }}>{ind}<button onClick={() => setFilterIndustries((p) => p.filter((x) => x !== ind))}>×</button></div>
-        ))}
-        {filterCompany && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#a78bfa" }}>🏢 {filterCompany}<button onClick={() => setFilterCompany("")}>×</button></div>}
-        {filterTouchpoints !== "All" && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📊 {filterTouchpoints} touches<button onClick={() => setFilterTouchpoints("All")}>×</button></div>}
-        {filterHasEmail && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>✉️ Has Email<button onClick={() => setFilterHasEmail(false)}>×</button></div>}
-        {filterHasPhone && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>📞 Has Phone<button onClick={() => setFilterHasPhone(false)}>×</button></div>}
-        {filterList && <div className="filter-pill" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)", color: "var(--info)" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
-        {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
-        {filterDuplicates && <div className="filter-pill" style={{ background: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger)" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
-        {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
+        {groupByCompany ? (
+          /* ── Company view: independent search + filters ── */
+          <>
+            <input className="filter-input" value={cvSearch} onChange={(e) => onCvSearch(e.target.value)} placeholder="🔍  Search company, prospect name, title…" />
+            <button
+              className={`filter-toggle active`}
+              onClick={() => setGroupByCompany(false)}
+              title="Switch to prospect list view"
+            >
+              <span>🏢 Company View</span>
+            </button>
+            <button className={`filter-toggle${showFilters || cvActiveFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
+              <span>⚙ Filters</span>
+              {cvActiveFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{cvActiveFilterCount}</span>}
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
+            </button>
+            {/* Company view filter pills */}
+            {cvFilterIndustries.map((ind) => (
+              <div key={ind} className="filter-pill" style={{ background: "#1e1b4b", borderColor: "#4338ca", color: "#818cf8" }}>{ind}<button onClick={() => setCvFilterIndustries((p) => p.filter((x) => x !== ind))}>×</button></div>
+            ))}
+            {cvFilterCompany && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#a78bfa" }}>🏢 {cvFilterCompany}<button onClick={() => setCvFilterCompany("")}>×</button></div>}
+            {cvFilterStatuses.map((s) => (
+              <div key={s} className="filter-pill">{s}<button onClick={() => setCvFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
+            ))}
+            {cvActiveFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={cvClearAll}>✕ Clear all</button>}
+          </>
+        ) : (
+          /* ── Prospect view: original search + filters ── */
+          <>
+            <input className="filter-input" value={search} onChange={(e) => onSearch(e.target.value)} placeholder="🔍  Search name, company, title, list…" />
+            <button
+              className="filter-toggle"
+              onClick={() => setGroupByCompany(true)}
+              title="Group prospects by company — view research alongside outreach"
+            >
+              <span>🏢 Company View</span>
+            </button>
+            <button className={`filter-toggle${showFilters || activeFilterCount > 0 ? " active" : ""}`} onClick={() => setShowFilters((f) => !f)}>
+              <span>⚙ Filters</span>
+              {activeFilterCount > 0 && <span style={{ background: "var(--primary)", color: "#fff", borderRadius: 10, padding: "0 7px", fontSize: 14, fontWeight: 700 }}>{activeFilterCount}</span>}
+              <span style={{ fontSize: 14, color: "var(--text-muted)" }}>{showFilters ? "▲" : "▼"}</span>
+            </button>
+            {/* Prospect view filter pills */}
+            {filterStatuses.map((s) => (
+              <div key={s} className="filter-pill">{s}<button onClick={() => setFilterStatuses((p) => p.filter((x) => x !== s))}>×</button></div>
+            ))}
+            {filterIndustries.map((ind) => (
+              <div key={ind} className="filter-pill" style={{ background: "#1e1b4b", borderColor: "#4338ca", color: "#818cf8" }}>{ind}<button onClick={() => setFilterIndustries((p) => p.filter((x) => x !== ind))}>×</button></div>
+            ))}
+            {filterCompany && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#a78bfa" }}>🏢 {filterCompany}<button onClick={() => setFilterCompany("")}>×</button></div>}
+            {filterTouchpoints !== "All" && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📊 {filterTouchpoints} touches<button onClick={() => setFilterTouchpoints("All")}>×</button></div>}
+            {filterHasEmail && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>✉️ Has Email<button onClick={() => setFilterHasEmail(false)}>×</button></div>}
+            {filterHasPhone && <div className="filter-pill" style={{ background: "#1a1a2e", borderColor: "#4338ca", color: "#818cf8" }}>📞 Has Phone<button onClick={() => setFilterHasPhone(false)}>×</button></div>}
+            {filterList && <div className="filter-pill" style={{ background: "var(--info-bg)", borderColor: "var(--info-border)", color: "var(--info)" }}>📋 {filterList}<button onClick={() => setFilterList("")}>×</button></div>}
+            {(filterDateFrom || filterDateTo) && <div className="filter-pill" style={{ background: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success)" }}>📅 {filterDateFrom || "…"} → {filterDateTo || "…"}<button onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); }}>×</button></div>}
+            {filterDuplicates && <div className="filter-pill" style={{ background: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger)" }}>🚨 Duplicates only<button onClick={() => setFilterDuplicates(false)}>×</button></div>}
+            {activeFilterCount > 0 && <button className="btn btn-sm" style={{ borderRadius: 20, border: "1px solid var(--input-border)", background: "transparent", color: "var(--text-muted)" }} onClick={clearAll}>✕ Clear all</button>}
+          </>
+        )}
       </div>
 
-      {/* Advanced filter panel — 4-column grid */}
-      {showFilters && (
+      {/* Advanced filter panel */}
+      {showFilters && groupByCompany && (
+        <div className="filter-panel">
+          <div className="filter-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            {/* Column 1: Company name */}
+            <div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Company Name</div>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Filter by company name…"
+                value={cvFilterCompany}
+                onChange={(e) => setCvFilterCompany(e.target.value)}
+              />
+            </div>
+
+            {/* Column 2: Industry */}
+            <div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Industry</div>
+              <div className="flex flex-col gap-6" style={{ maxHeight: 320, overflowY: "auto" }}>
+                {allIndustries.map((ind) => {
+                  const checked = cvFilterIndustries.includes(ind);
+                  const count = prospects.filter((p) => p.industry === ind).length;
+                  return (
+                    <label key={ind} className="checkbox-row" onClick={() => setCvFilterIndustries((prev) => checked ? prev.filter((x) => x !== ind) : [...prev, ind])}>
+                      <div className={`checkbox-box${checked ? " checked" : ""}`} style={checked ? { borderColor: "#4338ca", background: "#1e1b4b" } : {}}>
+                        {checked && <span style={{ color: "#818cf8", fontSize: 14 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 14, color: checked ? "#818cf8" : "var(--text-sec)", flex: 1 }}>{ind}</span>
+                      <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{count}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Column 3: Status (companies with prospects in these statuses) */}
+            <div>
+              <div className="form-label" style={{ marginBottom: 10 }}>Has Prospect with Status</div>
+              <div className="flex flex-col gap-6" style={{ maxHeight: 320, overflowY: "auto" }}>
+                {STATUSES.map((s) => {
+                  const c = STATUS_COLORS[s];
+                  const checked = cvFilterStatuses.includes(s);
+                  return (
+                    <label key={s} className="checkbox-row" onClick={() => setCvFilterStatuses((prev) => checked ? prev.filter((x) => x !== s) : [...prev, s])}>
+                      <div className={`checkbox-box${checked ? " checked" : ""}`} style={{ borderColor: checked ? c.border : undefined, background: checked ? c.bg : undefined }}>
+                        {checked && <span style={{ color: c.text, fontSize: 14 }}>✓</span>}
+                      </div>
+                      <span style={{ fontSize: 14, color: checked ? c.text : "var(--text-sec)", flex: 1 }}>{s}</span>
+                      <span className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{prospects.filter((p) => p.status === s).length}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFilters && !groupByCompany && (
         <div className="filter-panel">
           <div className="filter-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
             {/* Column 1: Status */}
@@ -601,26 +736,34 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         </div>
       )}
 
-      {/* Dormant chips */}
-      <div className="dormant-bar">
-        <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
-        {[{ key: "All", label: "Show All" }, { key: "7", label: "7d+" }, { key: "15", label: "15d+" }, { key: "30", label: "30d+" }].map((opt) => {
-          const count = opt.key === "All" ? null : prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
-          return (
-            <button key={opt.key} className={`dormant-chip${filterDormant === opt.key ? " active" : ""}`} onClick={() => { setFilterDormant(opt.key); setCustomDays(""); }}>
-              {opt.label}
-              {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "var(--warning-bg)" : "var(--border)", color: filterDormant === opt.key ? "var(--warning-alt)" : "var(--text-muted)" }}>{count}</span>}
-            </button>
-          );
-        })}
-        <div className="flex items-center" style={{ background: "var(--surface)", border: `1px solid ${filterDormant === "custom" ? "var(--warning-alt)" : "var(--input-border)"}`, borderRadius: 20, overflow: "hidden" }}>
-          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
-          <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 14, outline: "none", fontFamily: "var(--mono)" }} />
-          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
+      {/* Dormant chips — only in prospect view */}
+      {groupByCompany ? (
+        <div className="dormant-bar">
+          <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>
+            {companyGroups ? companyGroups.length : 0} compan{companyGroups && companyGroups.length === 1 ? "y" : "ies"} · {companyGroups ? companyGroups.reduce((a, [, ps]) => a + ps.length, 0) : 0} prospects
+          </span>
         </div>
-        {filterDormant !== "All" && <button className="dormant-chip" onClick={() => { setFilterDormant("All"); setCustomDays(""); }}>✕ Clear</button>}
-        <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
-      </div>
+      ) : (
+        <div className="dormant-bar">
+          <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
+          {[{ key: "All", label: "Show All" }, { key: "7", label: "7d+" }, { key: "15", label: "15d+" }, { key: "30", label: "30d+" }].map((opt) => {
+            const count = opt.key === "All" ? null : prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
+            return (
+              <button key={opt.key} className={`dormant-chip${filterDormant === opt.key ? " active" : ""}`} onClick={() => { setFilterDormant(opt.key); setCustomDays(""); }}>
+                {opt.label}
+                {count !== null && <span className={`dormant-count${filterDormant === opt.key ? " active" : ""}`} style={{ background: filterDormant === opt.key ? "var(--warning-bg)" : "var(--border)", color: filterDormant === opt.key ? "var(--warning-alt)" : "var(--text-muted)" }}>{count}</span>}
+              </button>
+            );
+          })}
+          <div className="flex items-center" style={{ background: "var(--surface)", border: `1px solid ${filterDormant === "custom" ? "var(--warning-alt)" : "var(--input-border)"}`, borderRadius: 20, overflow: "hidden" }}>
+            <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingLeft: 12 }}>Custom:</span>
+            <input type="number" min="1" max="365" value={customDays} placeholder="e.g. 45" onChange={(e) => { setCustomDays(e.target.value); setFilterDormant(e.target.value && Number(e.target.value) > 0 ? "custom" : "All"); }} style={{ width: 64, background: "transparent", border: "none", padding: "5px 6px", color: "var(--text)", fontSize: 14, outline: "none", fontFamily: "var(--mono)" }} />
+            <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", paddingRight: 12 }}>days+</span>
+          </div>
+          {filterDormant !== "All" && <button className="dormant-chip" onClick={() => { setFilterDormant("All"); setCustomDays(""); }}>✕ Clear</button>}
+          <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+        </div>
+      )}
 
       {/* Table */}
       <div style={{ padding: "0 32px 32px" }}>

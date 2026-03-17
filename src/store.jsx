@@ -143,20 +143,35 @@ function reducer(state, action) {
         const seq = state.sequences.find((s) => s.id === en.sequenceId);
         if (!seq) return en;
 
+        // Use actualStartDate if the sequence has been resumed
+        const hasResumed = en.actualStartDate && en.completedSteps.length > 0;
+        let baseDate = en.startDate;
+        let dayOffset = 0;
+        if (hasResumed) {
+          baseDate = en.actualStartDate;
+          const firstCompletedStep = seq.steps.find((s) => s.id === en.completedSteps[0]);
+          dayOffset = firstCompletedStep ? firstCompletedStep.day : 0;
+        }
+
         // Find pending steps due today or earlier whose channel matches the logged touchpoint
         const matchingStep = seq.steps
           .filter((step) => {
             if (en.completedSteps.includes(step.id)) return false;
-            const [y, m, d] = en.startDate.split("-").map(Number);
+            const [y, m, d] = baseDate.split("-").map(Number);
             const due = new Date(y, m - 1, d);
-            due.setDate(due.getDate() + step.day);
+            due.setDate(due.getDate() + (step.day - dayOffset));
             const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
             return dueStr <= today && step.channel === touchpoint.channel;
           })
           .sort((a, b) => a.day - b.day)[0]; // earliest pending step first
 
         if (!matchingStep) return en;
-        return { ...en, completedSteps: [...en.completedSteps, matchingStep.id] };
+        const updated = { ...en, completedSteps: [...en.completedSteps, matchingStep.id] };
+        // If this is the first step being completed, record today as actual start date
+        if (en.completedSteps.length === 0) {
+          updated.actualStartDate = today;
+        }
+        return updated;
       });
 
       return { ...state, prospects: updatedProspects, enrollments: updatedEnrollments };
@@ -215,15 +230,22 @@ function reducer(state, action) {
         ],
       };
 
-    case "COMPLETE_STEP":
+    case "COMPLETE_STEP": {
+      const today = todayStr();
       return {
         ...state,
-        enrollments: state.enrollments.map((e) =>
-          e.id === action.payload.enrollmentId && !e.completedSteps.includes(action.payload.stepId)
-            ? { ...e, completedSteps: [...e.completedSteps, action.payload.stepId] }
-            : e
-        ),
+        enrollments: state.enrollments.map((e) => {
+          if (e.id !== action.payload.enrollmentId || e.completedSteps.includes(action.payload.stepId)) return e;
+          const updated = { ...e, completedSteps: [...e.completedSteps, action.payload.stepId] };
+          // If this is the first step being completed, record today as the actual start date
+          // so that remaining steps resume relative to this date instead of the original enrollment date
+          if (e.completedSteps.length === 0) {
+            updated.actualStartDate = today;
+          }
+          return updated;
+        }),
       };
+    }
 
     case "COMPLETE_ALL_FOR_PROSPECTS": {
       const ids = new Set(action.payload);
@@ -450,11 +472,24 @@ export function StoreProvider({ children }) {
       const prospect = state.prospects.find((p) => p.id === en.prospectId);
       if (!seq || !prospect) return;
       if (isTerminalStatus(prospect)) return;
+
+      // If the prospect completed their first task late, use actualStartDate as the anchor.
+      // All remaining step days are offset relative to the first completed step's day number.
+      const hasResumed = en.actualStartDate && en.completedSteps.length > 0;
+      let baseDate = en.startDate;
+      let dayOffset = 0;
+      if (hasResumed) {
+        baseDate = en.actualStartDate;
+        // Find the day number of the first step that was completed (the one that triggered resume)
+        const firstCompletedStep = seq.steps.find((s) => s.id === en.completedSteps[0]);
+        dayOffset = firstCompletedStep ? firstCompletedStep.day : 0;
+      }
+
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
-        const [sy, sm, sd] = en.startDate.split("-").map(Number);
+        const [sy, sm, sd] = baseDate.split("-").map(Number);
         const due = new Date(sy, sm - 1, sd); // local date — avoids UTC off-by-one
-        due.setDate(due.getDate() + step.day);
+        due.setDate(due.getDate() + (step.day - dayOffset));
         const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
         if (dueStr <= today) {
           tasks.push({ prospect, seq, step, dueDate: dueStr, enrollmentId: en.id });
