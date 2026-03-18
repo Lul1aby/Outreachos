@@ -869,12 +869,12 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       {/* Task popover */}
       {taskPopover && createPortal(
         <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover"
-          style={{ top: taskPopover.top, left: taskPopover.left }}>
-          <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          style={{ top: taskPopover.top, left: taskPopover.left, maxHeight: `calc(100vh - ${taskPopover.top}px - 12px)`, display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
             <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
           </div>
-          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
             {tasksToday.filter((t) => t.prospect.id === taskPopover.id).map((task) => {
               const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
               return (
@@ -891,7 +891,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               );
             })}
           </div>
-          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
+          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
             <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { const id = taskPopover.id; setTaskPopover(null); onLogTouchpoint(id); }}>+ Log to complete</button>
           </div>
         </div>,

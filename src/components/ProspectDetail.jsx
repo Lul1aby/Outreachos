@@ -400,28 +400,33 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Pending tasks notification */}
       {pendingTasks.length > 0 && (
-        <div style={{ background: "#052e16", border: "1px solid #166534", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pendingTasks.length > 1 ? 8 : 0 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80" }}>
+        <div style={{ background: "#052e16", border: "1px solid #166534", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80", flex: 1 }}>
               ⚡ {pendingTasks.length} Pending Task{pendingTasks.length > 1 ? "s" : ""}
             </span>
-            <button className="btn btn-primary btn-sm" style={{ background: "#166534", border: "1px solid #22c55e", fontSize: 12, padding: "4px 12px" }} onClick={() => setTab("log")}>
-              + Log to complete
-            </button>
           </div>
-          {pendingTasks.map((task) => {
-            const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
-            return (
-              <div key={`${task.enrollmentId}-${task.step.id}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: "1px solid #166534" }}>
-                <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{task.step.channel}</span>
-                <span style={{ fontSize: 12, color: "#86efac", fontFamily: "var(--mono)" }}>
-                  Step {stepIdx + 1}/{task.seq.steps.length}
-                </span>
-                {task.step.note && <span style={{ fontSize: 12, color: "#6ee7b7", opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{task.step.note}</span>}
-              </div>
-            );
-          })}
+          <div style={{ maxHeight: 160, overflowY: "auto", marginBottom: 12 }}>
+            {pendingTasks.map((task, idx) => {
+              const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+              return (
+                <div key={`${task.enrollmentId}-${task.step.id}`} style={{
+                  display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                  background: "#0a3d1f", borderRadius: 8, marginBottom: idx < pendingTasks.length - 1 ? 4 : 0,
+                }}>
+                  <span style={{ fontSize: 15, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", flexShrink: 0 }}>{task.step.channel}</span>
+                  <span style={{ fontSize: 11, color: "#86efac", fontFamily: "var(--mono)", flexShrink: 0, background: "#064e24", padding: "1px 6px", borderRadius: 4 }}>
+                    {stepIdx + 1}/{task.seq.steps.length}
+                  </span>
+                  {task.step.note && <span style={{ fontSize: 12, color: "#6ee7b7", opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{task.step.note}</span>}
+                </div>
+              );
+            })}
+          </div>
+          <button className="btn btn-sm" style={{ width: "100%", background: "#166534", border: "1px solid #22c55e", color: "#4ade80", fontSize: 13, fontWeight: 600, padding: "7px 0", borderRadius: 8 }} onClick={() => setTab("log")}>
+            + Log to complete
+          </button>
         </div>
       )}
 
