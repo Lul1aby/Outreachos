@@ -7,7 +7,7 @@ export function nowTimeStr() { return new Date().toTimeString().slice(0, 5); }
 
 /* ── Time helpers ── */
 
-const TERMINAL = new Set(["Not Interested"]);
+const TERMINAL = new Set(["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"]);
 
 export function lastTouchDate(prospect) {
   const dates = prospect.touchpoints.map(t => t.date).sort();

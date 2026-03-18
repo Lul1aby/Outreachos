@@ -156,6 +156,13 @@ export default function AddProspect({ onClose }) {
 
   const upd = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors(null); };
 
+  /* Auto-fill industry when company matches an existing prospect's company */
+  useEffect(() => {
+    if (!form.company.trim()) return;
+    const match = state.prospects.find((p) => p.company.toLowerCase() === form.company.trim().toLowerCase());
+    if (match && match.industry) setForm((f) => ({ ...f, industry: match.industry }));
+  }, [form.company, state.prospects]);
+
   return (
     <Modal onClose={() => { resetCsv(); onClose(); }}>
       {/* Tab switcher */}

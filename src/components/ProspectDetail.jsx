@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
@@ -84,6 +84,18 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [copied, setCopied] = useState(null);
   const [editingTp, setEditingTp] = useState(null); // touchpoint id being edited
   const [editForm, setEditForm] = useState(null);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const statusPickerRef = useRef(null);
+
+  // Close status picker on outside click
+  useEffect(() => {
+    if (!showStatusPicker) return;
+    const close = (e) => {
+      if (statusPickerRef.current && !statusPickerRef.current.contains(e.target)) setShowStatusPicker(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showStatusPicker]);
 
   /* Meeting scheduler state */
   const [meetDate, setMeetDate] = useState(todayStr());
@@ -167,7 +179,48 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           </div>
         </div>
         <div className="flex gap-8 items-center">
-          <Badge status={prospect.status} />
+          <div ref={statusPickerRef} style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowStatusPicker((v) => !v)}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+              title="Click to change status"
+            >
+              <Badge status={prospect.status} />
+            </button>
+            {showStatusPicker && (
+              <div style={{
+                position: "absolute", top: "100%", right: 0, marginTop: 6, zIndex: 100,
+                background: "var(--card-bg, var(--surface))", border: "1px solid var(--border)", borderRadius: 10,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.3)", padding: "6px 0", minWidth: 180,
+              }}>
+                {STATUSES.map((s) => {
+                  const c = STATUS_COLORS[s];
+                  const isActive = prospect.status === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospectId, updates: { status: s } } });
+                        setShowStatusPicker(false);
+                      }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, width: "100%",
+                        padding: "7px 14px", background: isActive ? (c.bg || "var(--primary-bg)") : "transparent",
+                        border: "none", cursor: "pointer", fontSize: 14, color: isActive ? c.text : "var(--text-sec)",
+                        fontFamily: "var(--font)", textAlign: "left",
+                      }}
+                      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--surface)"; }}
+                      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.text, flexShrink: 0 }} />
+                      {s}
+                      {isActive && <span style={{ marginLeft: "auto", fontSize: 12 }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
       </div>
