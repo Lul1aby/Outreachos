@@ -314,6 +314,21 @@ function reducer(state, action) {
     case "RESET_DATA":
       return defaultState;
 
+    case "SYNC_DEFAULT_SEQUENCE": {
+      // Force-sync stored default sequence with code definition and clean all enrollments
+      const sequences = state.sequences.map((s) =>
+        s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+      );
+      const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
+      const enrollments = state.enrollments.map((en) => {
+        const validIds = seqMap.get(en.sequenceId);
+        if (!validIds) return en;
+        const cleaned = en.completedSteps.filter((id) => validIds.has(id));
+        return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
+      });
+      return { ...state, sequences, enrollments };
+    }
+
     default:
       return state;
   }
@@ -380,6 +395,11 @@ export function StoreProvider({ children }) {
     persistAllowed.current = true;
     setHydrated(true);
   }, []);
+
+  /* ── After hydration, force-sync default sequence so edits propagate to all leads ── */
+  useEffect(() => {
+    if (hydrated) dispatch({ type: "SYNC_DEFAULT_SEQUENCE" });
+  }, [hydrated]);
 
   /* ── Auth: check session on mount, listen for changes ── */
   useEffect(() => {
