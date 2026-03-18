@@ -8,7 +8,7 @@ import { Badge } from "./ui";
 function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--primary), var(--accent))", avatarColor = "#fff", extra }) {
   return (
     <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
-      <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{p.name[0]}</div>
+      <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{(p.name || "?")[0]}</div>
       <div className="flex-1" style={{ minWidth: 0 }}>
         <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
         <div style={{ fontSize: 14, color: "var(--text-muted)" }}>{p.company}</div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
@@ -85,6 +85,17 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [editingTp, setEditingTp] = useState(null); // touchpoint id being edited
   const [editForm, setEditForm] = useState(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const statusPickerRef = useRef(null);
+
+  // Close status picker on outside click
+  useEffect(() => {
+    if (!showStatusPicker) return;
+    const close = (e) => {
+      if (statusPickerRef.current && !statusPickerRef.current.contains(e.target)) setShowStatusPicker(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [showStatusPicker]);
 
   /* Meeting scheduler state */
   const [meetDate, setMeetDate] = useState(todayStr());
@@ -168,7 +179,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           </div>
         </div>
         <div className="flex gap-8 items-center">
-          <div style={{ position: "relative" }}>
+          <div ref={statusPickerRef} style={{ position: "relative" }}>
             <button
               onClick={() => setShowStatusPicker((v) => !v)}
               style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
