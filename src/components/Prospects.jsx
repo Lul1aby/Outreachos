@@ -183,6 +183,13 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
     });
   }, [prospects, dispatch]);
 
+  const changeCompanyIndustry = useCallback((company, industry) => {
+    const companyProspects = prospects.filter((p) => p.company === company);
+    companyProspects.forEach((p) => {
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: p.id, updates: { industry } } });
+    });
+  }, [prospects, dispatch]);
+
   const toggleCompanyExpand = useCallback((company) => {
     setExpandedCompanies((prev) => {
       const n = new Set(prev);
@@ -821,6 +828,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     resError={resError}
                     onFetchResearch={() => fetchCompanyResearch(company, firstP.industry)}
                     onDeleteResearch={() => deleteCompanyResearch(company)}
+                    onChangeIndustry={changeCompanyIndustry}
                     renderRow={renderRow}
                     colCount={colCount}
                   />
@@ -890,7 +898,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
 }
 
 /* ── Company Group sub-component ── */
-function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, research, isResearching, resError, onFetchResearch, onDeleteResearch, renderRow, colCount }) {
+function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, research, isResearching, resError, onFetchResearch, onDeleteResearch, renderRow, colCount, onChangeIndustry }) {
   const [showResearch, setShowResearch] = useState(false);
 
   const statusSummary = useMemo(() => {
@@ -966,7 +974,14 @@ function CompanyGroup({ company, industry, prospects, isExpanded, onToggle, rese
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>🏢 {company}</span>
-                {industry && <span style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--border)", borderRadius: 10, padding: "1px 8px" }}>{industry}</span>}
+                <select
+                  value={industry || ""}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => { e.stopPropagation(); onChangeIndustry(company, e.target.value); }}
+                  style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--border)", border: "1px solid var(--border)", borderRadius: 10, padding: "1px 8px", cursor: "pointer", outline: "none", fontFamily: "var(--font)" }}
+                >
+                  {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
+                </select>
                 <span className="mono" style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{prospects.length} prospect{prospects.length !== 1 ? "s" : ""}</span>
                 {statusSummary.map(([status, count]) => (
                   <Badge key={status} status={status} />
