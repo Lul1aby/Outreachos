@@ -14,7 +14,6 @@ function escapeCSV(val) {
 function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ownEmail, ownProspectCount }) {
   const [open, setOpen] = useState(false);
 
-  // All users: own account first, then others from admin data (excluding own to avoid duplicate)
   const users = [
     { id: "own", email: ownEmail || "My Account", count: ownProspectCount },
     ...(adminAllData || [])
@@ -35,30 +34,22 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
   }
 
   function toggleAll() {
-    if (allSelected) {
-      setSelectedUsers(new Set(["own"]));
-    } else {
-      setSelectedUsers(new Set(allIds));
-    }
+    if (allSelected) setSelectedUsers(new Set(["own"]));
+    else setSelectedUsers(new Set(allIds));
   }
 
-  const label = allSelected
-    ? "All Users"
-    : selectedUsers.size === 1 && selectedUsers.has("own")
-    ? (ownEmail || "My Account")
+  const label = allSelected ? "All Users"
+    : selectedUsers.size === 1 && selectedUsers.has("own") ? (ownEmail || "My Account")
     : `${selectedUsers.size} users selected`;
 
   return (
     <div style={{ position: "relative" }}>
       <span style={{ fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--mono)", marginRight: 8 }}>Viewing:</span>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          fontSize: 13, padding: "6px 12px", borderRadius: 6, cursor: "pointer",
-          border: "1px solid var(--border)", background: "var(--surface-raised)",
-          color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 260,
-        }}
-      >
+      <button onClick={() => setOpen((o) => !o)} style={{
+        fontSize: 13, padding: "6px 12px", borderRadius: 6, cursor: "pointer",
+        border: "1px solid var(--border)", background: "var(--surface-raised)",
+        color: "var(--text)", display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 260,
+      }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
         <span style={{ opacity: 0.5, flexShrink: 0 }}>▾</span>
       </button>
@@ -70,39 +61,25 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
             background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10,
             minWidth: 260, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", padding: "6px 0",
           }}>
-            {/* Select All */}
             <label style={{
               display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
               cursor: "pointer", fontSize: 13, fontWeight: 600,
-              borderBottom: "1px solid var(--border)",
-              background: allSelected ? "var(--primary-bg)" : "transparent",
+              borderBottom: "1px solid var(--border)", background: allSelected ? "var(--primary-bg)" : "transparent",
             }}>
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={toggleAll}
-                style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
-              />
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }} />
               Select All
             </label>
             {users.map((u) => (
               <label key={u.id} style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "8px 14px",
-                cursor: "pointer", fontSize: 13,
-                background: selectedUsers.has(u.id) ? "var(--primary-bg)" : "transparent",
+                cursor: "pointer", fontSize: 13, background: selectedUsers.has(u.id) ? "var(--primary-bg)" : "transparent",
               }}>
-                <input
-                  type="checkbox"
-                  checked={selectedUsers.has(u.id)}
-                  onChange={() => toggle(u.id)}
-                  style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }}
-                />
+                <input type="checkbox" checked={selectedUsers.has(u.id)} onChange={() => toggle(u.id)}
+                  style={{ accentColor: "var(--primary)", width: 14, height: 14, flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  👤 {u.email}{u.id === "own" ? " (you)" : ""}
+                  {u.email}{u.id === "own" ? " (you)" : ""}
                 </span>
-                {u.count !== null && (
-                  <span style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>({u.count})</span>
-                )}
+                {u.count !== null && <span style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>({u.count})</span>}
               </label>
             ))}
           </div>
@@ -116,16 +93,12 @@ export default function Analytics() {
   const { state, allLists, user } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
 
-  /* ── Admin: data source selector ── */
-  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "")
-    .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  /* ── Admin data source ── */
+  const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
   const isAdmin = !!user?.email && (adminEmails.includes(user.email.toLowerCase()) || user?.app_metadata?.role === "admin");
-
   const [selectedUsers, setSelectedUsers] = useState(() => new Set(["own"]));
-  const [adminAllData, setAdminAllData] = useState(null); // [{ userId, userEmail, prospects }]
+  const [adminAllData, setAdminAllData] = useState(null);
   const [adminLoading, setAdminLoading] = useState(false);
-
-  const needsAdminData = isAdmin && !(selectedUsers.size === 1 && selectedUsers.has("own"));
 
   useEffect(() => {
     if (!isAdmin || adminAllData) return;
@@ -145,19 +118,14 @@ export default function Analytics() {
     })();
   }, [isAdmin]);
 
-  // Source prospects based on selection
   const sourceProspects = useMemo(() => {
     if (!isAdmin) return state.prospects;
     const own = selectedUsers.has("own") ? state.prospects : [];
-    const fromOthers = (adminAllData || [])
-      .filter((u) => selectedUsers.has(u.userId))
-      .flatMap((u) => u.prospects || []);
+    const fromOthers = (adminAllData || []).filter((u) => selectedUsers.has(u.userId)).flatMap((u) => u.prospects || []);
     return [...own, ...fromOthers];
   }, [isAdmin, selectedUsers, adminAllData, state.prospects]);
 
-  const sourceLists = useMemo(() =>
-    [...new Set(sourceProspects.map((p) => p.listName).filter(Boolean))].sort(),
-  [sourceProspects]);
+  const sourceLists = useMemo(() => [...new Set(sourceProspects.map((p) => p.listName).filter(Boolean))].sort(), [sourceProspects]);
 
   const downloadReport = useCallback(() => {
     const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
@@ -165,15 +133,9 @@ export default function Analytics() {
       ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used", "Notes"],
       ...src.map((p) => {
         const days = daysSinceLast(p);
-        const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1).date : "";
+        const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.date : "";
         const channels = [...new Set(p.touchpoints.map((t) => t.channel))].join("; ");
-        return [
-          p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "",
-          p.email || "", p.phone || "", p.linkedin || "",
-          fmtDate(p.createdAt), p.touchpoints.length,
-          lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "",
-          channels, p.notes || "",
-        ];
+        return [p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "", p.email || "", p.phone || "", p.linkedin || "", fmtDate(p.createdAt), p.touchpoints.length, lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "", channels, p.notes || ""];
       }),
     ];
     const csv = rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
@@ -181,9 +143,7 @@ export default function Analytics() {
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `outreach-report-${label}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    a.href = url; a.download = `outreach-report-${label}-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   }, [sourceProspects, selectedList]);
 
@@ -196,13 +156,13 @@ export default function Analytics() {
     const total = prospects.length;
     const allTp = prospects.flatMap((p) => p.touchpoints);
 
-    /* Status / industry / channel counts */
+    /* ── Status / channel counts ── */
     const statusCounts = {};
     STATUSES.forEach((s) => { statusCounts[s] = prospects.filter((p) => p.status === s).length; });
     const byChannel = {};
     CHANNELS.forEach((c) => { byChannel[c] = allTp.filter((t) => t.channel === c).length; });
 
-    /* Funnel */
+    /* ── Funnel ── */
     const contacted = prospects.filter((p) => p.touchpoints.length > 0).length;
     const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
     const meeting = prospects.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
@@ -212,7 +172,8 @@ export default function Analytics() {
     const callBack = prospects.filter((p) => p.status === "Call Back").length;
     const nurture = prospects.filter((p) => p.status === "Nurture").length;
     const trials = prospects.filter((p) => p.status === "Trials").length;
-    const closedNeg = notInt + noResp;
+    const wrongInvalid = prospects.filter((p) => p.status === "Wrong/Invalid").length;
+    const closedNeg = notInt + noResp + wrongInvalid;
 
     const funnelSteps = [
       { label: "Total", val: total, color: "var(--primary)", pct: 100 },
@@ -223,25 +184,28 @@ export default function Analytics() {
     ];
 
     const dropOffs = [
-      { from: "Touched→Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
-      { from: "Replied→Meeting", lost: replied - meeting, rate: replied ? Math.round((1 - meeting / replied) * 100) : 0 },
-      { from: "Meeting→Opportunity", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
+      { from: "Touched → Replied", lost: contacted - replied, rate: contacted ? Math.round((1 - replied / contacted) * 100) : 0 },
+      { from: "Replied → Meeting", lost: replied - meeting, rate: replied ? Math.round((1 - meeting / replied) * 100) : 0 },
+      { from: "Meeting → Opportunity", lost: meeting - won, rate: meeting ? Math.round((1 - won / meeting) * 100) : 0 },
     ];
 
-    /* Rejection by industry/channel */
-    const rejByIndustry = INDUSTRIES.map((i) => {
-      const ind = prospects.filter((p) => p.industry === i);
-      const neg = ind.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
-      return { name: i, total: ind.length, neg, rate: ind.length ? Math.round((neg / ind.length) * 100) : 0 };
-    }).filter((r) => r.neg > 0).sort((a, b) => b.rate - a.rate);
-
+    /* ── FIX: Rejection by channel — use TOUCHPOINT outcome, not prospect status ── */
     const rejByChannel = CHANNELS.map((c) => {
-      const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const neg = touched.filter((p) => ["Not Interested", "No Response"].includes(p.status)).length;
-      return { name: c, total: touched.length, neg, rate: touched.length ? Math.round((neg / touched.length) * 100) : 0 };
+      const channelTps = allTp.filter((t) => t.channel === c);
+      const totalForChannel = channelTps.length;
+      const negTps = channelTps.filter((t) => t.status === "Not Interested").length;
+      return { name: c, total: totalForChannel, neg: negTps, rate: totalForChannel ? Math.round((negTps / totalForChannel) * 100) : 0 };
     }).filter((r) => r.total > 0).sort((a, b) => b.rate - a.rate);
 
-    /* Follow Up by industry/channel */
+    /* ── FIX: Rejection by industry — use TOUCHPOINT outcome ── */
+    const rejByIndustry = INDUSTRIES.map((i) => {
+      const indProspects = prospects.filter((p) => p.industry === i);
+      const indTps = indProspects.flatMap((p) => p.touchpoints);
+      const negTps = indTps.filter((t) => t.status === "Not Interested").length;
+      return { name: i, total: indTps.length, neg: negTps, rate: indTps.length ? Math.round((negTps / indTps.length) * 100) : 0 };
+    }).filter((r) => r.neg > 0).sort((a, b) => b.rate - a.rate);
+
+    /* ── Follow Up by industry/channel ── */
     const followUpByIndustry = INDUSTRIES.map((i) => {
       const ind = prospects.filter((p) => p.industry === i);
       const cb = ind.filter((p) => p.status === "Call Back").length;
@@ -256,26 +220,36 @@ export default function Analytics() {
       return { name: c, total: touched.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: touched.length ? Math.round(((cb + nu) / touched.length) * 100) : 0 };
     }).filter((r) => r.total > 0).sort((a, b) => b.followUp - a.followUp);
 
-    /* Channel reply rate */
+    /* ── Channel reply rate ── */
     const channelReply = CHANNELS.map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
       const r = touched.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 
-    /* Touchpoints → reply */
+    /* ── Outcome breakdown per channel (NEW: shows exactly what happened on each channel) ── */
+    const channelOutcomes = CHANNELS.map((c) => {
+      const tps = allTp.filter((t) => t.channel === c);
+      if (!tps.length) return null;
+      const outcomes = {};
+      tps.forEach((t) => { const s = t.status || "No Outcome"; outcomes[s] = (outcomes[s] || 0) + 1; });
+      const sorted = Object.entries(outcomes).sort((a, b) => b[1] - a[1]);
+      return { channel: c, total: tps.length, outcomes: sorted };
+    }).filter(Boolean);
+
+    /* ── Touchpoints → reply ── */
     const withReply = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status));
     const avgTpToReply = withReply.length ? Math.round((withReply.reduce((a, p) => a + p.touchpoints.length, 0) / withReply.length) * 10) / 10 : 0;
     const avgTpAll = total ? Math.round((prospects.reduce((a, p) => a + p.touchpoints.length, 0) / total) * 10) / 10 : 0;
 
-    /* Velocity */
+    /* ── Velocity ── */
     const velocities = withReply.map((p) => {
       const dates = p.touchpoints.map((t) => new Date(t.date)).sort((a, b) => a - b);
       return dates.length ? Math.round((dates[dates.length - 1] - new Date(p.createdAt)) / 86400000) : null;
     }).filter((v) => v !== null);
     const avgVelocity = velocities.length ? Math.round(velocities.reduce((a, b) => a + b, 0) / velocities.length) : 0;
 
-    /* Activity last 30 days */
+    /* ── Activity last 30 days ── */
     const actMap = {};
     allTp.forEach((t) => { actMap[t.date] = (actMap[t.date] || 0) + 1; });
     const addMap = {};
@@ -288,40 +262,79 @@ export default function Analytics() {
     const maxAct = Math.max(...last30.map((d) => d.count), 1);
     const maxAdded = Math.max(...last30.map((d) => d.added), 1);
 
-    /* Industry performance */
-    const IND_COLORS = ["var(--primary)", "var(--accent)", "var(--accent)", "var(--info)", "var(--success)", "var(--warning)", "var(--warning-alt)", "var(--danger)"];
+    /* ── Weekly activity trend (NEW) ── */
+    const weeklyActivity = [];
+    for (let w = 3; w >= 0; w--) {
+      const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - (w * 7 + 6));
+      const weekEnd = new Date(); weekEnd.setDate(weekEnd.getDate() - (w * 7));
+      let tpCount = 0, addCount = 0;
+      for (let d = 0; d < 7; d++) {
+        const day = new Date(weekStart); day.setDate(day.getDate() + d);
+        const key = day.toISOString().slice(0, 10);
+        tpCount += actMap[key] || 0;
+        addCount += addMap[key] || 0;
+      }
+      const label = weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      weeklyActivity.push({ label, tpCount, addCount });
+    }
+
+    /* ── Industry performance ── */
+    const IND_COLORS = ["var(--primary)", "var(--accent)", "var(--info)", "var(--success)", "var(--warning)", "var(--warning-alt)", "var(--danger)"];
     const industryStats = INDUSTRIES.filter((i) => prospects.filter((p) => p.industry === i).length > 0).map((i, idx) => {
       const ind = prospects.filter((p) => p.industry === i);
       const r = ind.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       const m = ind.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
-      return { name: i, total: ind.length, replied: r, meetings: m, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
+      const ni = ind.filter((p) => p.status === "Not Interested").length;
+      return { name: i, total: ind.length, replied: r, meetings: m, notInterested: ni, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
-    /* Touchpoint distribution buckets (non-overlapping: upper bound exclusive except last) */
+    /* ── Touchpoint distribution buckets ── */
     const buckets = [
-      { label: "0–5 touches",  filter: (p) => p.touchpoints.length <= 5, color: "var(--info)" },
-      { label: "5–10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "var(--accent)" },
-      { label: "10–15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "var(--warning)" },
-      { label: "15+ touches",  filter: (p) => p.touchpoints.length > 15, color: "var(--warning-alt)" },
+      { label: "0-5 touches", filter: (p) => p.touchpoints.length <= 5, color: "var(--info)" },
+      { label: "5-10 touches", filter: (p) => p.touchpoints.length > 5 && p.touchpoints.length <= 10, color: "var(--accent)" },
+      { label: "10-15 touches", filter: (p) => p.touchpoints.length > 10 && p.touchpoints.length <= 15, color: "var(--warning)" },
+      { label: "15+ touches", filter: (p) => p.touchpoints.length > 15, color: "var(--warning-alt)" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
       const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       return { ...b, count: group.length, replyRate: group.length ? Math.round((r / group.length) * 100) : 0 };
     });
 
+    /* ── Stale prospects (NEW) ── */
+    const stale7 = prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); }).length;
+    const stale14 = prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 14 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); }).length;
+    const stale30 = prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 30 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); }).length;
+    const untouched = prospects.filter((p) => p.touchpoints.length === 0).length;
+
+    /* ── Top performers (prospects closest to conversion) (NEW) ── */
+    const hotProspects = prospects
+      .filter((p) => ["Replied", "Call Back", "Connected +ve", "Trials"].includes(p.status))
+      .sort((a, b) => b.touchpoints.length - a.touchpoints.length)
+      .slice(0, 8);
+
+    /* ── List performance (NEW) ── */
+    const listStats = sourceLists.map((l) => {
+      const lp = prospects.filter((p) => p.listName === l);
+      const r = lp.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const m = lp.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const ni = lp.filter((p) => p.status === "Not Interested").length;
+      return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lp.length ? Math.round((r / lp.length) * 100) : 0 };
+    }).sort((a, b) => b.replyRate - a.replyRate);
+
     return {
-      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg,
+      total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg, wrongInvalid,
       callBack, nurture, trials, followUpByIndustry, followUpByChannel,
-      rejByIndustry, rejByChannel, channelReply, byChannel,
+      rejByIndustry, rejByChannel, channelReply, channelOutcomes, byChannel,
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
-      last30, maxAct, maxAdded, industryStats, buckets,
+      last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets,
+      stale7, stale14, stale30, untouched, hotProspects, listStats,
     };
-  }, [prospects]);
+  }, [prospects, sourceLists]);
 
   if (adminLoading && !adminAllData) {
     return (
       <div style={{ padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 10, color: "var(--text-muted)" }}>
-        <span style={{ fontSize: 22 }}>📊</span> Loading analytics data…
+        Loading analytics data…
       </div>
     );
   }
@@ -331,13 +344,7 @@ export default function Analytics() {
       <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 12, textAlign: "center" }}>
         {isAdmin && (
           <div style={{ marginBottom: 8 }}>
-            <AdminSourceSelector
-              selectedUsers={selectedUsers}
-              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
-              adminAllData={adminAllData}
-              ownEmail={user?.email}
-              ownProspectCount={state.prospects.length}
-            />
+            <AdminSourceSelector selectedUsers={selectedUsers} setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }} adminAllData={adminAllData} ownEmail={user?.email} ownProspectCount={state.prospects.length} />
           </div>
         )}
         <div style={{ fontSize: 42 }}>📊</div>
@@ -354,32 +361,20 @@ export default function Analytics() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-12">
         <div>
-          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>📊 Analytics</div>
+          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>Analytics Dashboard</div>
           <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
         </div>
         <div className="flex items-center gap-8 flex-wrap">
-          {/* Admin: data source selector */}
           {isAdmin && (
-            <AdminSourceSelector
-              selectedUsers={selectedUsers}
-              setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }}
-              adminAllData={adminAllData}
-              ownEmail={user?.email}
-              ownProspectCount={state.prospects.length}
-            />
+            <AdminSourceSelector selectedUsers={selectedUsers} setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }} adminAllData={adminAllData} ownEmail={user?.email} ownProspectCount={state.prospects.length} />
           )}
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
-          <select
-            className="form-select"
-            style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }}
-            value={selectedList}
-            onChange={(e) => setSelectedList(e.target.value)}
-          >
+          <select className="form-select" style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }} value={selectedList} onChange={(e) => setSelectedList(e.target.value)}>
             <option value="__all__">All Lists</option>
-            {sourceLists.map((l) => <option key={l} value={l}>📋 {l}</option>)}
+            {sourceLists.map((l) => <option key={l} value={l}>{l}</option>)}
           </select>
           <button className="btn btn-outline btn-sm" onClick={downloadReport} title="Download activity report as CSV" style={{ whiteSpace: "nowrap" }}>
-            ⬇ Download Report
+            Download Report
           </button>
         </div>
       </div>
@@ -389,14 +384,14 @@ export default function Analytics() {
         {[
           { label: "Total", val: data.total, color: "var(--primary)" },
           { label: "Touched", val: data.contacted, color: "var(--info)" },
+          { label: "Untouched", val: data.untouched, color: "var(--text-dim)" },
           { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)" },
           { label: "Meetings", val: data.meeting, color: "var(--accent)" },
           { label: "Opportunity", val: data.won, color: "var(--success-bright)" },
-          { label: "Trials", val: data.trials, color: "var(--info-bright)" },
           { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
           { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
           { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
-          { label: "Avg Touches→Reply", val: data.avgTpToReply || "—", color: "var(--warning)" },
+          { label: "Avg Velocity", val: data.avgVelocity ? `${data.avgVelocity}d` : "—", color: "var(--warning)" },
         ].map((k) => (
           <div key={k.label} className="analytics-kpi">
             <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
@@ -404,6 +399,36 @@ export default function Analytics() {
           </div>
         ))}
       </div>
+
+      {/* Health alerts (NEW) */}
+      {(data.stale7 > 0 || data.untouched > 0) && (
+        <div className="flex gap-12 flex-wrap">
+          {data.untouched > 0 && (
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.untouched}</div>
+              <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>prospects never contacted</div>
+            </div>
+          )}
+          {data.stale7 > 0 && (
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{data.stale7}</div>
+              <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>stale 7+ days (active pipeline)</div>
+            </div>
+          )}
+          {data.stale14 > 0 && (
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "#f97316" }}>{data.stale14}</div>
+              <div style={{ fontSize: 13, color: "#f97316", opacity: 0.9 }}>stale 14+ days</div>
+            </div>
+          )}
+          {data.stale30 > 0 && (
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.stale30}</div>
+              <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>stale 30+ days — needs attention</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Funnel + Drop-offs */}
       <div className="analytics-grid-2">
@@ -424,6 +449,7 @@ export default function Analytics() {
               {[
                 { label: "No Response", val: data.noResp, color: "var(--warning)" },
                 { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
+                { label: "Wrong/Invalid", val: data.wrongInvalid, color: "var(--text-dim)" },
                 { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
                 { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
               ].map((x) => (
@@ -449,7 +475,7 @@ export default function Analytics() {
                   <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)" }}>{d.rate}% drop</span>
                 </div>
                 <MiniBar pct={d.rate} color={d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)"} height={6} />
-                <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost here</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} prospects lost</div>
               </div>
             ))}
             <div className="pt-12 border-t">
@@ -461,11 +487,21 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Rejection analysis */}
+      {/* Channel Outcome Breakdown (NEW — replaces misleading rejection analysis) */}
       <div className="analytics-grid-3">
         <div className="card">
-          <div className="card-title">❌ Not Interested — by Industry</div>
-          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No rejections yet 🎉</div> :
+          <div className="card-title">Not Interested — by Channel (touchpoint outcomes)</div>
+          {data.rejByChannel.filter((r) => r.neg > 0).length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No "Not Interested" outcomes logged yet</div> :
+            data.rejByChannel.filter((r) => r.neg > 0).map((r) => (
+              <div key={r.name} className="mb-10">
+                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
+                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
+              </div>
+            ))}
+        </div>
+        <div className="card">
+          <div className="card-title">Not Interested — by Industry (touchpoint outcomes)</div>
+          {data.rejByIndustry.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No rejections yet</div> :
             data.rejByIndustry.map((r) => (
               <div key={r.name} className="mb-10">
                 <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
@@ -474,19 +510,10 @@ export default function Analytics() {
             ))}
         </div>
         <div className="card">
-          <div className="card-title">❌ Not Interested — by Channel</div>
-          {data.rejByChannel.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No data yet</div> :
-            data.rejByChannel.map((r) => (
-              <div key={r.name} className="mb-10">
-                <div className="flex justify-between mb-4"><span style={{ fontSize: 14 }}>{CHANNEL_ICONS[r.name]} {r.name}</span><span className="mono" style={{ fontSize: 14, color: r.rate > 50 ? "var(--danger)" : "var(--text-muted)" }}>{r.neg}/{r.total} · {r.rate}%</span></div>
-                <MiniBar pct={r.rate} color={r.rate > 50 ? "var(--danger-bright)" : r.rate > 25 ? "var(--warning-alt)" : "var(--warning)"} />
-              </div>
-            ))}
-        </div>
-        <div className="card">
           <div className="card-title">All Status Distribution</div>
           {STATUSES.map((s) => {
             const cnt = data.statusCounts[s];
+            if (!cnt) return null;
             const pct = data.total ? (cnt / data.total) * 100 : 0;
             return (
               <div key={s} className="mb-8">
@@ -498,10 +525,38 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Follow Up analysis */}
+      {/* Channel Outcome Detail (NEW) */}
+      {data.channelOutcomes.length > 0 && (
+        <div className="card">
+          <div className="card-title">Channel Outcome Breakdown — What Happened on Each Channel</div>
+          <div className="channel-eff-grid">
+            {data.channelOutcomes.map((co) => (
+              <div key={co.channel} className="channel-eff-card" style={{ padding: "14px 16px" }}>
+                <div style={{ fontSize: 18, marginBottom: 4 }}>{CHANNEL_ICONS[co.channel]}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>{co.channel} <span className="mono" style={{ fontWeight: 400, color: "var(--text-dim)" }}>({co.total})</span></div>
+                {co.outcomes.map(([outcome, count]) => {
+                  const pct = Math.round((count / co.total) * 100);
+                  const c = STATUS_COLORS[outcome];
+                  return (
+                    <div key={outcome} className="mb-6">
+                      <div className="flex justify-between mb-2">
+                        <span style={{ fontSize: 13, color: c?.text || "var(--text-sec)" }}>{outcome}</span>
+                        <span className="mono" style={{ fontSize: 13, color: "var(--text-muted)" }}>{count} · {pct}%</span>
+                      </div>
+                      <MiniBar pct={pct} color={c?.text || "var(--text-dim)"} height={3} />
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Follow Up + Pipeline */}
       <div className="analytics-grid-3">
         <div className="card">
-          <div className="card-title">🔄 Follow Up — by Industry</div>
+          <div className="card-title">Follow Up — by Industry</div>
           <div className="flex gap-16 mb-12">
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
@@ -520,7 +575,7 @@ export default function Analytics() {
             ))}
         </div>
         <div className="card">
-          <div className="card-title">🔄 Follow Up — by Channel</div>
+          <div className="card-title">Follow Up — by Channel</div>
           <div className="flex gap-16 mb-12">
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning-alt)" }} /> Call Back</div>
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 8, height: 8, borderRadius: 2, background: "var(--accent-light)" }} /> Nurture</div>
@@ -539,7 +594,7 @@ export default function Analytics() {
             ))}
         </div>
         <div className="card">
-          <div className="card-title">📋 Follow Up Pipeline</div>
+          <div className="card-title">Follow Up Pipeline</div>
           <div className="flex flex-col gap-16" style={{ paddingTop: 4 }}>
             {[
               { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", bg: "var(--warning-bg)", desc: "Awaiting callback" },
@@ -580,7 +635,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Activity + Industry */}
+      {/* Activity + Industry + Weekly Trend */}
       <div className="analytics-grid-2-alt">
         <div className="card">
           <div className="card-title">Activity — Last 30 Days</div>
@@ -588,7 +643,6 @@ export default function Analytics() {
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} /> Touchpoints</div>
             <div className="flex items-center gap-6" style={{ fontSize: 14, color: "var(--text-muted)" }}><div style={{ width: 10, height: 10, borderRadius: 2, background: "#34d399", opacity: 0.6 }} /> Added</div>
           </div>
-          {/* Bars area */}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 80 }}>
             {data.last30.map((d) => (
               <div key={d.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", gap: 1, height: "100%" }}>
@@ -597,15 +651,21 @@ export default function Analytics() {
               </div>
             ))}
           </div>
-          {/* Baseline */}
           <div style={{ height: 1, background: "var(--border)", marginBottom: 6 }} />
-          {/* Date labels - horizontal, always at bottom */}
           <div style={{ display: "flex", gap: 2 }}>
             {data.last30.map((d, i) => (
               <div key={d.key} style={{ flex: 1, textAlign: "center" }}>
-                {i % 5 === 0 && (
-                  <div className="mono" style={{ fontSize: 12, color: "var(--text-sec)" }}>{d.label}</div>
-                )}
+                {i % 5 === 0 && <div className="mono" style={{ fontSize: 12, color: "var(--text-sec)" }}>{d.label}</div>}
+              </div>
+            ))}
+          </div>
+          {/* Weekly summary */}
+          <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+            {data.weeklyActivity.map((w, i) => (
+              <div key={i} style={{ padding: "8px 10px", borderRadius: 6, background: "var(--surface)", textAlign: "center" }}>
+                <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>{w.label}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--primary-light)" }}>{w.tpCount}</div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>touches</div>
               </div>
             ))}
           </div>
@@ -613,19 +673,63 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Industry Performance</div>
           <div className="flex flex-col">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
-              {["Industry", "#", "Reply", "Mtg"].map((h) => <div key={h} className="mono" style={{ fontSize: 14, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+              {["Industry", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
             </div>
             {data.industryStats.map((ind) => (
-              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 40px 50px 50px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
                 <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind.name}</span></div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ind.total}</div>
                 <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
                 <div className="mono" style={{ fontSize: 14, color: "#a78bfa" }}>{ind.meetings}</div>
+                <div className="mono" style={{ fontSize: 14, color: "var(--danger)" }}>{ind.notInterested}</div>
               </div>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Hot prospects + List performance (NEW) */}
+      <div className="analytics-grid-2">
+        {data.hotProspects.length > 0 && (
+          <div className="card">
+            <div className="card-title">Hot Prospects — Closest to Conversion</div>
+            <div className="flex flex-col gap-8">
+              {data.hotProspects.map((p) => (
+                <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)" }}>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                    {(p.name || "?")[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
+                    <div className="truncate" style={{ fontSize: 12, color: "var(--text-muted)" }}>{p.company}</div>
+                  </div>
+                  <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 10, background: STATUS_COLORS[p.status]?.bg, color: STATUS_COLORS[p.status]?.text, border: `1px solid ${STATUS_COLORS[p.status]?.border}`, whiteSpace: "nowrap" }}>{p.status}</span>
+                  <span className="mono" style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>{p.touchpoints.length} tp</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {data.listStats.length > 0 && (
+          <div className="card">
+            <div className="card-title">List Performance</div>
+            <div className="flex flex-col">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+                {["List", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+              </div>
+              {data.listStats.map((ls) => (
+                <div key={ls.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                  <div className="truncate" style={{ fontSize: 14, color: "var(--text-sec)" }}>{ls.name}</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ls.total}</div>
+                  <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ls.replyRate > 30 ? "#34d399" : ls.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ls.replyRate}%</div>
+                  <div className="mono" style={{ fontSize: 14, color: "#a78bfa" }}>{ls.meetings}</div>
+                  <div className="mono" style={{ fontSize: 14, color: "var(--danger)" }}>{ls.notInterested}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Touchpoint distribution */}
