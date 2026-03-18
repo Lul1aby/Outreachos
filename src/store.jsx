@@ -22,12 +22,27 @@ const defaultState = {
 
 function mergeLoaded(parsed) {
   if (!Array.isArray(parsed?.prospects) || !Array.isArray(parsed?.sequences)) return null;
-  const sequences = parsed.sequences;
+  // Always sync the default sequence definition from code
+  const sequences = parsed.sequences.map((s) =>
+    s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+  );
   const hasDefault = sequences.some((s) => s.isDefault);
+  if (!hasDefault) sequences.unshift(DEFAULT_SEQUENCE);
+
+  // Clean up enrollments: remove completedSteps that reference deleted step IDs
+  const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
+  const enrollments = (parsed.enrollments || []).map((en) => {
+    const validIds = seqMap.get(en.sequenceId);
+    if (!validIds) return en;
+    const cleaned = en.completedSteps.filter((id) => validIds.has(id));
+    return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
+  });
+
   return {
     ...defaultState,
     ...parsed,
-    sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
+    sequences,
+    enrollments,
     lists: parsed.lists || [],
     adminFlags: parsed.adminFlags || {},
   };
