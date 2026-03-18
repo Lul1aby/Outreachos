@@ -386,7 +386,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 e.stopPropagation();
                 if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
                 const rect = e.currentTarget.getBoundingClientRect();
-                setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
+                const popH = 280, popW = 300;
+                const flippedTop = rect.bottom + popH > window.innerHeight;
+                const top = flippedTop ? rect.top - popH - 6 : rect.bottom + 6;
+                const left = Math.min(rect.right, window.innerWidth - popW - 8);
+                setTaskPopover({ id: p.id, top: Math.max(8, top), left });
               }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 ⚡ <span className="mono">{pendingCount}</span>
               </button>

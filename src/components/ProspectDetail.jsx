@@ -44,8 +44,11 @@ function RenderBrief({ text }) {
 }
 
 export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint }) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, tasksToday } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
+
+  /* Pending tasks for this prospect */
+  const pendingTasks = useMemo(() => tasksToday.filter((t) => t.prospect.id === prospectId), [tasksToday, prospectId]);
   const [tab, setTab] = useState("touchpoints");
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState(null);
@@ -394,6 +397,33 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         {prospect.listName && <div className="detail-info-item">📋 {prospect.listName}</div>}
         <div className="detail-info-item" style={{ color: "var(--text-muted)" }}>📅 Added {prospect.createdAt}</div>
       </div>
+
+      {/* Pending tasks notification */}
+      {pendingTasks.length > 0 && (
+        <div style={{ background: "#052e16", border: "1px solid #166534", borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pendingTasks.length > 1 ? 8 : 0 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#4ade80" }}>
+              ⚡ {pendingTasks.length} Pending Task{pendingTasks.length > 1 ? "s" : ""}
+            </span>
+            <button className="btn btn-primary btn-sm" style={{ background: "#166534", border: "1px solid #22c55e", fontSize: 12, padding: "4px 12px" }} onClick={() => setTab("log")}>
+              + Log to complete
+            </button>
+          </div>
+          {pendingTasks.map((task) => {
+            const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+            return (
+              <div key={`${task.enrollmentId}-${task.step.id}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: "1px solid #166534" }}>
+                <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{task.step.channel}</span>
+                <span style={{ fontSize: 12, color: "#86efac", fontFamily: "var(--mono)" }}>
+                  Step {stepIdx + 1}/{task.seq.steps.length}
+                </span>
+                {task.step.note && <span style={{ fontSize: 12, color: "#6ee7b7", opacity: 0.7, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{task.step.note}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Duplicate warning — shown only when this prospect matches another user's record (i.e. current user is NOT the original owner) */}
       {dupeInfo && (
