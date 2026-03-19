@@ -56,6 +56,19 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [hiringLoading, setHiringLoading] = useState(false);
   const [hiringError, setHiringError] = useState(null);
 
+  /* Gmail integration state */
+  const [gmailStatus, setGmailStatus] = useState(null); // { connected, email }
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [emailForm, setEmailForm] = useState({ subject: "", body: "" });
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState(null); // { success, error }
+  const [syncing_, setSyncing_] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  /* Enrichment state */
+  const [enriching, setEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState(null);
+
   /* Cross-user duplicate check — only fires for non-original-owner */
   const [dupeInfo, setDupeInfo] = useState(null); // { field, matchedName, matchedCompany, ownerEmail }
   useEffect(() => {
@@ -174,6 +187,225 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       setHiringLoading(false);
     }
   }, [prospect]);
+
+  /* ── Gmail: check connection status on mount ── */
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await supabase.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        if (!token) return;
+        const res = await fetch("/api/gmail-auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ action: "status" }),
+        });
+        if (res.ok && !cancelled) setGmailStatus(await res.json());
+      } catch { /* fail silently */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const connectGmail = useCallback(async () => {
+    if (!supabase) return;
+    setGmailLoading(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const redirectUri = `${window.location.origin}/api/gmail-callback`;
+      // The redirect URI must match what's configured in Google Cloud Console
+
+      // We'll use a popup-less flow: redirect in the same window, handle code on return
+      // For simplicity, open in a new window and poll
+      const res = await fetch("/api/gmail-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "get-auth-url", redirectUri }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Open auth URL — user will be redirected back with ?code= parameter
+      const popup = window.open(data.url, "gmail-auth", "width=500,height=600");
+
+      // Poll for the popup to close (user completed auth)
+      const poll = setInterval(async () => {
+        try {
+          if (!popup || popup.closed) {
+            clearInterval(poll);
+            // Re-check status
+            const statusRes = await fetch("/api/gmail-auth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ action: "status" }),
+            });
+            if (statusRes.ok) setGmailStatus(await statusRes.json());
+            setGmailLoading(false);
+          }
+        } catch {
+          clearInterval(poll);
+          setGmailLoading(false);
+        }
+      }, 1000);
+    } catch (err) {
+      setGmailLoading(false);
+    }
+  }, []);
+
+  const disconnectGmail = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      await fetch("/api/gmail-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "disconnect" }),
+      });
+      setGmailStatus({ connected: false, email: null });
+    } catch { /* ignore */ }
+  }, []);
+
+  const sendEmail = useCallback(async () => {
+    if (!prospect?.email || !emailForm.subject.trim() || !emailForm.body.trim()) return;
+    setSending(true);
+    setSendResult(null);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/gmail-send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          to: prospect.email,
+          subject: emailForm.subject.trim(),
+          body: emailForm.body.trim().replace(/\n/g, "<br>"),
+          prospectId: prospect.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Auto-log as touchpoint
+      dispatch({
+        type: "ADD_TOUCHPOINT",
+        payload: {
+          prospectId: prospect.id,
+          touchpoint: {
+            channel: "Email",
+            date: todayStr(),
+            time: nowTimeStr(),
+            note: `[Gmail] Subject: ${emailForm.subject.trim()}`,
+            status: "Sent",
+          },
+          newStatus: "Sent",
+        },
+      });
+
+      setSendResult({ success: true });
+      setEmailForm({ subject: "", body: "" });
+      // Switch to touchpoints tab after a moment
+      setTimeout(() => setTab("touchpoints"), 1500);
+    } catch (err) {
+      setSendResult({ error: err.message });
+    } finally {
+      setSending(false);
+    }
+  }, [prospect, emailForm, dispatch]);
+
+  const syncGmailReplies = useCallback(async () => {
+    if (!prospect?.email || !supabase) return;
+    setSyncing_(true);
+    setSyncResult(null);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const res = await fetch("/api/gmail-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          prospectEmails: [{ email: prospect.email, prospectId: prospect.id }],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const reply = data.updates?.find((u) => u.prospectId === prospect.id);
+      const sent = data.sentUpdates?.find((u) => u.prospectId === prospect.id);
+
+      if (reply && reply.replyCount > 0) {
+        // Check if we already have a "Replied" touchpoint from this prospect
+        const hasReply = prospect.touchpoints.some((t) => t.channel === "Email" && t.status === "Replied");
+        if (!hasReply) {
+          dispatch({
+            type: "ADD_TOUCHPOINT",
+            payload: {
+              prospectId: prospect.id,
+              touchpoint: {
+                channel: "Email",
+                date: todayStr(),
+                time: nowTimeStr(),
+                note: `[Gmail Sync] Reply detected: "${reply.snippet?.slice(0, 100)}..."`,
+                status: "Replied",
+              },
+              newStatus: "Replied",
+            },
+          });
+        }
+        setSyncResult({ replies: reply.replyCount, sent: sent?.sentCount || 0 });
+      } else {
+        setSyncResult({ replies: 0, sent: sent?.sentCount || 0 });
+      }
+    } catch (err) {
+      setSyncResult({ error: err.message });
+    } finally {
+      setSyncing_(false);
+    }
+  }, [prospect, dispatch]);
+
+  const enrichProspect = useCallback(async () => {
+    if (!prospect) return;
+    setEnriching(true);
+    setEnrichError(null);
+    try {
+      const res = await fetch("/api/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: prospect.name,
+          company: prospect.company,
+          title: prospect.title,
+          industry: prospect.industry,
+          email: prospect.email,
+          linkedin: prospect.linkedin,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Apply enriched fields to prospect (only non-empty fields the prospect doesn't already have)
+      const updates = {};
+      const enriched = data.enriched || {};
+      if (enriched.title && !prospect.title) updates.title = enriched.title;
+      if (enriched.email && !prospect.email) updates.email = enriched.email;
+      if (enriched.phone && !prospect.phone) updates.phone = enriched.phone;
+      if (enriched.linkedin && !prospect.linkedin) updates.linkedin = enriched.linkedin;
+
+      // Store full enrichment data
+      updates.enrichment = {
+        ...enriched,
+        enrichedAt: new Date().toISOString(),
+      };
+
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates } });
+    } catch (err) {
+      setEnrichError(err.message);
+    } finally {
+      setEnriching(false);
+    }
+  }, [prospect, dispatch]);
 
   const logInline = useCallback(() => {
     const tp = { channel: tpForm.channel, date: tpForm.date, time: nowTimeStr(), note: tpForm.note.trim(), status: tpForm.status };
@@ -524,12 +756,18 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       )}
 
       {/* Tabs */}
-      <div className="tab-switcher" style={{ maxWidth: 480 }}>
+      <div className="tab-switcher" style={{ maxWidth: 640 }}>
         <button className={`tab-switch${tab === "touchpoints" ? " active" : ""}`} onClick={() => setTab("touchpoints")}>
           Touchpoints ({touchpoints.length})
         </button>
         <button className={`tab-switch${tab === "log" ? " active" : ""}`} onClick={() => setTab("log")}>
           + Log New
+        </button>
+        <button className={`tab-switch${tab === "email" ? " active" : ""}`} onClick={() => setTab("email")} style={{ color: tab === "email" ? undefined : "var(--info)" }}>
+          ✉️ Email
+        </button>
+        <button className={`tab-switch${tab === "enrich" ? " active" : ""}`} onClick={() => setTab("enrich")} style={{ color: tab === "enrich" ? undefined : "var(--accent)" }}>
+          ✨ Enrich
         </button>
         <button className={`tab-switch${tab === "research" ? " active" : ""}`} onClick={() => setTab("research")} style={{ color: tab === "research" ? undefined : "var(--primary-light)" }}>
           🔍 Research
@@ -738,6 +976,227 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Email tab — Gmail integration */}
+      {tab === "email" && (
+        <div style={{ padding: "8px 0" }}>
+          {/* Gmail connection status */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "10px 14px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                {gmailStatus?.connected ? `Connected: ${gmailStatus.email}` : "Gmail not connected"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                {gmailStatus?.connected ? "Send emails and auto-detect replies" : "Connect Gmail to send emails directly from here"}
+              </div>
+            </div>
+            {gmailStatus?.connected ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn btn-outline btn-sm" onClick={syncGmailReplies} disabled={syncing_}>
+                  {syncing_ ? "Syncing…" : "Sync Replies"}
+                </button>
+                <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} onClick={disconnectGmail}>
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button className="btn btn-primary btn-sm" onClick={connectGmail} disabled={gmailLoading}>
+                {gmailLoading ? "Connecting…" : "Connect Gmail"}
+              </button>
+            )}
+          </div>
+
+          {/* Sync result */}
+          {syncResult && (
+            <div style={{ padding: "8px 14px", borderRadius: 8, marginBottom: 12, background: syncResult.error ? "var(--danger-bg)" : "var(--success-bg)", border: `1px solid ${syncResult.error ? "var(--danger-border)" : "var(--success-border)"}` }}>
+              {syncResult.error ? (
+                <span style={{ fontSize: 13, color: "var(--danger)" }}>{syncResult.error}</span>
+              ) : (
+                <span style={{ fontSize: 13, color: "var(--success-bright)" }}>
+                  {syncResult.replies > 0 ? `Found ${syncResult.replies} reply(ies) — touchpoint logged!` : "No new replies found."}
+                  {syncResult.sent > 0 && ` · ${syncResult.sent} sent email(s) detected.`}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Email compose form */}
+          {gmailStatus?.connected ? (
+            <div>
+              {!prospect.email ? (
+                <div style={{ textAlign: "center", padding: "28px 16px" }}>
+                  <div style={{ fontSize: 26, marginBottom: 8 }}>✉️</div>
+                  <div style={{ fontSize: 14, color: "var(--text-muted)" }}>
+                    No email address for this prospect. Add one above or use the <strong>Enrich</strong> tab to find it.
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>To: <strong style={{ color: "var(--text)" }}>{prospect.email}</strong></div>
+                  <input
+                    className="form-input"
+                    placeholder="Subject line…"
+                    value={emailForm.subject}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, subject: e.target.value }))}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <textarea
+                    className="form-textarea"
+                    rows={8}
+                    placeholder={`Hi ${prospect.name?.split(" ")[0] || ""},\n\n`}
+                    value={emailForm.body}
+                    onChange={(e) => setEmailForm((f) => ({ ...f, body: e.target.value }))}
+                    style={{ marginBottom: 12 }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={sendEmail}
+                      disabled={sending || !emailForm.subject.trim() || !emailForm.body.trim()}
+                    >
+                      {sending ? "Sending…" : "Send via Gmail"}
+                    </button>
+                    <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                      Auto-logs as Email touchpoint
+                    </span>
+                  </div>
+                  {sendResult?.success && (
+                    <div style={{ marginTop: 10, padding: "8px 14px", background: "var(--success-bg)", border: "1px solid var(--success-border)", borderRadius: 8, fontSize: 13, color: "var(--success-bright)" }}>
+                      Email sent successfully! Touchpoint logged.
+                    </div>
+                  )}
+                  {sendResult?.error && (
+                    <div style={{ marginTop: 10, padding: "8px 14px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, fontSize: 13, color: "var(--danger)" }}>
+                      {sendResult.error}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "28px 16px" }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>✉️</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>Send Emails Directly</div>
+              <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4, maxWidth: 340, margin: "0 auto" }}>
+                Connect your Gmail account to send emails from here, auto-log touchpoints, and detect replies automatically.
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 16 }}>
+                Requires: GOOGLE_CLIENT_ID &amp; GOOGLE_CLIENT_SECRET env vars
+              </div>
+              <button className="btn btn-primary" onClick={connectGmail} disabled={gmailLoading}>
+                {gmailLoading ? "Connecting…" : "Connect Gmail Account"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Enrich tab — AI-powered prospect enrichment */}
+      {tab === "enrich" && (
+        <div style={{ padding: "8px 0" }}>
+          {/* Current enrichment data */}
+          {prospect.enrichment && (
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+              <div className="flex items-center justify-between mb-12">
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                  Enriched Data
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>
+                  {prospect.enrichment.enrichedAt ? new Date(prospect.enrichment.enrichedAt).toLocaleDateString() : ""}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 13 }}>
+                {prospect.enrichment.companySize && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Company Size:</span> <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.enrichment.companySize}</span></div>
+                )}
+                {prospect.enrichment.companyRevenue && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Revenue:</span> <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.enrichment.companyRevenue}</span></div>
+                )}
+                {prospect.enrichment.companyFunding && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Funding:</span> <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.enrichment.companyFunding}</span></div>
+                )}
+                {prospect.enrichment.companyWebsite && (
+                  <div><span style={{ color: "var(--text-muted)" }}>Website:</span> <a href={prospect.enrichment.companyWebsite} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-light)" }}>{prospect.enrichment.companyWebsite}</a></div>
+                )}
+              </div>
+              {prospect.enrichment.technologies?.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Technologies: </span>
+                  {prospect.enrichment.technologies.map((t) => (
+                    <span key={t} style={{ display: "inline-block", fontSize: 11, background: "var(--primary-bg)", border: "1px solid var(--primary)", borderRadius: 12, padding: "1px 8px", margin: "2px 3px 2px 0", color: "var(--primary-light)" }}>{t}</span>
+                  ))}
+                </div>
+              )}
+              {prospect.enrichment.recentNews && (
+                <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-sec)", padding: "8px 10px", background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
+                  <span style={{ fontWeight: 600, color: "var(--warning-alt)" }}>News: </span>{prospect.enrichment.recentNews}
+                </div>
+              )}
+              {prospect.enrichment.personalNote && (
+                <div style={{ marginTop: 6, fontSize: 13, color: "var(--text-sec)", padding: "8px 10px", background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }}>
+                  <span style={{ fontWeight: 600, color: "var(--accent)" }}>Personal: </span>{prospect.enrichment.personalNote}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Enrich action */}
+          <div style={{ textAlign: "center", padding: prospect.enrichment ? "8px 16px" : "28px 16px" }}>
+            {!prospect.enrichment && (
+              <>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>✨</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>AI Lead Enrichment</div>
+                <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 20, maxWidth: 380, margin: "0 auto 20px" }}>
+                  Claude will search the web to find missing contact info, company data, tech stack, recent news, and personal details for <strong style={{ color: "var(--text)" }}>{prospect.name}</strong> at <strong style={{ color: "var(--text)" }}>{prospect.company}</strong>.
+                </div>
+              </>
+            )}
+
+            {enriching && (
+              <div style={{ padding: "16px" }}>
+                <div style={{ fontSize: 20, marginBottom: 8 }}>⏳</div>
+                <div style={{ fontSize: 14, color: "var(--text-muted)" }}>Searching the web for data…</div>
+                <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>This takes 10–20 seconds</div>
+              </div>
+            )}
+
+            {enrichError && (
+              <div style={{ padding: "12px", background: "var(--danger-bg)", border: "1px solid var(--danger-border)", borderRadius: 8, marginBottom: 12, textAlign: "left" }}>
+                <div style={{ color: "var(--danger)", fontSize: 14 }}>{enrichError}</div>
+              </div>
+            )}
+
+            {!enriching && (
+              <button className="btn btn-primary" onClick={enrichProspect}>
+                {prospect.enrichment ? "Re-enrich Prospect" : `Enrich ${prospect.name}`} →
+              </button>
+            )}
+
+            {prospect.enrichment && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => {
+                    const e = prospect.enrichment;
+                    const parts = [
+                      e.companySize ? `Company Size: ${e.companySize}` : null,
+                      e.companyRevenue ? `Revenue: ${e.companyRevenue}` : null,
+                      e.companyFunding ? `Funding: ${e.companyFunding}` : null,
+                      e.technologies?.length ? `Tech: ${e.technologies.join(", ")}` : null,
+                      e.recentNews ? `News: ${e.recentNews}` : null,
+                      e.personalNote ? `Personal: ${e.personalNote}` : null,
+                    ].filter(Boolean).join("\n");
+                    const note = `--- Enrichment Data (${new Date().toLocaleDateString()}) ---\n${parts}`;
+                    dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { notes: prospect.notes ? prospect.notes + "\n\n" + note : note } } });
+                  }}
+                >
+                  Save to Notes
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
