@@ -386,7 +386,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                 e.stopPropagation();
                 if (taskPopover?.id === p.id) { setTaskPopover(null); return; }
                 const rect = e.currentTarget.getBoundingClientRect();
-                setTaskPopover({ id: p.id, top: rect.bottom + 6, left: rect.right });
+                const popH = 280, popW = 300;
+                const flippedTop = rect.bottom + popH > window.innerHeight;
+                const top = flippedTop ? rect.top - popH - 6 : rect.bottom + 6;
+                const left = Math.min(rect.right, window.innerWidth - popW - 8);
+                setTaskPopover({ id: p.id, top: Math.max(8, top), left });
               }} className="btn btn-success btn-sm btn-icon" style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 ⚡ <span className="mono">{pendingCount}</span>
               </button>
@@ -865,12 +869,12 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       {/* Task popover */}
       {taskPopover && createPortal(
         <div ref={taskPopoverRef} onClick={(e) => e.stopPropagation()} className="task-popover"
-          style={{ top: taskPopover.top, left: taskPopover.left }}>
-          <div style={{ padding: "10px 14px 6px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          style={{ top: taskPopover.top, left: taskPopover.left, maxHeight: `calc(100vh - ${taskPopover.top}px - 12px)`, display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "10px 14px 8px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>⚡ Pending Tasks</span>
             <button onClick={() => setTaskPopover(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0, fontFamily: "var(--font)" }}>×</button>
           </div>
-          <div style={{ maxHeight: 240, overflowY: "auto" }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
             {tasksToday.filter((t) => t.prospect.id === taskPopover.id).map((task) => {
               const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
               return (
@@ -881,13 +885,14 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
                       Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
                     </div>
+                    {task.step._swappedFromLinkedIn && <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2 }}>💼 LinkedIn pending — swapped to email</div>}
                     {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)" }}>
+          <div style={{ padding: "8px 10px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
             <button className="btn btn-primary btn-sm" style={{ width: "100%", fontSize: 13 }} onClick={() => { const id = taskPopover.id; setTaskPopover(null); onLogTouchpoint(id); }}>+ Log to complete</button>
           </div>
         </div>,

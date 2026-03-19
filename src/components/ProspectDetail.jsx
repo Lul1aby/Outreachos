@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
-import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
+import { STATUSES, STATUS_COLORS, CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES, INDUSTRIES } from "../constants";
 import { todayStr, nowTimeStr, normalizeLinkedIn } from "../utils";
 import { Modal, Badge, StatusPill, Input, CalendarPicker } from "./ui";
 
@@ -44,8 +44,11 @@ function RenderBrief({ text }) {
 }
 
 export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint }) {
-  const { state, dispatch } = useStore();
+  const { state, dispatch, tasksToday } = useStore();
   const prospect = state.prospects.find((p) => p.id === prospectId);
+
+  /* Pending tasks for this prospect */
+  const pendingTasks = useMemo(() => tasksToday.filter((t) => t.prospect.id === prospectId), [tasksToday, prospectId]);
   const [tab, setTab] = useState("touchpoints");
   const [researching, setResearching] = useState(false);
   const [researchError, setResearchError] = useState(null);
@@ -86,6 +89,23 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [editForm, setEditForm] = useState(null);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const statusPickerRef = useRef(null);
+  const [showPendingTasks, setShowPendingTasks] = useState(false);
+  const [editingField, setEditingField] = useState(null); // which field is being edited
+  const [editFieldValue, setEditFieldValue] = useState("");
+
+  const saveField = useCallback((field) => {
+    const trimmed = editFieldValue.trim();
+    if (trimmed && trimmed !== prospect[field]) {
+      dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospectId, updates: { [field]: trimmed } } });
+    }
+    setEditingField(null);
+    setEditFieldValue("");
+  }, [editFieldValue, prospect, prospectId, dispatch]);
+
+  const startEditing = useCallback((field) => {
+    setEditingField(field);
+    setEditFieldValue(prospect[field] || "");
+  }, [prospect]);
 
   // Close status picker on outside click
   useEffect(() => {
@@ -173,9 +193,58 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
       {/* Header */}
       <div className="modal-header">
         <div>
-          <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em" }}>{prospect.name}</div>
-          <div style={{ fontSize: 14, color: "var(--text-sec)", marginTop: 4 }}>
-            {prospect.title} at <span style={{ color: "var(--text)", fontWeight: 500 }}>{prospect.company}</span>
+          {editingField === "name" ? (
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("name"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("name")}
+                style={{ fontSize: 18, fontWeight: 700, marginBottom: 0, padding: "4px 8px", width: 260 }}
+              />
+            </div>
+          ) : (
+            <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }} onClick={() => startEditing("name")} title="Click to edit name">
+              {prospect.name}
+              <span style={{ fontSize: 13, color: "var(--text-dim)", opacity: 0.5 }}>✏️</span>
+            </div>
+          )}
+          <div style={{ fontSize: 14, color: "var(--text-sec)", marginTop: 4, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            {editingField === "title" ? (
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("title")}
+                style={{ fontSize: 14, marginBottom: 0, padding: "2px 6px", width: 160 }}
+              />
+            ) : (
+              <span style={{ cursor: "pointer" }} onClick={() => startEditing("title")} title="Click to edit title">
+                {prospect.title || "No title"}
+                <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, marginLeft: 4 }}>✏️</span>
+              </span>
+            )}
+            {" at "}
+            {editingField === "company" ? (
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("company"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("company")}
+                style={{ fontSize: 14, fontWeight: 500, marginBottom: 0, padding: "2px 6px", width: 180 }}
+              />
+            ) : (
+              <span style={{ color: "var(--text)", fontWeight: 500, cursor: "pointer" }} onClick={() => startEditing("company")} title="Click to edit company">
+                {prospect.company}
+                <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, marginLeft: 4 }}>✏️</span>
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-8 items-center">
@@ -227,27 +296,150 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Contact info */}
       <div className="detail-info">
-        {prospect.email && (
-          <div className="detail-info-item" style={{ cursor: "pointer" }} title="Click to copy" onClick={() => copyContact(prospect.email, "email")}>
-            ✉️ {prospect.email}
-            {copied === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
-          </div>
-        )}
-        {prospect.phone && (
-          <div className="detail-info-item" style={{ cursor: "pointer" }} title="Click to copy" onClick={() => copyContact(prospect.phone, "phone")}>
-            📞 {prospect.phone}
-            {copied === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
-          </div>
-        )}
-        {prospect.linkedin && (
-          <div className="detail-info-item">
-            💼 <a href={normalizeLinkedIn(prospect.linkedin)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-light)", textDecoration: "none" }}>{prospect.linkedin}</a>
-          </div>
-        )}
-        <div className="detail-info-item">🏭 {prospect.industry}</div>
+        <div className="detail-info-item" style={{ cursor: "pointer" }}>
+          {editingField === "email" ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              ✉️
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("email"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("email")}
+                placeholder="email@example.com"
+                style={{ fontSize: 13, marginBottom: 0, padding: "2px 6px", width: 200 }}
+              />
+            </span>
+          ) : (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span title="Click to copy" onClick={() => prospect.email && copyContact(prospect.email, "email")}>
+                ✉️ {prospect.email || <span style={{ color: "var(--text-dim)" }}>No email</span>}
+                {copied === "email" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, cursor: "pointer" }} onClick={() => startEditing("email")} title="Edit email">✏️</span>
+            </span>
+          )}
+        </div>
+        <div className="detail-info-item" style={{ cursor: "pointer" }}>
+          {editingField === "phone" ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              📞
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("phone"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("phone")}
+                placeholder="+1 234 567 8900"
+                style={{ fontSize: 13, marginBottom: 0, padding: "2px 6px", width: 180 }}
+              />
+            </span>
+          ) : (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span title="Click to copy" onClick={() => prospect.phone && copyContact(prospect.phone, "phone")}>
+                📞 {prospect.phone || <span style={{ color: "var(--text-dim)" }}>No phone</span>}
+                {copied === "phone" && <span style={{ fontSize: 12, color: "var(--success)", marginLeft: 8 }}>Copied!</span>}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, cursor: "pointer" }} onClick={() => startEditing("phone")} title="Edit phone">✏️</span>
+            </span>
+          )}
+        </div>
+        <div className="detail-info-item">
+          {editingField === "linkedin" ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              💼
+              <input
+                className="form-input"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => setEditFieldValue(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveField("linkedin"); if (e.key === "Escape") setEditingField(null); }}
+                onBlur={() => saveField("linkedin")}
+                placeholder="linkedin.com/in/username"
+                style={{ fontSize: 13, marginBottom: 0, padding: "2px 6px", width: 240 }}
+              />
+            </span>
+          ) : (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {prospect.linkedin ? (
+                <span>💼 <a href={normalizeLinkedIn(prospect.linkedin)} target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary-light)", textDecoration: "none" }}>{prospect.linkedin}</a></span>
+              ) : (
+                <span>💼 <span style={{ color: "var(--text-dim)" }}>No LinkedIn</span></span>
+              )}
+              <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, cursor: "pointer" }} onClick={() => startEditing("linkedin")} title="Edit LinkedIn">✏️</span>
+            </span>
+          )}
+        </div>
+        <div className="detail-info-item">
+          {editingField === "industry" ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              🏭
+              <select
+                className="form-select"
+                autoFocus
+                value={editFieldValue}
+                onChange={(e) => { setEditFieldValue(e.target.value); }}
+                onBlur={() => saveField("industry")}
+                style={{ fontSize: 13, marginBottom: 0, padding: "2px 6px", width: "auto" }}
+              >
+                {INDUSTRIES.map((ind) => <option key={ind} value={ind}>{ind}</option>)}
+              </select>
+              <button className="btn btn-primary btn-sm" style={{ padding: "2px 10px", fontSize: 12 }} onClick={() => saveField("industry")}>Save</button>
+            </span>
+          ) : (
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              🏭 {prospect.industry}
+              <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.5, cursor: "pointer" }} onClick={() => startEditing("industry")} title="Edit industry">✏️</span>
+            </span>
+          )}
+        </div>
         {prospect.listName && <div className="detail-info-item">📋 {prospect.listName}</div>}
         <div className="detail-info-item" style={{ color: "var(--text-muted)" }}>📅 Added {prospect.createdAt}</div>
       </div>
+
+      {/* Pending tasks — compact badge, click to expand */}
+      {pendingTasks.length > 0 && (
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <button
+            onClick={() => setShowPendingTasks((v) => !v)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "#052e16", border: "1px solid #166534", borderRadius: 8,
+              padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600,
+              color: "#4ade80", fontFamily: "var(--font)",
+            }}
+          >
+            ⚡ {pendingTasks.length} Pending Task{pendingTasks.length > 1 ? "s" : ""}
+            <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>{showPendingTasks ? "▲" : "▼"}</span>
+          </button>
+          {showPendingTasks && (
+            <div style={{
+              background: "#052e16", border: "1px solid #166534", borderRadius: 10,
+              padding: "8px", marginTop: 6, maxHeight: 180, overflowY: "auto",
+            }}>
+              {pendingTasks.map((task, idx) => {
+                const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+                return (
+                  <div key={`${task.enrollmentId}-${task.step.id}`} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                    background: "#0a3d1f", borderRadius: 6, marginBottom: idx < pendingTasks.length - 1 ? 3 : 0,
+                  }}>
+                    <span style={{ fontSize: 14, flexShrink: 0 }}>{CHANNEL_ICONS[task.step.channel] || "📌"}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", flexShrink: 0 }}>{task.step.channel}</span>
+                    <span style={{ fontSize: 11, color: "#86efac", fontFamily: "var(--mono)", flexShrink: 0, background: "#064e24", padding: "1px 5px", borderRadius: 4 }}>
+                      {stepIdx + 1}/{task.seq.steps.length}
+                    </span>
+                    {task.step._swappedFromLinkedIn && <span style={{ fontSize: 11, color: "#fbbf24", background: "#422006", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>💼 swapped</span>}
+                    {task.step.note && <span style={{ fontSize: 12, color: "#6ee7b7", opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{task.step.note}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Duplicate warning — shown only when this prospect matches another user's record (i.e. current user is NOT the original owner) */}
       {dupeInfo && (

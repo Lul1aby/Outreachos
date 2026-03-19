@@ -219,6 +219,11 @@ export default function Tasks({ onSelect, onNavigate }) {
                   <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
                 </div>
                 {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
+                {task.step._swappedFromLinkedIn && (
+                  <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ fontSize: 14 }}>💼</span> LinkedIn connection pending — swapped to email
+                  </div>
+                )}
                 <div className="task-contacts">
                   {p.email && (
                     <button onClick={(e) => copyContact(e, p.email, task.enrollmentId, "email")} className="task-contact-link contact-link-email" title="Click to copy email">

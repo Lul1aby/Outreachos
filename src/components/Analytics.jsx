@@ -92,6 +92,7 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
 export default function Analytics() {
   const { state, allLists, user } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
+  const [reviewPeriod, setReviewPeriod] = useState("daily");
 
   /* ── Admin data source ── */
   const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -306,6 +307,80 @@ export default function Analytics() {
     const stale30 = prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 30 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); }).length;
     const untouched = prospects.filter((p) => p.touchpoints.length === 0).length;
 
+    /* ── Activity Review — daily / weekly / monthly / quarterly / yearly ── */
+    const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
+    function periodStats(startDate, endDate, prevStart, prevEnd) {
+      const sKey = startDate.toISOString().slice(0, 10);
+      const eKey = endDate.toISOString().slice(0, 10);
+      const psKey = prevStart.toISOString().slice(0, 10);
+      const peKey = prevEnd.toISOString().slice(0, 10);
+      const tps = allTp.filter((t) => t.date >= sKey && t.date <= eKey);
+      const prevTps = allTp.filter((t) => t.date >= psKey && t.date <= peKey);
+      const added = prospects.filter((p) => p.createdAt >= sKey && p.createdAt <= eKey).length;
+      const prevAdded = prospects.filter((p) => p.createdAt >= psKey && p.createdAt <= peKey).length;
+      const byC = {};
+      CHANNELS.forEach((c) => { byC[c] = tps.filter((t) => t.channel === c).length; });
+      const prevByC = {};
+      CHANNELS.forEach((c) => { prevByC[c] = prevTps.filter((t) => t.channel === c).length; });
+      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
+      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
+      const meetings = tps.filter((t) => t.status === "Meeting Booked").length;
+      const prevMeetings = prevTps.filter((t) => t.status === "Meeting Booked").length;
+      const opps = tps.filter((t) => t.status === "Opportunity").length;
+      const prevOpps = prevTps.filter((t) => t.status === "Opportunity").length;
+      const notInt = tps.filter((t) => t.status === "Not Interested").length;
+      const prevNotInt = prevTps.filter((t) => t.status === "Not Interested").length;
+      // Daily breakdown within this period
+      const dayMap = {};
+      tps.forEach((t) => { dayMap[t.date] = (dayMap[t.date] || 0) + 1; });
+      const days = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const k = d.toISOString().slice(0, 10);
+        days.push({ key: k, label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), count: dayMap[k] || 0 });
+      }
+      return {
+        total: tps.length, prevTotal: prevTps.length,
+        added, prevAdded, byChannel: byC, prevByChannel: prevByC,
+        replies, prevReplies, meetings, prevMeetings, opps, prevOpps,
+        notInt, prevNotInt, days,
+        start: sKey, end: eKey,
+      };
+    }
+    function makeDate(y, m, d) { return new Date(y, m, d); }
+    // Daily: today vs yesterday
+    const dToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dYesterday = new Date(dToday); dYesterday.setDate(dYesterday.getDate() - 1);
+    const dailyReview = periodStats(dToday, dToday, dYesterday, dYesterday);
+    // Weekly: this week (Mon-Sun) vs last week
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const weekStart = new Date(dToday); weekStart.setDate(weekStart.getDate() - dayOfWeek);
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+    const prevWeekStart = new Date(weekStart); prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+    const prevWeekEnd = new Date(weekStart); prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+    const weeklyReview = periodStats(weekStart, dToday < weekEnd ? dToday : weekEnd, prevWeekStart, prevWeekEnd);
+    // Monthly: this month vs last month
+    const monthStart = makeDate(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = makeDate(now.getFullYear(), now.getMonth() + 1, 0);
+    const prevMonthStart = makeDate(now.getFullYear(), now.getMonth() - 1, 1);
+    const prevMonthEnd = makeDate(now.getFullYear(), now.getMonth(), 0);
+    const monthlyReview = periodStats(monthStart, dToday < monthEnd ? dToday : monthEnd, prevMonthStart, prevMonthEnd);
+    // Quarterly: this quarter vs last quarter
+    const qtr = Math.floor(now.getMonth() / 3);
+    const qtrStart = makeDate(now.getFullYear(), qtr * 3, 1);
+    const qtrEnd = makeDate(now.getFullYear(), qtr * 3 + 3, 0);
+    const prevQtrStart = makeDate(qtr === 0 ? now.getFullYear() - 1 : now.getFullYear(), qtr === 0 ? 9 : (qtr - 1) * 3, 1);
+    const prevQtrEnd = makeDate(now.getFullYear(), qtr * 3, 0);
+    const quarterlyReview = periodStats(qtrStart, dToday < qtrEnd ? dToday : qtrEnd, prevQtrStart, prevQtrEnd);
+    // Yearly: this year vs last year
+    const yearStart = makeDate(now.getFullYear(), 0, 1);
+    const yearEnd = makeDate(now.getFullYear(), 11, 31);
+    const prevYearStart = makeDate(now.getFullYear() - 1, 0, 1);
+    const prevYearEnd = makeDate(now.getFullYear() - 1, 11, 31);
+    const yearlyReview = periodStats(yearStart, dToday < yearEnd ? dToday : yearEnd, prevYearStart, prevYearEnd);
+
+    const activityReview = { daily: dailyReview, weekly: weeklyReview, monthly: monthlyReview, quarterly: quarterlyReview, yearly: yearlyReview };
+
     /* ── Top performers (prospects closest to conversion) (NEW) ── */
     const hotProspects = prospects
       .filter((p) => ["Replied", "Call Back", "Connected +ve", "Trials"].includes(p.status))
@@ -327,7 +402,7 @@ export default function Analytics() {
       rejByIndustry, rejByChannel, channelReply, channelOutcomes, byChannel,
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
       last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets,
-      stale7, stale14, stale30, untouched, hotProspects, listStats,
+      stale7, stale14, stale30, untouched, hotProspects, listStats, activityReview,
     };
   }, [prospects, sourceLists]);
 
@@ -429,6 +504,147 @@ export default function Analytics() {
           )}
         </div>
       )}
+
+      {/* ── Activity Review ── */}
+      {(() => {
+        const periods = [
+          { key: "daily", label: "Daily", desc: "Today" },
+          { key: "weekly", label: "Weekly", desc: "This Week" },
+          { key: "monthly", label: "Monthly", desc: "This Month" },
+          { key: "quarterly", label: "Quarterly", desc: "This Quarter" },
+          { key: "yearly", label: "Yearly", desc: "This Year" },
+        ];
+        const rv = data.activityReview[reviewPeriod];
+        const delta = (cur, prev) => {
+          if (prev === 0 && cur === 0) return null;
+          if (prev === 0) return cur > 0 ? { pct: "+100%", positive: true } : null;
+          const d = Math.round(((cur - prev) / prev) * 100);
+          return { pct: `${d >= 0 ? "+" : ""}${d}%`, positive: d >= 0 };
+        };
+        const kpis = [
+          { label: "Touchpoints", val: rv.total, prev: rv.prevTotal },
+          { label: "Prospects Added", val: rv.added, prev: rv.prevAdded },
+          { label: "Positive Replies", val: rv.replies, prev: rv.prevReplies },
+          { label: "Meetings Booked", val: rv.meetings, prev: rv.prevMeetings },
+          { label: "Opportunities", val: rv.opps, prev: rv.prevOpps },
+          { label: "Not Interested", val: rv.notInt, prev: rv.prevNotInt },
+        ];
+        const maxDay = Math.max(...rv.days.map((d) => d.count), 1);
+        const channelEntries = CHANNELS.map((c) => ({ name: c, val: rv.byChannel[c] || 0, prev: rv.prevByChannel[c] || 0 })).filter((c) => c.val > 0 || c.prev > 0);
+        return (
+          <div className="card">
+            <div className="flex items-center justify-between flex-wrap gap-12 mb-16">
+              <div className="card-title" style={{ marginBottom: 0 }}>Activity Review</div>
+              <div className="flex gap-4">
+                {periods.map((p) => (
+                  <button key={p.key} onClick={() => setReviewPeriod(p.key)} style={{
+                    padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: reviewPeriod === p.key ? 700 : 400, cursor: "pointer",
+                    background: reviewPeriod === p.key ? "var(--primary)" : "var(--surface)", color: reviewPeriod === p.key ? "#fff" : "var(--text-muted)",
+                    border: reviewPeriod === p.key ? "1px solid var(--primary)" : "1px solid var(--border)", transition: "all .15s",
+                  }}>{p.label}</button>
+                ))}
+              </div>
+            </div>
+            <div className="mono" style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>
+              {periods.find((p) => p.key === reviewPeriod)?.desc} ({rv.start}{rv.start !== rv.end ? ` → ${rv.end}` : ""}) vs previous period
+            </div>
+
+            {/* KPI cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+              {kpis.map((k) => {
+                const d = delta(k.val, k.prev);
+                const isNeg = k.label === "Not Interested";
+                return (
+                  <div key={k.label} style={{ padding: "14px 16px", borderRadius: 10, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: k.val > 0 ? (isNeg ? "var(--danger)" : "var(--text)") : "var(--text-dim)", letterSpacing: "-0.02em" }}>{k.val}</div>
+                    <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>{k.label}</div>
+                    {d && (
+                      <div className="mono" style={{ fontSize: 12, fontWeight: 600, color: isNeg ? (d.positive ? "var(--danger)" : "var(--success)") : (d.positive ? "var(--success)" : "var(--danger)") }}>
+                        {d.pct} <span style={{ fontWeight: 400, color: "var(--text-dim)" }}>vs prev</span>
+                      </div>
+                    )}
+                    {!d && <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>— vs prev</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Channel breakdown */}
+            {channelEntries.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "var(--text-sec)" }}>Channel Breakdown</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+                  {channelEntries.map((c) => {
+                    const d = delta(c.val, c.prev);
+                    return (
+                      <div key={c.name} style={{ padding: "10px 14px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)", textAlign: "center" }}>
+                        <div style={{ fontSize: 18, marginBottom: 2 }}>{CHANNEL_ICONS[c.name]}</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text)" }}>{c.val}</div>
+                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.name}</div>
+                        {d && <div className="mono" style={{ fontSize: 11, fontWeight: 600, color: d.positive ? "var(--success)" : "var(--danger)", marginTop: 2 }}>{d.pct}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Daily activity within period */}
+            {rv.days.length > 1 && rv.days.length <= 90 && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "var(--text-sec)" }}>Daily Activity</div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: rv.days.length > 31 ? 1 : 2, height: 60 }}>
+                  {rv.days.map((d) => (
+                    <div key={d.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={`${d.label}: ${d.count} touchpoints`}>
+                      <div style={{ width: "85%", borderRadius: "2px 2px 0 0", height: Math.max((d.count / maxDay) * 55, d.count > 0 ? 3 : 0), background: "var(--primary)", opacity: 0.85 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ height: 1, background: "var(--border)", marginBottom: 4 }} />
+                <div style={{ display: "flex", gap: rv.days.length > 31 ? 1 : 2 }}>
+                  {rv.days.map((d, i) => {
+                    const showEvery = rv.days.length <= 7 ? 1 : rv.days.length <= 14 ? 2 : rv.days.length <= 31 ? 5 : 10;
+                    return (
+                      <div key={d.key} style={{ flex: 1, textAlign: "center" }}>
+                        {i % showEvery === 0 && <div className="mono" style={{ fontSize: 10, color: "var(--text-dim)" }}>{rv.days.length <= 7 ? d.label.split(",")[0] : d.label.split(" ").pop()}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* For yearly: show monthly summary instead of 365 bars */}
+            {rv.days.length > 90 && (
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: "var(--text-sec)" }}>Monthly Summary</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))", gap: 8 }}>
+                  {(() => {
+                    const months = {};
+                    rv.days.forEach((d) => {
+                      const mKey = d.key.slice(0, 7);
+                      months[mKey] = (months[mKey] || 0) + d.count;
+                    });
+                    const maxM = Math.max(...Object.values(months), 1);
+                    return Object.entries(months).map(([mKey, count]) => {
+                      const mDate = new Date(mKey + "-01");
+                      return (
+                        <div key={mKey} style={{ textAlign: "center", padding: "8px 6px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                          <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>{mDate.toLocaleDateString("en-US", { month: "short" })}</div>
+                          <div style={{ height: 30, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                            <div style={{ width: 20, borderRadius: "2px 2px 0 0", height: Math.max((count / maxM) * 28, count > 0 ? 3 : 0), background: "var(--primary)", opacity: 0.85 }} />
+                          </div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginTop: 4 }}>{count}</div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Funnel + Drop-offs */}
       <div className="analytics-grid-2">

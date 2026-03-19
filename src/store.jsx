@@ -22,12 +22,27 @@ const defaultState = {
 
 function mergeLoaded(parsed) {
   if (!Array.isArray(parsed?.prospects) || !Array.isArray(parsed?.sequences)) return null;
-  const sequences = parsed.sequences;
+  // Always sync the default sequence definition from code
+  const sequences = parsed.sequences.map((s) =>
+    s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+  );
   const hasDefault = sequences.some((s) => s.isDefault);
+  if (!hasDefault) sequences.unshift(DEFAULT_SEQUENCE);
+
+  // Clean up enrollments: remove completedSteps that reference deleted step IDs
+  const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
+  const enrollments = (parsed.enrollments || []).map((en) => {
+    const validIds = seqMap.get(en.sequenceId);
+    if (!validIds) return en;
+    const cleaned = en.completedSteps.filter((id) => validIds.has(id));
+    return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
+  });
+
   return {
     ...defaultState,
     ...parsed,
-    sequences: hasDefault ? sequences : [DEFAULT_SEQUENCE, ...sequences],
+    sequences,
+    enrollments,
     lists: parsed.lists || [],
     adminFlags: parsed.adminFlags || {},
   };
@@ -153,7 +168,12 @@ function reducer(state, action) {
           dayOffset = firstCompletedStep ? firstCompletedStep.day : 0;
         }
 
+        // Check LinkedIn connection status for this prospect
+        const prospectData = updatedProspects.find((p) => p.id === prospectId);
+        const liAccepted = prospectData?.touchpoints.some((t) => t.channel === "LinkedIn" && t.status === "Accepted");
+
         // Find pending steps due today or earlier whose channel matches the logged touchpoint
+        // LinkedIn steps with requiresLinkedInConnection that are swapped to Email also match Email touchpoints
         const matchingStep = seq.steps
           .filter((step) => {
             if (en.completedSteps.includes(step.id)) return false;
@@ -161,7 +181,12 @@ function reducer(state, action) {
             const due = new Date(y, m - 1, d);
             due.setDate(due.getDate() + (step.day - dayOffset));
             const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
-            return dueStr <= today && step.channel === touchpoint.channel;
+            if (dueStr > today) return false;
+            // Direct channel match
+            if (step.channel === touchpoint.channel) return true;
+            // Swapped LinkedIn → Email: if step requires LinkedIn connection but prospect not connected, match Email touchpoints
+            if (step.requiresLinkedInConnection && !liAccepted && step.channel === "LinkedIn" && touchpoint.channel === "Email") return true;
+            return false;
           })
           .sort((a, b) => a.day - b.day)[0]; // earliest pending step first
 
@@ -299,6 +324,21 @@ function reducer(state, action) {
     case "RESET_DATA":
       return defaultState;
 
+    case "SYNC_DEFAULT_SEQUENCE": {
+      // Force-sync stored default sequence with code definition and clean all enrollments
+      const sequences = state.sequences.map((s) =>
+        s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+      );
+      const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
+      const enrollments = state.enrollments.map((en) => {
+        const validIds = seqMap.get(en.sequenceId);
+        if (!validIds) return en;
+        const cleaned = en.completedSteps.filter((id) => validIds.has(id));
+        return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
+      });
+      return { ...state, sequences, enrollments };
+    }
+
     default:
       return state;
   }
@@ -365,6 +405,11 @@ export function StoreProvider({ children }) {
     persistAllowed.current = true;
     setHydrated(true);
   }, []);
+
+  /* ── After hydration, force-sync default sequence so edits propagate to all leads ── */
+  useEffect(() => {
+    if (hydrated) dispatch({ type: "SYNC_DEFAULT_SEQUENCE" });
+  }, [hydrated]);
 
   /* ── Auth: check session on mount, listen for changes ── */
   useEffect(() => {
@@ -485,6 +530,9 @@ export function StoreProvider({ children }) {
         dayOffset = firstCompletedStep ? firstCompletedStep.day : 0;
       }
 
+      // Check LinkedIn connection status for this prospect
+      const linkedInAccepted = prospect.touchpoints.some((t) => t.channel === "LinkedIn" && t.status === "Accepted");
+
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
         const [sy, sm, sd] = baseDate.split("-").map(Number);
@@ -492,7 +540,19 @@ export function StoreProvider({ children }) {
         due.setDate(due.getDate() + (step.day - dayOffset));
         const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
         if (dueStr <= today) {
-          tasks.push({ prospect, seq, step, dueDate: dueStr, enrollmentId: en.id });
+          // LinkedIn follow-up steps require an accepted connection.
+          // If not connected, swap to Email fallback so the rep still has an action.
+          if (step.requiresLinkedInConnection && !linkedInAccepted) {
+            const swapped = {
+              ...step,
+              channel: "Email",
+              note: "LinkedIn not connected — send email or InMail instead",
+              _swappedFromLinkedIn: true,
+            };
+            tasks.push({ prospect, seq, step: swapped, dueDate: dueStr, enrollmentId: en.id });
+          } else {
+            tasks.push({ prospect, seq, step, dueDate: dueStr, enrollmentId: en.id });
+          }
         }
       });
     });
