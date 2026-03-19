@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { get, set } from "idb-keyval";
 import { supabase } from "./supabase";
-import { DEFAULT_SEQUENCE } from "./constants";
+import { DEFAULT_SEQUENCE, EMAIL_LINKEDIN_SEQUENCE } from "./constants";
 import { nextId, todayStr, daysSinceLast, hoursSinceLast, isTerminalStatus } from "./utils";
 
 const STORAGE_KEY_PREFIX = "outreach-os-data";
@@ -13,7 +13,7 @@ const StoreContext = createContext(null);
 
 const defaultState = {
   prospects: [],
-  sequences: [DEFAULT_SEQUENCE],
+  sequences: [DEFAULT_SEQUENCE, EMAIL_LINKEDIN_SEQUENCE],
   enrollments: [],
   dismissedReminders: [],
   lists: [],
@@ -24,10 +24,14 @@ function mergeLoaded(parsed) {
   if (!Array.isArray(parsed?.prospects) || !Array.isArray(parsed?.sequences)) return null;
   // Always sync the default sequence definition from code
   const sequences = parsed.sequences.map((s) =>
-    s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+    s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description }
+    : s.isEmailLinkedIn ? { ...s, steps: EMAIL_LINKEDIN_SEQUENCE.steps, name: EMAIL_LINKEDIN_SEQUENCE.name, description: EMAIL_LINKEDIN_SEQUENCE.description }
+    : s
   );
   const hasDefault = sequences.some((s) => s.isDefault);
   if (!hasDefault) sequences.unshift(DEFAULT_SEQUENCE);
+  const hasEmailLinkedIn = sequences.some((s) => s.isEmailLinkedIn);
+  if (!hasEmailLinkedIn) sequences.push(EMAIL_LINKEDIN_SEQUENCE);
 
   // Clean up enrollments: remove completedSteps that reference deleted step IDs
   const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
@@ -60,6 +64,7 @@ function reducer(state, action) {
 
     case "ADD_PROSPECT": {
       const id = nextId();
+      const outreachType = action.payload.outreachType || "default";
       const prospect = {
         ...action.payload,
         id,
@@ -68,21 +73,29 @@ function reducer(state, action) {
         status: action.payload.status || "Not Started",
       };
       const out = { ...state, prospects: [...state.prospects, prospect] };
-      const defaultSeq = state.sequences.find((s) => s.isDefault);
-      if (defaultSeq) {
+      const seq = outreachType === "email-linkedin"
+        ? state.sequences.find((s) => s.isEmailLinkedIn)
+        : state.sequences.find((s) => s.isDefault);
+      if (seq) {
         out.enrollments = [
           ...state.enrollments,
-          { id: nextId(), prospectId: id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] },
+          { id: nextId(), prospectId: id, sequenceId: seq.id, startDate: todayStr(), completedSteps: [] },
         ];
       }
       return out;
     }
 
     case "IMPORT_PROSPECTS": {
-      const newP = action.payload.map((p) => ({ ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: p.status || "Not Started" }));
-      const defaultSeq = state.sequences.find((s) => s.isDefault);
-      const newE = defaultSeq
-        ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: defaultSeq.id, startDate: todayStr(), completedSteps: [] }))
+      const outreachType = action.meta?.outreachType || "default";
+      const newP = action.payload.map((p) => ({
+        ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: p.status || "Not Started",
+        ...(outreachType === "email-linkedin" ? { outreachType: "email-linkedin" } : {}),
+      }));
+      const seq = outreachType === "email-linkedin"
+        ? state.sequences.find((s) => s.isEmailLinkedIn)
+        : state.sequences.find((s) => s.isDefault);
+      const newE = seq
+        ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: seq.id, startDate: todayStr(), completedSteps: [] }))
         : [];
       const listName = action.meta?.listName;
       const existingLists = state.lists || [];
@@ -326,9 +339,12 @@ function reducer(state, action) {
 
     case "SYNC_DEFAULT_SEQUENCE": {
       // Force-sync stored default sequence with code definition and clean all enrollments
-      const sequences = state.sequences.map((s) =>
-        s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description } : s
+      let sequences = state.sequences.map((s) =>
+        s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description }
+        : s.isEmailLinkedIn ? { ...s, steps: EMAIL_LINKEDIN_SEQUENCE.steps, name: EMAIL_LINKEDIN_SEQUENCE.name, description: EMAIL_LINKEDIN_SEQUENCE.description }
+        : s
       );
+      if (!sequences.some((s) => s.isEmailLinkedIn)) sequences = [...sequences, EMAIL_LINKEDIN_SEQUENCE];
       const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
       const enrollments = state.enrollments.map((en) => {
         const validIds = seqMap.get(en.sequenceId);

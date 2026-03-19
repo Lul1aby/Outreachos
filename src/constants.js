@@ -58,6 +58,23 @@ export const DEFAULT_SEQUENCE = {
   ],
 };
 
+export const EMAIL_LINKEDIN_SEQUENCE = {
+  id: 2,
+  name: "7-Day Email & LinkedIn Only",
+  description: "4 emails · 3 LinkedIn — for international prospects (no calls)",
+  isDefault: false,
+  isEmailLinkedIn: true,
+  steps: [
+    { id: 201, day: 0, channel: "Email",    note: "Cold email — value prop + CTA" },
+    { id: 202, day: 0, channel: "LinkedIn", note: "Send connection request + short intro" },
+    { id: 203, day: 1, channel: "Email",    note: "Follow-up email — address a pain point" },
+    { id: 204, day: 2, channel: "LinkedIn", note: "LinkedIn follow-up message (if connected) — otherwise send InMail or extra email", requiresLinkedInConnection: true },
+    { id: 205, day: 3, channel: "Email",    note: "Social proof email — case study or result" },
+    { id: 206, day: 4, channel: "LinkedIn", note: "Engage with their content or send nudge message" },
+    { id: 207, day: 6, channel: "Email",    note: "Breakup email — last attempt" },
+  ],
+};
+
 export const CSV_FIELDS = [
   { key: "name",     label: "Full Name",    required: true },
   { key: "company",  label: "Company",      required: true },
