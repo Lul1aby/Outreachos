@@ -462,32 +462,6 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       )}
 
       {/* Overdue banner */}
-      {overdueProspects.length > 0 && (
-        <div className="overdue-banner">
-          <div className="overdue-header">
-            <div className="overdue-title">
-              <span>⏰</span> {overdueProspects.length} prospect{overdueProspects.length > 1 ? "s" : ""} haven't been touched in 28+ hours
-            </div>
-            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
-          </div>
-          <div className="overdue-chips">
-            {overdueProspects.slice(0, 8).map((p) => {
-              const h = hoursSinceLast(p);
-              const label = h >= 48 ? `${Math.floor(h / 24)}d ago` : `${h}h ago`;
-              return (
-                <div key={p.id} className="overdue-chip" onClick={() => onSelect(p.id)}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
-                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</span>
-                  <span className="mono" style={{ fontSize: 14, color: "var(--warning-alt)", background: "var(--warning-bg)", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
-                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
-                </div>
-              );
-            })}
-            {overdueProspects.length > 8 && <span style={{ fontSize: 14, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
-          </div>
-        </div>
-      )}
-
       {/* Search + filter toggle + group toggle */}
       <div className="filter-bar">
         {groupByCompany ? (
