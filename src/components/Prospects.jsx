@@ -885,6 +885,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
                     <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
                       Step {stepIdx + 1}/{task.seq.steps.length} · {task.seq.name}
                     </div>
+                    {task.step._swappedFromLinkedIn && <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2 }}>💼 LinkedIn pending — swapped to email</div>}
                     {task.step.note && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.step.note}</div>}
                   </div>
                 </div>

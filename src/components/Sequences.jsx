@@ -84,6 +84,7 @@ export default function Sequences() {
                       <div className="flex-1">
                         <span className="seq-step-day">Day {step.day}</span>
                         <span className="seq-step-channel">{step.channel}</span>
+                        {step.requiresLinkedInConnection && <span style={{ fontSize: 11, color: "#fbbf24", background: "#422006", padding: "1px 6px", borderRadius: 4, marginLeft: 6 }}>requires connection</span>}
                         {step.note && <div className="seq-step-note">{step.note}</div>}
                       </div>
                     </div>
@@ -127,6 +128,12 @@ export default function Sequences() {
                   {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input className="seq-builder-note" value={step.note} onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s) => s.id === step.id ? { ...s, note: e.target.value } : s) }))} placeholder="What to do / say…" />
+                {step.channel === "LinkedIn" && (
+                  <label title="Requires accepted LinkedIn connection — swaps to email if pending" style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", flexShrink: 0, fontSize: 12, color: step.requiresLinkedInConnection ? "#fbbf24" : "var(--text-dim)" }}>
+                    <input type="checkbox" checked={!!step.requiresLinkedInConnection} onChange={(e) => setForm((f) => ({ ...f, steps: f.steps.map((s) => s.id === step.id ? { ...s, requiresLinkedInConnection: e.target.checked } : s) }))} style={{ accentColor: "#fbbf24", width: 13, height: 13 }} />
+                    Req conn
+                  </label>
+                )}
                 <button onClick={() => setForm((f) => ({ ...f, steps: f.steps.filter((s) => s.id !== step.id) }))} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 17, cursor: "pointer", lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
               </div>
             ))}

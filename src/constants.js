@@ -40,7 +40,7 @@ export const CHANNEL_ICONS = {
 export const DEFAULT_SEQUENCE = {
   id: 1,
   name: "7-Day Default Cadence",
-  description: "6 calls · 4 emails · 2 LinkedIn — auto-assigned to every new contact",
+  description: "6 calls · 4 emails · 2 LinkedIn — LinkedIn follow-up auto-swaps to email if not connected",
   isDefault: true,
   steps: [
     { id: 101, day: 0, channel: "Call",     note: "First touch — cold call intro" },
@@ -49,7 +49,7 @@ export const DEFAULT_SEQUENCE = {
     { id: 104, day: 1, channel: "Call",     note: "Follow-up call attempt #2" },
     { id: 105, day: 1, channel: "Email",    note: "Follow-up email — address a pain point" },
     { id: 106, day: 2, channel: "Call",     note: "Call attempt #3 — try different time" },
-    { id: 107, day: 2, channel: "LinkedIn", note: "LinkedIn follow-up message" },
+    { id: 107, day: 2, channel: "LinkedIn", note: "LinkedIn follow-up message (if connected) — otherwise send InMail or extra email", requiresLinkedInConnection: true },
     { id: 108, day: 3, channel: "Call",     note: "Call attempt #4" },
     { id: 109, day: 3, channel: "Email",    note: "Social proof email — case study or result" },
     { id: 110, day: 4, channel: "Call",     note: "Call attempt #5 — leave voicemail" },

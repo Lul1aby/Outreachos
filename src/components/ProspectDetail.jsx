@@ -431,6 +431,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                     <span style={{ fontSize: 11, color: "#86efac", fontFamily: "var(--mono)", flexShrink: 0, background: "#064e24", padding: "1px 5px", borderRadius: 4 }}>
                       {stepIdx + 1}/{task.seq.steps.length}
                     </span>
+                    {task.step._swappedFromLinkedIn && <span style={{ fontSize: 11, color: "#fbbf24", background: "#422006", padding: "1px 5px", borderRadius: 4, flexShrink: 0 }}>💼 swapped</span>}
                     {task.step.note && <span style={{ fontSize: 12, color: "#6ee7b7", opacity: 0.8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{task.step.note}</span>}
                   </div>
                 );
