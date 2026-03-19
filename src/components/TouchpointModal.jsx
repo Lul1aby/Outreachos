@@ -18,6 +18,10 @@ export default function TouchpointModal({ prospectId, onClose }) {
   const [meetDuration, setMeetDuration] = useState("60");
   const [calBlocked, setCalBlocked] = useState(null); // URL when popup was blocked
 
+  /* Call Back scheduler */
+  const [cbDate, setCbDate] = useState("");
+  const [cbTime, setCbTime] = useState("");
+
   if (!prospect) return null;
 
   function buildCalUrl() {
@@ -47,8 +51,10 @@ export default function TouchpointModal({ prospectId, onClose }) {
   }
 
   function save() {
+    if (form.status === "Call Back" && (!cbDate || !cbTime)) return;
     const tp = { channel: form.channel, date: form.date, time: nowTimeStr(), note: form.note.trim(), status: form.status };
-    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status } });
+    const callback = form.status === "Call Back" ? { date: cbDate, time: cbTime, note: form.note.trim() } : null;
+    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: form.status, callback } });
     if (form.status === "Meeting Booked") {
       const url = buildCalUrl();
       const opened = window.open(url, "_blank");
@@ -100,6 +106,36 @@ export default function TouchpointModal({ prospectId, onClose }) {
         placeholder="What happened? Key takeaways, next steps…"
         onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
       />
+
+      {/* Call Back scheduler — shown when Call Back is selected */}
+      {form.status === "Call Back" && (
+        <div style={{ background: "var(--surface)", border: "1px solid #4a3d20", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+            📞 Schedule Call Back
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date <span style={{ color: "var(--danger)" }}>*</span></div>
+              <CalendarPicker value={cbDate} onChange={setCbDate} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time <span style={{ color: "var(--danger)" }}>*</span></div>
+              <input
+                type="time"
+                className="form-input"
+                value={cbTime}
+                onChange={(e) => setCbTime(e.target.value)}
+                style={{ width: 120 }}
+              />
+            </div>
+          </div>
+          {(form.status === "Call Back" && (!cbDate || !cbTime)) && (
+            <div style={{ fontSize: 12, color: "var(--warning-alt)", marginTop: 8 }}>
+              Date and time are required to create a call back task.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Google Calendar — shown when Meeting Booked is selected */}
       {form.status === "Meeting Booked" && (
@@ -161,8 +197,13 @@ export default function TouchpointModal({ prospectId, onClose }) {
 
       <div className="flex gap-8 justify-end mt-12">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save}>
-          Save Touchpoint{form.status === "Meeting Booked" ? " & Open Calendar" : ""}
+        <button
+          className="btn btn-primary"
+          onClick={save}
+          disabled={form.status === "Call Back" && (!cbDate || !cbTime)}
+          style={form.status === "Call Back" && (!cbDate || !cbTime) ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+        >
+          Save Touchpoint{form.status === "Meeting Booked" ? " & Open Calendar" : form.status === "Call Back" ? " & Create Task" : ""}
         </button>
       </div>
     </Modal>

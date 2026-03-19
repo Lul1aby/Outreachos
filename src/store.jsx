@@ -136,7 +136,7 @@ function reducer(state, action) {
     }
 
     case "ADD_TOUCHPOINT": {
-      const { prospectId, touchpoint, newStatus } = action.payload;
+      const { prospectId, touchpoint, newStatus, callback } = action.payload;
       const today = todayStr();
 
       /* ── 1. Update prospect touchpoints + auto-status rules ── */
@@ -160,6 +160,12 @@ function reducer(state, action) {
         // Rule B: Connected +ve → Call Back (positive convo, schedule follow-up)
         if (touchpoint.status === "Connected +ve") {
           autoStatus = "Call Back";
+        }
+
+        // If Call Back outcome with scheduled callback, add to callbacks array
+        if (callback) {
+          const callbacks = [...(p.callbacks || []), { id: nextId(), date: callback.date, time: callback.time, note: callback.note || "", done: false }];
+          return { ...p, touchpoints: updatedTps, status: autoStatus, callbacks };
         }
 
         return { ...p, touchpoints: updatedTps, status: autoStatus };
@@ -294,6 +300,16 @@ function reducer(state, action) {
           const seq = state.sequences.find((s) => s.id === e.sequenceId);
           return seq ? { ...e, completedSteps: seq.steps.map((s) => s.id) } : e;
         }),
+      };
+    }
+
+    case "COMPLETE_CALLBACK": {
+      const { prospectId, callbackId } = action.payload;
+      return {
+        ...state,
+        prospects: state.prospects.map((p) =>
+          p.id !== prospectId ? p : { ...p, callbacks: (p.callbacks || []).map((cb) => cb.id === callbackId ? { ...cb, done: true } : cb) }
+        ),
       };
     }
 
@@ -572,6 +588,25 @@ export function StoreProvider({ children }) {
         }
       });
     });
+
+    // Add callback tasks (scheduled Call Backs)
+    state.prospects.forEach((prospect) => {
+      if (isTerminalStatus(prospect)) return;
+      (prospect.callbacks || []).forEach((cb) => {
+        if (cb.done) return;
+        if (cb.date > today) return;
+        tasks.push({
+          prospect,
+          seq: null,
+          step: { id: `cb-${cb.id}`, channel: "Call", note: cb.note || "Scheduled call back", _isCallback: true },
+          dueDate: cb.date,
+          callbackId: cb.id,
+          callbackTime: cb.time,
+          enrollmentId: null,
+        });
+      });
+    });
+
     return tasks.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [state.enrollments, state.sequences, state.prospects, today]);
 

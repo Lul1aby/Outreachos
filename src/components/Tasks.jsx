@@ -87,7 +87,11 @@ export default function Tasks({ onSelect, onNavigate }) {
     if (!filteredTasks.length) return;
     if (!window.confirm(`Complete all ${filteredTasks.length} visible tasks?`)) return;
     filteredTasks.forEach((t) => {
-      dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: t.enrollmentId, stepId: t.step.id } });
+      if (t.step._isCallback) {
+        dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: t.prospect.id, callbackId: t.callbackId } });
+      } else {
+        dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: t.enrollmentId, stepId: t.step.id } });
+      }
     });
   }, [filteredTasks, dispatch]);
 
@@ -214,7 +218,14 @@ export default function Tasks({ onSelect, onNavigate }) {
                 <div className="task-detail">
                   <span style={{ color: "var(--primary-light)" }} className="mono">{task.step.channel}</span>
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
-                  Step {stepIdx + 1} of {task.seq.steps.length} in <span style={{ color: "var(--primary)" }}>{task.seq.name}</span>
+                  {task.step._isCallback ? (
+                    <>
+                      <span style={{ color: "#fbbf24", fontWeight: 600 }}>Scheduled Call Back</span>
+                      {task.callbackTime && <><span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span><span className="mono" style={{ color: "#fbbf24" }}>at {task.callbackTime}</span></>}
+                    </>
+                  ) : (
+                    <>Step {stepIdx + 1} of {task.seq.steps.length} in <span style={{ color: "var(--primary)" }}>{task.seq.name}</span></>
+                  )}
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
                   <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
                 </div>
@@ -242,7 +253,13 @@ export default function Tasks({ onSelect, onNavigate }) {
               </div>
               <div className="task-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => onSelect(p.id)}>View</button>
-                <button className="btn btn-success btn-sm" onClick={() => dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: task.enrollmentId, stepId: task.step.id } })}>Done</button>
+                <button className="btn btn-success btn-sm" onClick={() => {
+                  if (task.step._isCallback) {
+                    dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: task.prospect.id, callbackId: task.callbackId } });
+                  } else {
+                    dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: task.enrollmentId, stepId: task.step.id } });
+                  }
+                }}>Done</button>
               </div>
             </div>
           );
