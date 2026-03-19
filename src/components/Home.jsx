@@ -5,9 +5,18 @@ import { STATUSES, STATUS_COLORS } from "../constants";
 import { daysSinceLast, greeting, stalenessColor, todayStr } from "../utils";
 import { Badge } from "./ui";
 
-function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--primary), var(--accent))", avatarColor = "#fff", extra }) {
+function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--primary), var(--accent))", avatarColor = "#fff", extra, showStar, dispatch }) {
   return (
     <div className="home-prospect-row" onClick={() => onSelect(p.id)}>
+      {showStar && dispatch && (
+        <button
+          onClick={(e) => { e.stopPropagation(); dispatch({ type: "TOGGLE_STAR", payload: p.id }); }}
+          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 15, lineHeight: 1, flexShrink: 0, filter: p.starred ? "none" : "grayscale(1) opacity(0.25)" }}
+          title={p.starred ? "Unstar" : "Star as hot"}
+        >
+          {p.starred ? "\u2B50" : "\u2606"}
+        </button>
+      )}
       <div className="home-prospect-avatar" style={{ background: avatarBg, color: avatarColor }}>{(p.name || "?")[0]}</div>
       <div className="flex-1" style={{ minWidth: 0 }}>
         <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</div>
@@ -19,7 +28,7 @@ function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--pr
 }
 
 export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
-  const { state, stats, allLists, tasksToday, overdueProspects, exportBackup, importBackup } = useStore();
+  const { state, dispatch, stats, allLists, tasksToday, overdueProspects, exportBackup, importBackup } = useStore();
   const { prospects } = state;
   const [listSearch, setListSearch] = useState("");
   const [listDetail, setListDetail] = useState(null);
@@ -39,7 +48,12 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
   );
 
   const recentProspects = useMemo(() => [...prospects].sort((a, b) => b.id - a.id).slice(0, 5), [prospects]);
-  const hotProspects = useMemo(() => prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).slice(0, 5), [prospects]);
+  const hotProspects = useMemo(() => {
+    // Starred prospects first, then Replied/Meeting Booked
+    const starred = prospects.filter((p) => p.starred);
+    const statusHot = prospects.filter((p) => !p.starred && ["Replied", "Meeting Booked"].includes(p.status));
+    return [...starred, ...statusHot].slice(0, 8);
+  }, [prospects]);
   const needsAttention = useMemo(() => prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 3; }).slice(0, 5), [prospects]);
 
   const addedThisWeek = useMemo(() => {
@@ -191,13 +205,13 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
         {/* Hot */}
         <div className="home-panel">
           <div className="home-panel-header">
-            <div className="home-panel-title">🔥 Hot Prospects</div>
+            <div className="home-panel-title">🔥 Hot Prospects {hotProspects.length > 0 && <span style={{ fontSize: 13, fontWeight: 400, color: "var(--text-muted)" }}>({hotProspects.filter((p) => p.starred).length} starred)</span>}</div>
           </div>
           {hotProspects.length === 0
-            ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No hot prospects yet — keep reaching out!</div>
+            ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No hot prospects yet — star a prospect or book a meeting!</div>
             : <div className="flex flex-col gap-10">
                 {hotProspects.map((p) => (
-                  <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="var(--success-bg)" avatarColor="var(--success-bright)" />
+                  <ProspectRow key={p.id} p={p} onSelect={onSelect} avatarBg="var(--success-bg)" avatarColor="var(--success-bright)" showStar dispatch={dispatch} />
                 ))}
               </div>
           }

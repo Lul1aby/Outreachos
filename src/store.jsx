@@ -336,6 +336,14 @@ function reducer(state, action) {
       };
     }
 
+    case "TOGGLE_STAR": {
+      const pid = action.payload;
+      return {
+        ...state,
+        prospects: state.prospects.map((p) => p.id === pid ? { ...p, starred: !p.starred } : p),
+      };
+    }
+
     case "FLAG_PROSPECT": {
       const { key, note } = action.payload;
       return {

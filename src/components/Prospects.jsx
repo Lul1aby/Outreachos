@@ -337,6 +337,13 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         </td>
         <td>
           <div className="flex items-center gap-6">
+            <button
+              onClick={(e) => { e.stopPropagation(); dispatch({ type: "TOGGLE_STAR", payload: p.id }); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 15, lineHeight: 1, flexShrink: 0, filter: p.starred ? "none" : "grayscale(1) opacity(0.25)" }}
+              title={p.starred ? "Unstar" : "Star as hot"}
+            >
+              {p.starred ? "\u2B50" : "\u2606"}
+            </button>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
             <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
             {dupeInfo && (

@@ -480,6 +480,13 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           </div>
         </div>
         <div className="flex gap-8 items-center">
+          <button
+            onClick={() => dispatch({ type: "TOGGLE_STAR", payload: prospectId })}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 22, lineHeight: 1, filter: prospect.starred ? "none" : "grayscale(1) opacity(0.3)" }}
+            title={prospect.starred ? "Unstar prospect" : "Star as hot prospect"}
+          >
+            {prospect.starred ? "\u2B50" : "\u2606"}
+          </button>
           <div ref={statusPickerRef} style={{ position: "relative" }}>
             <button
               onClick={() => setShowStatusPicker((v) => !v)}
