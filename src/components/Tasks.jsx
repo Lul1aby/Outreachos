@@ -1,13 +1,19 @@
 import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
-import { CHANNELS, CHANNEL_ICONS } from "../constants";
-import { todayStr, normalizeLinkedIn } from "../utils";
+import { CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
+import { todayStr, nowTimeStr, normalizeLinkedIn } from "../utils";
 import { Badge } from "./ui";
 
 export default function Tasks({ onSelect, onNavigate }) {
   const { tasksToday, dispatch } = useStore();
   const today = todayStr();
   const [copied, setCopied] = useState(null);
+
+  /* ── Complete-task form state ── */
+  // completingKey tracks which task row has the form open
+  const [completingKey, setCompletingKey] = useState(null);
+  const [completeNote, setCompleteNote] = useState("");
+  const [completeOutcome, setCompleteOutcome] = useState("");
 
   /* ── Filters ── */
   const [filterChannel, setFilterChannel] = useState("All");
@@ -85,15 +91,19 @@ export default function Tasks({ onSelect, onNavigate }) {
 
   const completeAll = useCallback(() => {
     if (!filteredTasks.length) return;
-    if (!window.confirm(`Complete all ${filteredTasks.length} visible tasks?`)) return;
+    if (!window.confirm(`Complete all ${filteredTasks.length} visible tasks? Each will be logged as a touchpoint.`)) return;
+    const now = nowTimeStr();
     filteredTasks.forEach((t) => {
+      const ch = t.step.channel;
+      const outcomes = CHANNEL_OUTCOMES[ch] || [];
+      const outcome = outcomes[0] || "";
+      const tp = { channel: ch, date: today, time: now, note: "", status: outcome };
+      dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: t.prospect.id, touchpoint: tp, newStatus: outcome } });
       if (t.step._isCallback) {
         dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: t.prospect.id, callbackId: t.callbackId } });
-      } else {
-        dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: t.enrollmentId, stepId: t.step.id } });
       }
     });
-  }, [filteredTasks, dispatch]);
+  }, [filteredTasks, dispatch, today]);
 
   return (
     <div style={{ padding: "24px 32px" }}>
@@ -203,10 +213,11 @@ export default function Tasks({ onSelect, onNavigate }) {
       <div className="flex flex-col gap-10">
         {filteredTasks.map((task) => {
           const isOverdue = task.dueDate < today;
-          const stepIdx = task.seq.steps.findIndex((s) => s.id === task.step.id);
+          const stepIdx = task.seq ? task.seq.steps.findIndex((s) => s.id === task.step.id) : -1;
           const p = task.prospect;
+          const taskKey = `${task.enrollmentId}-${task.step.id}`;
           return (
-            <div key={`${task.enrollmentId}-${task.step.id}`} className={`task-row${isOverdue ? " overdue" : ""}`}>
+            <div key={taskKey} className={`task-row${isOverdue ? " overdue" : ""}`}>
               <div className={`task-dot${isOverdue ? " overdue" : ""}`}>{CHANNEL_ICONS[task.step.channel]}</div>
               <div className="task-info">
                 <div className="task-header">
@@ -253,14 +264,66 @@ export default function Tasks({ onSelect, onNavigate }) {
               </div>
               <div className="task-actions">
                 <button className="btn btn-ghost btn-sm" onClick={() => onSelect(p.id)}>View</button>
-                <button className="btn btn-success btn-sm" onClick={() => {
-                  if (task.step._isCallback) {
-                    dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: task.prospect.id, callbackId: task.callbackId } });
-                  } else {
-                    dispatch({ type: "COMPLETE_STEP", payload: { enrollmentId: task.enrollmentId, stepId: task.step.id } });
-                  }
-                }}>Done</button>
+                {completingKey === taskKey ? (
+                  <button className="btn btn-ghost btn-sm" onClick={() => setCompletingKey(null)}>Cancel</button>
+                ) : (
+                  <button className="btn btn-success btn-sm" onClick={() => {
+                    const ch = task.step.channel;
+                    const outcomes = CHANNEL_OUTCOMES[ch] || [];
+                    setCompletingKey(taskKey);
+                    setCompleteNote("");
+                    setCompleteOutcome(outcomes[0] || "");
+                  }}>Done</button>
+                )}
               </div>
+              {/* Inline completion form */}
+              {completingKey === taskKey && (() => {
+                const ch = task.step.channel;
+                const outcomes = CHANNEL_OUTCOMES[ch] || [];
+                return (
+                  <div style={{ gridColumn: "1 / -1", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", marginTop: 6 }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                      <div style={{ flex: "0 0 auto" }}>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Outcome</div>
+                        <select
+                          className="form-select"
+                          value={completeOutcome}
+                          onChange={(e) => setCompleteOutcome(e.target.value)}
+                          style={{ marginBottom: 0, fontSize: 13, minWidth: 160, padding: "5px 8px", borderRadius: 6 }}
+                        >
+                          {outcomes.map((o) => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 200 }}>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Note</div>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="What happened? Key takeaways…"
+                          value={completeNote}
+                          onChange={(e) => setCompleteNote(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") e.target.closest("div[style]").querySelector("button.btn-success")?.click(); }}
+                          style={{ marginBottom: 0, fontSize: 13, padding: "5px 10px", borderRadius: 6 }}
+                          autoFocus
+                        />
+                      </div>
+                      <button
+                        className="btn btn-success btn-sm"
+                        onClick={() => {
+                          const tp = { channel: ch, date: today, time: nowTimeStr(), note: completeNote.trim(), status: completeOutcome };
+                          dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: p.id, touchpoint: tp, newStatus: completeOutcome } });
+                          if (task.step._isCallback) {
+                            dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: p.id, callbackId: task.callbackId } });
+                          }
+                          setCompletingKey(null);
+                        }}
+                      >
+                        Complete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })}
