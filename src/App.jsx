@@ -125,7 +125,7 @@ export default function App() {
             onAdd={() => setShowAdd(true)}
           />
         )}
-        {view === "analytics" && <Analytics />}
+        {view === "analytics" && <Analytics onSelectProspect={setSelectedId} />}
         {view === "sequences" && <Sequences />}
         {view === "tasks" && <Tasks onSelect={setSelectedId} onNavigate={navigate} />}
         {view === "stored-lists" && <StoredLists onNavigate={navigate} onAdd={() => setShowAdd(true)} />}

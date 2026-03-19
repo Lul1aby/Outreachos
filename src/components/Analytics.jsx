@@ -89,10 +89,69 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
   );
 }
 
-export default function Analytics() {
+/* ── Drilldown Modal: shows prospect list behind any clicked metric ── */
+function DrilldownModal({ title, prospects, onClose, onSelectProspect }) {
+  const [search, setSearch] = useState("");
+  const filtered = search.trim()
+    ? prospects.filter((p) => `${p.name} ${p.company} ${p.title || ""}`.toLowerCase().includes(search.toLowerCase()))
+    : prospects;
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200 }} onClick={onClose} />
+      <div style={{
+        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 201,
+        background: "var(--card-bg, var(--surface-raised))", border: "1px solid var(--border)", borderRadius: 14,
+        width: "min(680px, 92vw)", maxHeight: "80vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+      }}>
+        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{title}</div>
+            <div className="mono" style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{prospects.length} prospect{prospects.length !== 1 ? "s" : ""}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: "4px 8px", fontFamily: "var(--font)" }}>×</button>
+        </div>
+        {prospects.length > 5 && (
+          <div style={{ padding: "8px 20px 0", flexShrink: 0 }}>
+            <input type="text" placeholder="Search name, company…" value={search} onChange={(e) => setSearch(e.target.value)}
+              className="form-input" style={{ marginBottom: 0, fontSize: 13, padding: "6px 10px", borderRadius: 6, width: "100%" }} />
+          </div>
+        )}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 12px 12px" }}>
+          {filtered.length === 0 && <div style={{ textAlign: "center", padding: 20, color: "var(--text-dim)", fontSize: 14 }}>No matches</div>}
+          {filtered.map((p) => (
+            <div key={p.id || p.name + p.company} onClick={() => { if (onSelectProspect) { onSelectProspect(p.id); } }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8,
+                cursor: onSelectProspect ? "pointer" : "default", marginBottom: 2,
+                background: "var(--surface)", border: "1px solid transparent", transition: "border-color .1s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+            >
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                {(p.name || "?")[0]}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }} className="truncate">{p.name}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }} className="truncate">{p.company}{p.title ? ` · ${p.title}` : ""}</div>
+              </div>
+              <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 10, background: STATUS_COLORS[p.status]?.bg, color: STATUS_COLORS[p.status]?.text, border: `1px solid ${STATUS_COLORS[p.status]?.border}`, whiteSpace: "nowrap", flexShrink: 0 }}>{p.status}</span>
+              <span className="mono" style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>{p.touchpoints.length} tp</span>
+              {onSelectProspect && <span style={{ fontSize: 14, color: "var(--text-dim)", flexShrink: 0 }}>→</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function Analytics({ onSelectProspect }) {
   const { state, allLists, user } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
   const [reviewPeriod, setReviewPeriod] = useState("daily");
+  const [drilldown, setDrilldown] = useState(null); // { title, prospects }
 
   /* ── Admin data source ── */
   const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -323,8 +382,8 @@ export default function Analytics() {
       CHANNELS.forEach((c) => { byC[c] = tps.filter((t) => t.channel === c).length; });
       const prevByC = {};
       CHANNELS.forEach((c) => { prevByC[c] = prevTps.filter((t) => t.channel === c).length; });
-      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
-      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
+      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
+      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
       const meetings = tps.filter((t) => t.status === "Meeting Booked").length;
       const prevMeetings = prevTps.filter((t) => t.status === "Meeting Booked").length;
       const opps = tps.filter((t) => t.status === "Opportunity").length;
@@ -406,6 +465,14 @@ export default function Analytics() {
     };
   }, [prospects, sourceLists]);
 
+  const drill = useCallback((title, filterFn) => {
+    setDrilldown({ title, prospects: prospects.filter(filterFn) });
+  }, [prospects]);
+
+  const drillList = useCallback((title, list) => {
+    setDrilldown({ title, prospects: list });
+  }, []);
+
   if (adminLoading && !adminAllData) {
     return (
       <div style={{ padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 10, color: "var(--text-muted)" }}>
@@ -457,18 +524,18 @@ export default function Analytics() {
       {/* KPI strip */}
       <div className="analytics-kpi-row">
         {[
-          { label: "Total", val: data.total, color: "var(--primary)" },
-          { label: "Touched", val: data.contacted, color: "var(--info)" },
-          { label: "Untouched", val: data.untouched, color: "var(--text-dim)" },
-          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)" },
-          { label: "Meetings", val: data.meeting, color: "var(--accent)" },
-          { label: "Opportunity", val: data.won, color: "var(--success-bright)" },
-          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
-          { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
-          { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
-          { label: "Avg Velocity", val: data.avgVelocity ? `${data.avgVelocity}d` : "—", color: "var(--warning)" },
+          { label: "Total", val: data.total, color: "var(--primary)", filter: () => true },
+          { label: "Touched", val: data.contacted, color: "var(--info)", filter: (p) => p.touchpoints.length > 0 },
+          { label: "Untouched", val: data.untouched, color: "var(--text-dim)", filter: (p) => p.touchpoints.length === 0 },
+          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)", filter: (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Meetings", val: data.meeting, color: "var(--accent)", filter: (p) => ["Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Opportunity", val: data.won, color: "var(--success-bright)", filter: (p) => p.status === "Opportunity" },
+          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", filter: (p) => p.status === "Call Back" },
+          { label: "Nurture", val: data.nurture, color: "var(--accent-light)", filter: (p) => p.status === "Nurture" },
+          { label: "Not Interested", val: data.notInt, color: "var(--danger)", filter: (p) => p.status === "Not Interested" },
+          { label: "Avg Velocity", val: data.avgVelocity ? `${data.avgVelocity}d` : "—", color: "var(--warning)", filter: (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status) },
         ].map((k) => (
-          <div key={k.label} className="analytics-kpi">
+          <div key={k.label} className="analytics-kpi" style={{ cursor: "pointer" }} onClick={() => drill(k.label, k.filter)}>
             <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
             <div className="analytics-kpi-label">{k.label}</div>
           </div>
@@ -479,25 +546,29 @@ export default function Analytics() {
       {(data.stale7 > 0 || data.untouched > 0) && (
         <div className="flex gap-12 flex-wrap">
           {data.untouched > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+              onClick={() => drill("Untouched Prospects", (p) => p.touchpoints.length === 0)}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.untouched}</div>
               <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>prospects never contacted</div>
             </div>
           )}
           {data.stale7 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33", cursor: "pointer" }}
+              onClick={() => drill("Stale 7+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 7 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{data.stale7}</div>
               <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>stale 7+ days (active pipeline)</div>
             </div>
           )}
           {data.stale14 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33", cursor: "pointer" }}
+              onClick={() => drill("Stale 14+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 14 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "#f97316" }}>{data.stale14}</div>
               <div style={{ fontSize: 13, color: "#f97316", opacity: 0.9 }}>stale 14+ days</div>
             </div>
           )}
           {data.stale30 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+              onClick={() => drill("Stale 30+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 30 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.stale30}</div>
               <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>stale 30+ days — needs attention</div>
             </div>
@@ -651,16 +722,25 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Conversion Funnel</div>
           <div className="flex flex-col gap-10">
-            {data.funnelSteps.map((f) => (
-              <div key={f.label} className="funnel-row">
-                <div className="funnel-label">{f.label}</div>
-                <div className="funnel-bar">
-                  <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
-                  <div className="funnel-bar-text">{f.val}</div>
+            {data.funnelSteps.map((f) => {
+              const funnelFilters = {
+                "Total": () => true,
+                "Touched": (p) => p.touchpoints.length > 0,
+                "Replied": (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status),
+                "Meeting": (p) => ["Meeting Booked", "Opportunity"].includes(p.status),
+                "Opportunity": (p) => p.status === "Opportunity",
+              };
+              return (
+                <div key={f.label} className="funnel-row" style={{ cursor: "pointer" }} onClick={() => drill(`Funnel: ${f.label}`, funnelFilters[f.label] || (() => true))}>
+                  <div className="funnel-label">{f.label}</div>
+                  <div className="funnel-bar">
+                    <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
+                    <div className="funnel-bar-text">{f.val}</div>
+                  </div>
+                  <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
                 </div>
-                <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
               {[
                 { label: "No Response", val: data.noResp, color: "var(--warning)" },
@@ -669,12 +749,13 @@ export default function Analytics() {
                 { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
                 { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
               ].map((x) => (
-                <div key={x.label} className="flex flex-col gap-4">
+                <div key={x.label} className="flex flex-col gap-4" style={{ cursor: "pointer" }} onClick={() => drill(x.label, (p) => p.status === x.label)}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
                 </div>
               ))}
-              <div className="ml-auto flex flex-col gap-4">
+              <div className="ml-auto flex flex-col gap-4" style={{ cursor: "pointer" }}
+                onClick={() => drill("Dead (NI + No Response + Wrong)", (p) => ["Not Interested", "No Response", "Wrong/Invalid"].includes(p.status))}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
               </div>
@@ -732,7 +813,7 @@ export default function Analytics() {
             if (!cnt) return null;
             const pct = data.total ? (cnt / data.total) * 100 : 0;
             return (
-              <div key={s} className="mb-8">
+              <div key={s} className="mb-8" style={{ cursor: "pointer" }} onClick={() => drill(`Status: ${s}`, (p) => p.status === s)}>
                 <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
                 <MiniBar pct={pct} color={STATUS_COLORS[s].text} />
               </div>
@@ -817,7 +898,8 @@ export default function Analytics() {
               { label: "Nurture", val: data.nurture, color: "var(--accent-light)", bg: "var(--accent-bg)", desc: "Long-term nurture" },
               { label: "Trials", val: data.trials, color: "var(--info-bright)", bg: "var(--info-bg)", desc: "In trial phase" },
             ].map((item) => (
-              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
+              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33`, cursor: "pointer" }}
+                onClick={() => drill(item.label, (p) => p.status === item.label)}>
                 <div className="flex justify-between items-center mb-4">
                   <span style={{ fontSize: 14, color: item.color, fontWeight: 600 }}>{item.label}</span>
                   <span style={{ fontSize: 23, fontWeight: 700, color: item.color }}>{item.val}</span>
@@ -837,7 +919,7 @@ export default function Analytics() {
         <div className="card-title">Channel Effectiveness — Reply Rate by Channel</div>
         <div className="channel-eff-grid">
           {data.channelReply.map((c) => (
-            <div key={c.name} className="channel-eff-card">
+            <div key={c.name} className="channel-eff-card" style={{ cursor: "pointer" }} onClick={() => drill(`Channel: ${c.name}`, (p) => p.touchpoints.some((t) => t.channel === c.name))}>
               <div style={{ fontSize: 21, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
               <div style={{ fontSize: 21, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
@@ -893,7 +975,8 @@ export default function Analytics() {
               {["Industry", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
             </div>
             {data.industryStats.map((ind) => (
-              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center", cursor: "pointer" }}
+                onClick={() => drill(`Industry: ${ind.name}`, (p) => p.industry === ind.name)}>
                 <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind.name}</span></div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ind.total}</div>
                 <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
@@ -912,7 +995,8 @@ export default function Analytics() {
             <div className="card-title">Hot Prospects — Closest to Conversion</div>
             <div className="flex flex-col gap-8">
               {data.hotProspects.map((p) => (
-                <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)" }}>
+                <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", cursor: onSelectProspect ? "pointer" : "default" }}
+                  onClick={() => onSelectProspect && onSelectProspect(p.id)}>
                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                     {(p.name || "?")[0]}
                   </div>
@@ -935,7 +1019,8 @@ export default function Analytics() {
                 {["List", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
               </div>
               {data.listStats.map((ls) => (
-                <div key={ls.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                <div key={ls.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center", cursor: "pointer" }}
+                  onClick={() => drill(`List: ${ls.name}`, (p) => p.listName === ls.name)}>
                   <div className="truncate" style={{ fontSize: 14, color: "var(--text-sec)" }}>{ls.name}</div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ls.total}</div>
                   <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ls.replyRate > 30 ? "#34d399" : ls.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ls.replyRate}%</div>
@@ -953,7 +1038,7 @@ export default function Analytics() {
         <div className="card-title">Touchpoints Distribution — How Many Touches Before Outcome</div>
         <div className="touch-dist-grid">
           {data.buckets.map((b) => (
-            <div key={b.label} className="touch-dist-card">
+            <div key={b.label} className="touch-dist-card" style={{ cursor: "pointer" }} onClick={() => drill(b.label, b.filter)}>
               <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
@@ -968,6 +1053,16 @@ export default function Analytics() {
           ))}
         </div>
       </div>
+
+      {/* Drilldown modal */}
+      {drilldown && (
+        <DrilldownModal
+          title={drilldown.title}
+          prospects={drilldown.prospects}
+          onClose={() => setDrilldown(null)}
+          onSelectProspect={onSelectProspect ? (id) => { setDrilldown(null); onSelectProspect(id); } : null}
+        />
+      )}
     </div>
   );
 }
