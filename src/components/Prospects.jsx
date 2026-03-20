@@ -4,7 +4,7 @@ import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, CHANNELS, INDUSTRIES, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
 import { daysSinceLast, hoursSinceLast, stalenessColor, stalenessLabel, isTerminalStatus } from "../utils";
-import { Badge } from "./ui";
+import { Badge, CalendarPicker } from "./ui";
 
 /* ── Inline research brief renderer (same as ProspectDetail) ── */
 function RenderBrief({ text }) {
@@ -693,11 +693,11 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               <div className="flex flex-col gap-10 mb-16">
                 <div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>From</div>
-                  <input type="date" className="form-input" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
+                  <CalendarPicker value={filterDateFrom} onChange={setFilterDateFrom} />
                 </div>
                 <div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 5 }}>To</div>
-                  <input type="date" className="form-input" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
+                  <CalendarPicker value={filterDateTo} onChange={setFilterDateTo} />
                 </div>
                 <div className="flex gap-6 flex-wrap">
                   {[{ label: "Last 7d", d: 7 }, { label: "Last 30d", d: 30 }, { label: "Last 90d", d: 90 }].map((q) => {
@@ -740,7 +740,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         <div className="dormant-bar">
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginRight: 4, whiteSpace: "nowrap" }}>UNTOUCHED:</span>
           {[{ key: "All", label: "Show All" }, { key: "7", label: "7d+" }, { key: "15", label: "15d+" }, { key: "30", label: "30d+" }].map((opt) => {
-            const count = opt.key === "All" ? null : prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
+            const count = opt.key === "All" ? null : prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= Number(opt.key); }).length;
             return (
               <button key={opt.key} className={`dormant-chip${filterDormant === opt.key ? " active" : ""}`} onClick={() => { setFilterDormant(opt.key); setCustomDays(""); }}>
                 {opt.label}

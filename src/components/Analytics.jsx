@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, INDUSTRIES, CHANNELS, STATUS_COLORS, CHANNEL_ICONS } from "../constants";
-import { fmtDate, daysSinceLast } from "../utils";
+import { fmtDate, daysSinceLast, isTerminalStatus } from "../utils";
 import { MiniBar } from "./ui";
 
 function escapeCSV(val) {
@@ -504,8 +504,8 @@ export default function Analytics({ onSelectProspect }) {
       const statusBreakdown = {};
       members.forEach((p) => { statusBreakdown[p.status] = (statusBreakdown[p.status] || 0) + 1; });
 
-      // Staleness
-      const stalenesses = members.map((p) => daysSinceLast(p)).filter((d) => d !== null);
+      // Staleness (exclude terminal statuses)
+      const stalenesses = members.filter((p) => !isTerminalStatus(p)).map((p) => daysSinceLast(p)).filter((d) => d !== null);
       const maxStale = stalenesses.length ? Math.max(...stalenesses) : null;
       const avgStale = stalenesses.length ? Math.round(stalenesses.reduce((a, b) => a + b, 0) / stalenesses.length) : null;
 

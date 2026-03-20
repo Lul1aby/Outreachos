@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
 import { CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
 import { todayStr, nowTimeStr, normalizeLinkedIn } from "../utils";
-import { Badge } from "./ui";
+import { Badge, CalendarPicker } from "./ui";
 
 export default function Tasks({ onSelect, onNavigate }) {
   const { tasksToday, dispatch } = useStore();
@@ -14,6 +14,8 @@ export default function Tasks({ onSelect, onNavigate }) {
   const [completingKey, setCompletingKey] = useState(null);
   const [completeNote, setCompleteNote] = useState("");
   const [completeOutcome, setCompleteOutcome] = useState("");
+  const [cbDate, setCbDate] = useState(todayStr());
+  const [cbTime, setCbTime] = useState("10:00");
 
   /* ── Filters ── */
   const [filterChannel, setFilterChannel] = useState("All");
@@ -231,18 +233,18 @@ export default function Tasks({ onSelect, onNavigate }) {
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
                   {task.step._isCallback ? (
                     <>
-                      <span style={{ color: "#fbbf24", fontWeight: 600 }}>Scheduled Call Back</span>
-                      {task.callbackTime && <><span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span><span className="mono" style={{ color: "#fbbf24" }}>at {task.callbackTime}</span></>}
+                      <span style={{ color: "var(--st-cb-text)", fontWeight: 600 }}>Scheduled Call Back</span>
+                      {task.callbackTime && <><span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span><span className="mono" style={{ color: "var(--st-cb-text)" }}>at {task.callbackTime}</span></>}
                     </>
                   ) : (
                     <>Step {stepIdx + 1} of {task.seq.steps.length} in <span style={{ color: "var(--primary)" }}>{task.seq.name}</span></>
                   )}
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
-                  <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
+                  <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
                 </div>
                 {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 {task.step._swappedFromLinkedIn && (
-                  <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ fontSize: 12, color: "var(--st-cb-text)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{ fontSize: 14 }}>💼</span> LinkedIn connection pending — swapped to email
                   </div>
                 )}
@@ -272,6 +274,8 @@ export default function Tasks({ onSelect, onNavigate }) {
                     setCompletingKey(taskKey);
                     setCompleteNote("");
                     setCompleteOutcome(outcomes[0] || "");
+                    setCbDate(todayStr());
+                    setCbTime("10:00");
                   }}>Done</button>
                 )}
               </div>
@@ -293,6 +297,18 @@ export default function Tasks({ onSelect, onNavigate }) {
                           {outcomes.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </div>
+                      {completeOutcome === "Call Back" && (
+                        <>
+                          <div style={{ flex: "0 0 auto" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Date</div>
+                            <CalendarPicker value={cbDate} onChange={setCbDate} />
+                          </div>
+                          <div style={{ flex: "0 0 auto" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Time</div>
+                            <input type="time" className="form-input" value={cbTime} onChange={(e) => setCbTime(e.target.value)} style={{ marginBottom: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6 }} />
+                          </div>
+                        </>
+                      )}
                       <div style={{ flex: 1, minWidth: 200 }}>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Note</div>
                         <input
@@ -301,20 +317,24 @@ export default function Tasks({ onSelect, onNavigate }) {
                           placeholder="What happened? Key takeaways…"
                           value={completeNote}
                           onChange={(e) => setCompleteNote(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") e.target.closest("div[style]").querySelector("button.btn-success")?.click(); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && completeOutcome !== "Call Back") e.target.closest("div[style]").querySelector("button.btn-success")?.click(); }}
                           style={{ marginBottom: 0, fontSize: 13, padding: "5px 10px", borderRadius: 6 }}
                           autoFocus
                         />
                       </div>
                       <button
                         className="btn btn-success btn-sm"
+                        disabled={completeOutcome === "Call Back" && (!cbDate || !cbTime)}
                         onClick={() => {
                           const tp = { channel: ch, date: today, time: nowTimeStr(), note: completeNote.trim(), status: completeOutcome };
-                          dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: p.id, touchpoint: tp, newStatus: completeOutcome } });
+                          const callback = completeOutcome === "Call Back" ? { date: cbDate, time: cbTime, note: completeNote.trim() } : null;
+                          dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: p.id, touchpoint: tp, newStatus: completeOutcome, callback } });
                           if (task.step._isCallback) {
                             dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: p.id, callbackId: task.callbackId } });
                           }
                           setCompletingKey(null);
+                          setCbDate(todayStr());
+                          setCbTime("10:00");
                         }}
                       >
                         Complete

@@ -134,6 +134,8 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   const [meetDate, setMeetDate] = useState(todayStr());
   const [meetTime, setMeetTime] = useState("10:00");
   const [meetDuration, setMeetDuration] = useState("60");
+  const [cbDate, setCbDate] = useState(todayStr());
+  const [cbTime, setCbTime] = useState("10:00");
 
 
   const copyContact = useCallback((text, field) => {
@@ -408,9 +410,13 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
   }, [prospect, dispatch]);
 
   const logInline = useCallback(() => {
+    if (tpForm.status === "Call Back" && (!cbDate || !cbTime)) return;
     const tp = { channel: tpForm.channel, date: tpForm.date, time: nowTimeStr(), note: tpForm.note.trim(), status: tpForm.status };
-    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status } });
+    const callback = tpForm.status === "Call Back" ? { date: cbDate, time: cbTime, note: tpForm.note.trim() } : null;
+    dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId, touchpoint: tp, newStatus: tpForm.status, callback } });
     setTpForm({ channel: "Call", date: todayStr(), note: "", status: CHANNEL_OUTCOMES["Call"][0] });
+    setCbDate(todayStr());
+    setCbTime("10:00");
     // Reset meeting scheduler so next open shows fresh date/time
     setMeetDate(todayStr());
     setMeetTime("10:00");
@@ -852,7 +858,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                               </select>
                             </div>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <input type="date" className="form-input" style={{ marginBottom: 0, width: "auto" }} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} />
+                              <CalendarPicker value={editForm.date} onChange={(d) => setEditForm((f) => ({ ...f, date: d }))} />
                             </div>
                             <textarea className="form-textarea" rows={2} style={{ marginBottom: 0 }} value={editForm.note} placeholder="Note…" onChange={(e) => setEditForm((f) => ({ ...f, note: e.target.value }))} />
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -931,6 +937,25 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
           <div className="inline-row">
             <textarea className="form-textarea" rows={3} value={tpForm.note} placeholder="What happened? Key takeaways, next steps…" onChange={(e) => setTpForm((f) => ({ ...f, note: e.target.value }))} />
           </div>
+          {/* Callback date/time picker when logging a Call Back */}
+          {tpForm.status === "Call Back" && (
+            <div style={{ background: "var(--bg)", border: "1px solid var(--st-cb-border)", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--st-cb-text)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+                📞 Schedule Callback
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date</div>
+                  <CalendarPicker value={cbDate} onChange={setCbDate} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time</div>
+                  <input type="time" className="form-input" value={cbTime} onChange={(e) => setCbTime(e.target.value)} style={{ width: 120 }} />
+                </div>
+              </div>
+            </div>
+          )}
+
           <button className="btn btn-primary btn-sm" onClick={logInline}>Log Touchpoint</button>
 
           {/* Google Calendar shortcut when logging a Meeting Booked */}
@@ -1319,12 +1344,6 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
         </div>
       )}
 
-      {/* Delete */}
-      <div className="pt-12 mt-16 border-t">
-        <button className="btn btn-danger" onClick={() => { dispatch({ type: "DELETE_PROSPECT", payload: prospect.id }); onClose(); }}>
-          Delete Prospect
-        </button>
-      </div>
     </Modal>
   );
 }
