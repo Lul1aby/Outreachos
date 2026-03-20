@@ -219,6 +219,7 @@ export default function Analytics({ onSelectProspect }) {
   const data = useMemo(() => {
     const total = prospects.length;
     const allTp = prospects.flatMap((p) => p.touchpoints);
+    function localDateStr(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 
     /* ── Status / channel counts ── */
     const statusCounts = {};
@@ -363,7 +364,7 @@ export default function Analytics({ onSelectProspect }) {
     prospects.forEach((p) => { addMap[p.createdAt] = (addMap[p.createdAt] || 0) + 1; });
     const last30 = Array.from({ length: 30 }, (_, i) => {
       const d = new Date(); d.setDate(d.getDate() - (29 - i));
-      const key = d.toISOString().slice(0, 10);
+      const key = localDateStr(d);
       return { key, label: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }), count: actMap[key] || 0, added: addMap[key] || 0 };
     });
     const maxAct = Math.max(...last30.map((d) => d.count), 1);
@@ -377,7 +378,7 @@ export default function Analytics({ onSelectProspect }) {
       let tpCount = 0, addCount = 0;
       for (let d = 0; d < 7; d++) {
         const day = new Date(weekStart); day.setDate(day.getDate() + d);
-        const key = day.toISOString().slice(0, 10);
+        const key = localDateStr(day);
         tpCount += actMap[key] || 0;
         addCount += addMap[key] || 0;
       }
@@ -417,12 +418,12 @@ export default function Analytics({ onSelectProspect }) {
 
     /* ── Activity Review — daily / weekly / monthly / quarterly / yearly ── */
     const now = new Date();
-    const todayKey = now.toISOString().slice(0, 10);
+    const todayKey = localDateStr(now);
     function periodStats(startDate, endDate, prevStart, prevEnd) {
-      const sKey = startDate.toISOString().slice(0, 10);
-      const eKey = endDate.toISOString().slice(0, 10);
-      const psKey = prevStart.toISOString().slice(0, 10);
-      const peKey = prevEnd.toISOString().slice(0, 10);
+      const sKey = localDateStr(startDate);
+      const eKey = localDateStr(endDate);
+      const psKey = localDateStr(prevStart);
+      const peKey = localDateStr(prevEnd);
       const tps = allTp.filter((t) => t.date >= sKey && t.date <= eKey);
       const prevTps = allTp.filter((t) => t.date >= psKey && t.date <= peKey);
       const added = prospects.filter((p) => p.createdAt >= sKey && p.createdAt <= eKey).length;
@@ -444,7 +445,7 @@ export default function Analytics({ onSelectProspect }) {
       tps.forEach((t) => { dayMap[t.date] = (dayMap[t.date] || 0) + 1; });
       const days = [];
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const k = d.toISOString().slice(0, 10);
+        const k = localDateStr(d);
         days.push({ key: k, label: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), count: dayMap[k] || 0 });
       }
       return {
