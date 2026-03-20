@@ -107,8 +107,8 @@ export default function TouchpointModal({ prospectId, onClose }) {
 
       {/* Call Back scheduler — shown when Call Back is selected */}
       {form.status === "Call Back" && (
-        <div style={{ background: "var(--surface)", border: "1px solid #4a3d20", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#fbbf24", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--st-cb-border)", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--st-cb-text)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
             📞 Schedule Call Back
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -137,8 +137,8 @@ export default function TouchpointModal({ prospectId, onClose }) {
 
       {/* Google Calendar — shown when Meeting Booked is selected */}
       {form.status === "Meeting Booked" && (
-        <div style={{ background: "var(--surface)", border: "1px solid #2d4a2d", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#4ade80", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--success-border)", borderRadius: 10, padding: "14px 16px", marginTop: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--success-bright)", marginBottom: 12, letterSpacing: "0.02em", textTransform: "uppercase" }}>
             📅 Schedule Meeting
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -173,7 +173,7 @@ export default function TouchpointModal({ prospectId, onClose }) {
             </div>
             <button
               className="btn btn-primary btn-sm"
-              style={{ background: "#1a7f4e", border: "1px solid #2d9c64" }}
+              style={{ background: "var(--success-border)", border: "1px solid var(--success-bright)" }}
               onClick={openGoogleCal}
             >
               Preview in Calendar →
@@ -183,9 +183,9 @@ export default function TouchpointModal({ prospectId, onClose }) {
             Google Calendar will open automatically when you save.
           </div>
           {calBlocked && (
-            <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: "var(--st-cb-text)", marginTop: 6 }}>
               Popup blocked.{" "}
-              <a href={calBlocked} target="_blank" rel="noopener noreferrer" style={{ color: "#4ade80", textDecoration: "underline" }}>
+              <a href={calBlocked} target="_blank" rel="noopener noreferrer" style={{ color: "var(--success-bright)", textDecoration: "underline" }}>
                 Open Google Calendar manually →
               </a>
             </div>

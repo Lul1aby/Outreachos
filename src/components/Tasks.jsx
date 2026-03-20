@@ -233,18 +233,18 @@ export default function Tasks({ onSelect, onNavigate }) {
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
                   {task.step._isCallback ? (
                     <>
-                      <span style={{ color: "#fbbf24", fontWeight: 600 }}>Scheduled Call Back</span>
-                      {task.callbackTime && <><span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span><span className="mono" style={{ color: "#fbbf24" }}>at {task.callbackTime}</span></>}
+                      <span style={{ color: "var(--st-cb-text)", fontWeight: 600 }}>Scheduled Call Back</span>
+                      {task.callbackTime && <><span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span><span className="mono" style={{ color: "var(--st-cb-text)" }}>at {task.callbackTime}</span></>}
                     </>
                   ) : (
                     <>Step {stepIdx + 1} of {task.seq.steps.length} in <span style={{ color: "var(--primary)" }}>{task.seq.name}</span></>
                   )}
                   <span style={{ color: "var(--text-dim)", margin: "0 6px" }}>·</span>
-                  <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {task.dueDate}</span>
+                  <span className="mono" style={{ color: isOverdue ? "var(--warning-alt)" : "var(--text-muted)" }}>Due {new Date(task.dueDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
                 </div>
                 {task.step.note && <div style={{ fontSize: 14, color: "var(--text-muted)", fontStyle: "italic" }}>{task.step.note}</div>}
                 {task.step._swappedFromLinkedIn && (
-                  <div style={{ fontSize: 12, color: "#fbbf24", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ fontSize: 12, color: "var(--st-cb-text)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }}>
                     <span style={{ fontSize: 14 }}>💼</span> LinkedIn connection pending — swapped to email
                   </div>
                 )}
