@@ -287,7 +287,7 @@ export default function Analytics({ onSelectProspect }) {
     /* ── Channel reply rate (Email & LinkedIn only) ── */
     const channelReply = ["Email", "LinkedIn"].map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const r = touched.filter((p) => p.touchpoints.some((t) => t.channel === c && t.status === "Replied")).length;
+      const r = touched.filter((p) => p.touchpoints.some((t) => t.channel === c && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 

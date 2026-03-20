@@ -641,7 +641,7 @@ export function StoreProvider({ children }) {
     const meetings = state.prospects.filter((p) => p.status === "Meeting Booked").length;
     const replyChannels = new Set(["Email", "LinkedIn"]);
     const contactedViaEL = state.prospects.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel)));
-    const replied = contactedViaEL.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel) && tp.status === "Replied")).length;
+    const replied = contactedViaEL.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel) && (tp.status === "Replied" || tp.status === "Meeting Booked"))).length;
     const totalTp = state.prospects.reduce((a, p) => a + p.touchpoints.length, 0);
     const needsTouch3 = state.prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 3; }).length;
     const needsTouch7 = state.prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 7; }).length;

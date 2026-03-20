@@ -69,7 +69,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
       STATUSES.forEach((s) => { statusCounts[s] = members.filter((p) => p.status === s).length; });
       const replyChannels = new Set(["Email", "LinkedIn"]);
       const contactedViaEL = members.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel)));
-      const replied = contactedViaEL.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel) && tp.status === "Replied")).length;
+      const replied = contactedViaEL.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel) && (tp.status === "Replied" || tp.status === "Meeting Booked"))).length;
       const meetings = members.filter((p) => p.status === "Meeting Booked").length;
       const needsTouch = members.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
       return { name, members, statusCounts, replied, meetings, needsTouch, replyRate: contactedViaEL.length ? Math.round((replied / contactedViaEL.length) * 100) : 0 };
