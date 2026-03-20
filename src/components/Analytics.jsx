@@ -472,26 +472,39 @@ export default function Analytics({ onSelectProspect }) {
       const tps = members.flatMap((p) => p.touchpoints);
       const totalTp = tps.length;
       const avgTp = totalP ? Math.round((totalTp / totalP) * 10) / 10 : 0;
+      const contacted = members.filter((p) => p.touchpoints.length > 0).length;
       const replied = members.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
       const meetings = members.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       const opportunity = members.filter((p) => p.status === "Opportunity").length;
       const notInterested = members.filter((p) => p.status === "Not Interested").length;
+      const noResponse = members.filter((p) => p.status === "No Response").length;
+      const wrongInvalid = members.filter((p) => p.status === "Wrong/Invalid").length;
       const callBackC = members.filter((p) => p.status === "Call Back").length;
       const nurtureC = members.filter((p) => p.status === "Nurture").length;
+      const trialsC = members.filter((p) => p.status === "Trials").length;
+      const dnpBusy = members.filter((p) => p.status === "DNP/Busy").length;
+      const connectedPos = members.filter((p) => p.status === "Connected +ve").length;
       const untouchedC = members.filter((p) => p.touchpoints.length === 0).length;
       const starredC = members.filter((p) => p.starred).length;
       const replyRate = totalP ? Math.round((replied / totalP) * 100) : 0;
+      const deadCount = notInterested + noResponse + wrongInvalid;
+      const deadRate = totalP ? Math.round((deadCount / totalP) * 100) : 0;
       const industry = members[0]?.industry || "—";
 
-      // Channels used
-      const channelSet = new Set(tps.map((t) => t.channel));
-      const channelsUsed = [...channelSet];
+      // Channels used + channel touchpoint counts
+      const channelCounts = {};
+      tps.forEach((t) => { channelCounts[t.channel] = (channelCounts[t.channel] || 0) + 1; });
+      const channelsUsed = Object.keys(channelCounts);
+
+      // Touchpoint outcome breakdown (from touchpoints, not prospect status)
+      const tpOutcomes = {};
+      tps.forEach((t) => { const s = t.status || "No Outcome"; tpOutcomes[s] = (tpOutcomes[s] || 0) + 1; });
 
       // Status breakdown
       const statusBreakdown = {};
       members.forEach((p) => { statusBreakdown[p.status] = (statusBreakdown[p.status] || 0) + 1; });
 
-      // Staleness: max days since last touch across all members
+      // Staleness
       const stalenesses = members.map((p) => daysSinceLast(p)).filter((d) => d !== null);
       const maxStale = stalenesses.length ? Math.max(...stalenesses) : null;
       const avgStale = stalenesses.length ? Math.round(stalenesses.reduce((a, b) => a + b, 0) / stalenesses.length) : null;
@@ -500,11 +513,21 @@ export default function Analytics({ onSelectProspect }) {
       const allDates = tps.map((t) => t.date).sort();
       const lastActivityDate = allDates.length ? allDates[allDates.length - 1] : null;
 
+      // Velocity: avg days from creation to first reply for replied members
+      const repliedMembers = members.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status));
+      const velocities = repliedMembers.map((p) => {
+        const dates = p.touchpoints.map((t) => new Date(t.date)).sort((a, b) => a - b);
+        return dates.length ? Math.round((dates[dates.length - 1] - new Date(p.createdAt)) / 86400000) : null;
+      }).filter((v) => v !== null);
+      const velocity = velocities.length ? Math.round(velocities.reduce((a, b) => a + b, 0) / velocities.length) : null;
+
       return {
-        company, totalP, totalTp, avgTp, replied, meetings, opportunity, notInterested,
-        callBack: callBackC, nurture: nurtureC, untouched: untouchedC, starred: starredC,
-        replyRate, industry, channelsUsed, statusBreakdown,
-        maxStale, avgStale, lastActivityDate, members,
+        company, totalP, totalTp, avgTp, contacted, replied, meetings, opportunity,
+        notInterested, noResponse, wrongInvalid, deadCount, deadRate,
+        callBack: callBackC, nurture: nurtureC, trials: trialsC, dnpBusy, connectedPos,
+        untouched: untouchedC, starred: starredC, replyRate, industry,
+        channelsUsed, channelCounts, tpOutcomes, statusBreakdown,
+        maxStale, avgStale, lastActivityDate, velocity, members,
       };
     });
 
@@ -513,8 +536,26 @@ export default function Analytics({ onSelectProspect }) {
     const avgProspectsPerCompany = totalCompanies ? Math.round((total / totalCompanies) * 10) / 10 : 0;
     const companiesWithMeetings = companyStats.filter((c) => c.meetings > 0).length;
     const companiesWithReplies = companyStats.filter((c) => c.replied > 0).length;
+    const companiesWithOpps = companyStats.filter((c) => c.opportunity > 0).length;
     const companiesUntouched = companyStats.filter((c) => c.untouched === c.totalP).length;
     const companiesStale7 = companyStats.filter((c) => c.avgStale !== null && c.avgStale >= 7 && c.meetings === 0 && c.opportunity === 0).length;
+    const companiesWithNI = companyStats.filter((c) => c.notInterested > 0).length;
+    const companiesWithCB = companyStats.filter((c) => c.callBack > 0).length;
+    const companiesWithNurture = companyStats.filter((c) => c.nurture > 0).length;
+    const totalCompanyProspects = companyStats.reduce((a, c) => a + c.totalP, 0);
+    const totalCompanyTp = companyStats.reduce((a, c) => a + c.totalTp, 0);
+    const totalCompanyReplied = companyStats.reduce((a, c) => a + c.replied, 0);
+    const totalCompanyMeetings = companyStats.reduce((a, c) => a + c.meetings, 0);
+    const totalCompanyNI = companyStats.reduce((a, c) => a + c.notInterested, 0);
+    const totalCompanyCB = companyStats.reduce((a, c) => a + c.callBack, 0);
+    const totalCompanyNurture = companyStats.reduce((a, c) => a + c.nurture, 0);
+    const totalCompanyDead = companyStats.reduce((a, c) => a + c.deadCount, 0);
+    const overallCompanyReplyRate = totalCompanyProspects ? Math.round((totalCompanyReplied / totalCompanyProspects) * 100) : 0;
+    const overallCompanyDeadRate = totalCompanyProspects ? Math.round((totalCompanyDead / totalCompanyProspects) * 100) : 0;
+
+    // Avg velocity across all companies
+    const allVelocities = companyStats.map((c) => c.velocity).filter((v) => v !== null);
+    const avgCompanyVelocity = allVelocities.length ? Math.round(allVelocities.reduce((a, b) => a + b, 0) / allVelocities.length) : 0;
 
     // Top companies by reply rate (min 2 prospects)
     const topByReplyRate = [...companyStats].filter((c) => c.totalP >= 2).sort((a, b) => b.replyRate - a.replyRate).slice(0, 5);
@@ -522,26 +563,51 @@ export default function Analytics({ onSelectProspect }) {
     const topByEngagement = [...companyStats].sort((a, b) => b.totalTp - a.totalTp).slice(0, 5);
     // Most prospects
     const topBySize = [...companyStats].sort((a, b) => b.totalP - a.totalP).slice(0, 5);
+    // Worst dead rate (min 2 prospects)
+    const worstByDeadRate = [...companyStats].filter((c) => c.totalP >= 2 && c.deadCount > 0).sort((a, b) => b.deadRate - a.deadRate).slice(0, 5);
+    // Companies in follow-up pipeline (CB + Nurture + Trials)
+    const companiesInFollowUp = companyStats.filter((c) => c.callBack > 0 || c.nurture > 0 || c.trials > 0).sort((a, b) => (b.callBack + b.nurture + b.trials) - (a.callBack + a.nurture + a.trials));
 
-    // Company industry distribution
+    // Company industry distribution (enhanced)
     const companyByIndustry = {};
     companyStats.forEach((c) => {
       const ind = c.industry || "—";
-      if (!companyByIndustry[ind]) companyByIndustry[ind] = { count: 0, prospects: 0, replied: 0, meetings: 0 };
+      if (!companyByIndustry[ind]) companyByIndustry[ind] = { count: 0, prospects: 0, replied: 0, meetings: 0, notInterested: 0, callBack: 0, nurture: 0, dead: 0 };
       companyByIndustry[ind].count++;
       companyByIndustry[ind].prospects += c.totalP;
       companyByIndustry[ind].replied += c.replied;
       companyByIndustry[ind].meetings += c.meetings;
+      companyByIndustry[ind].notInterested += c.notInterested;
+      companyByIndustry[ind].callBack += c.callBack;
+      companyByIndustry[ind].nurture += c.nurture;
+      companyByIndustry[ind].dead += c.deadCount;
     });
 
-    // Company funnel
+    // Company funnel (enhanced with outcomes)
     const companyFunnel = [
       { label: "Total Companies", val: totalCompanies, color: "var(--primary)", pct: 100 },
       { label: "With Activity", val: companyStats.filter((c) => c.totalTp > 0).length, color: "var(--info)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.totalTp > 0).length / totalCompanies) * 100) : 0 },
       { label: "With Replies", val: companiesWithReplies, color: "var(--success)", pct: totalCompanies ? Math.round((companiesWithReplies / totalCompanies) * 100) : 0 },
       { label: "With Meetings", val: companiesWithMeetings, color: "var(--accent)", pct: totalCompanies ? Math.round((companiesWithMeetings / totalCompanies) * 100) : 0 },
-      { label: "With Opportunity", val: companyStats.filter((c) => c.opportunity > 0).length, color: "var(--success-bright)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.opportunity > 0).length / totalCompanies) * 100) : 0 },
+      { label: "With Opportunity", val: companiesWithOpps, color: "var(--success-bright)", pct: totalCompanies ? Math.round((companiesWithOpps / totalCompanies) * 100) : 0 },
     ];
+
+    // Company drop-offs (mirroring prospect funnel)
+    const companyWithActivity = companyStats.filter((c) => c.totalTp > 0).length;
+    const companyDropOffs = [
+      { from: "Active → Replied", lost: companyWithActivity - companiesWithReplies, rate: companyWithActivity ? Math.round((1 - companiesWithReplies / companyWithActivity) * 100) : 0 },
+      { from: "Replied → Meeting", lost: companiesWithReplies - companiesWithMeetings, rate: companiesWithReplies ? Math.round((1 - companiesWithMeetings / companiesWithReplies) * 100) : 0 },
+      { from: "Meeting → Opportunity", lost: companiesWithMeetings - companiesWithOpps, rate: companiesWithMeetings ? Math.round((1 - companiesWithOpps / companiesWithMeetings) * 100) : 0 },
+    ];
+
+    // Channel effectiveness at company level
+    const companyChannelStats = CHANNELS.map((ch) => {
+      const companiesUsingChannel = companyStats.filter((c) => c.channelsUsed.includes(ch));
+      const totalTpForChannel = companiesUsingChannel.reduce((a, c) => a + (c.channelCounts[ch] || 0), 0);
+      const companiesReplied = companiesUsingChannel.filter((c) => c.replied > 0).length;
+      const rate = companiesUsingChannel.length ? Math.round((companiesReplied / companiesUsingChannel.length) * 100) : 0;
+      return { channel: ch, companies: companiesUsingChannel.length, totalTp: totalTpForChannel, companiesReplied, rate };
+    }).filter((c) => c.companies > 0).sort((a, b) => b.rate - a.rate);
 
     // Company size distribution
     const companySizeBuckets = [
@@ -551,14 +617,29 @@ export default function Analytics({ onSelectProspect }) {
       { label: "7+ prospects", filter: (c) => c.totalP >= 7, color: "var(--warning-alt)" },
     ].map((b) => {
       const group = companyStats.filter(b.filter);
-      return { ...b, count: group.length, prospects: group.reduce((a, c) => a + c.totalP, 0) };
+      const repliedInGroup = group.reduce((a, c) => a + c.replied, 0);
+      const prospectsInGroup = group.reduce((a, c) => a + c.totalP, 0);
+      return { ...b, count: group.length, prospects: prospectsInGroup, replyRate: prospectsInGroup ? Math.round((repliedInGroup / prospectsInGroup) * 100) : 0 };
+    });
+
+    // Outcome distribution across all company prospects
+    const companyOutcomeDist = {};
+    companyStats.forEach((c) => {
+      Object.entries(c.statusBreakdown).forEach(([status, count]) => {
+        companyOutcomeDist[status] = (companyOutcomeDist[status] || 0) + count;
+      });
     });
 
     const companyAnalytics = {
       companyStats, totalCompanies, avgProspectsPerCompany,
-      companiesWithMeetings, companiesWithReplies, companiesUntouched, companiesStale7,
-      topByReplyRate, topByEngagement, topBySize,
-      companyByIndustry, companyFunnel, companySizeBuckets,
+      companiesWithMeetings, companiesWithReplies, companiesWithOpps, companiesUntouched, companiesStale7,
+      companiesWithNI, companiesWithCB, companiesWithNurture,
+      totalCompanyProspects, totalCompanyTp, totalCompanyReplied, totalCompanyMeetings,
+      totalCompanyNI, totalCompanyCB, totalCompanyNurture, totalCompanyDead,
+      overallCompanyReplyRate, overallCompanyDeadRate, avgCompanyVelocity,
+      topByReplyRate, topByEngagement, topBySize, worstByDeadRate, companiesInFollowUp,
+      companyByIndustry, companyFunnel, companyDropOffs, companyChannelStats,
+      companySizeBuckets, companyOutcomeDist,
     };
 
     return {
@@ -681,15 +762,19 @@ export default function Analytics({ onSelectProspect }) {
 
         return (
           <>
-            {/* Company KPI strip */}
+            {/* Company KPI strip — expanded with all outcomes */}
             <div className="analytics-kpi-row">
               {[
                 { label: "Companies", val: ca.totalCompanies, color: "var(--primary)" },
                 { label: "Avg Prospects", val: ca.avgProspectsPerCompany, color: "var(--info)" },
-                { label: "With Replies", val: ca.companiesWithReplies, color: "var(--success)" },
+                { label: "Reply Rate", val: `${ca.overallCompanyReplyRate}%`, color: "var(--success)" },
                 { label: "With Meetings", val: ca.companiesWithMeetings, color: "var(--accent)" },
-                { label: "Fully Untouched", val: ca.companiesUntouched, color: "var(--danger)" },
-                { label: "Stale 7d+", val: ca.companiesStale7, color: "var(--warning-alt)" },
+                { label: "With Opps", val: ca.companiesWithOpps, color: "var(--success-bright)" },
+                { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)" },
+                { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)" },
+                { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)" },
+                { label: "Dead Rate", val: `${ca.overallCompanyDeadRate}%`, color: "var(--danger-bright)" },
+                { label: "Avg Velocity", val: ca.avgCompanyVelocity ? `${ca.avgCompanyVelocity}d` : "—", color: "var(--warning)" },
               ].map((k) => (
                 <div key={k.label} className="analytics-kpi">
                   <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
@@ -698,7 +783,31 @@ export default function Analytics({ onSelectProspect }) {
               ))}
             </div>
 
-            {/* Company Funnel + Size Distribution */}
+            {/* Health Alerts */}
+            {(ca.companiesUntouched > 0 || ca.companiesStale7 > 0 || ca.companiesWithNI > 0) && (
+              <div className="flex gap-12 flex-wrap">
+                {ca.companiesUntouched > 0 && (
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesUntouched}</div>
+                    <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with zero touchpoints</div>
+                  </div>
+                )}
+                {ca.companiesStale7 > 0 && (
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{ca.companiesStale7}</div>
+                    <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>companies stale 7+ days</div>
+                  </div>
+                )}
+                {ca.companiesWithNI > 0 && (
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesWithNI}</div>
+                    <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with Not Interested</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Company Funnel + Drop-off Analysis (mirrors prospect view) */}
             <div className="analytics-grid-2">
               <div className="card">
                 <div className="card-title">Company Conversion Funnel</div>
@@ -713,7 +822,60 @@ export default function Analytics({ onSelectProspect }) {
                       <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
                     </div>
                   ))}
+                  <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
+                    {[
+                      { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)" },
+                      { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)" },
+                      { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)" },
+                      { label: "Dead", val: ca.totalCompanyDead, color: "var(--danger-bright)" },
+                    ].map((x) => (
+                      <div key={x.label} className="flex flex-col gap-4">
+                        <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
+                        <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
+                      </div>
+                    ))}
+                    <div className="ml-auto flex flex-col gap-4">
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{ca.overallCompanyDeadRate}%</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
+                    </div>
+                  </div>
                 </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Stage Drop-off</div>
+                <div className="flex flex-col gap-16">
+                  {ca.companyDropOffs.map((d) => (
+                    <div key={d.from}>
+                      <div className="flex justify-between mb-6">
+                        <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{d.from}</span>
+                        <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)" }}>{d.rate}% drop</span>
+                      </div>
+                      <MiniBar pct={d.rate} color={d.rate > 60 ? "var(--danger-bright)" : d.rate > 30 ? "var(--warning-alt)" : "var(--success)"} height={6} />
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 4 }}>{d.lost} companies lost</div>
+                    </div>
+                  ))}
+                  <div className="pt-12 border-t">
+                    <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 4 }}>Avg velocity (add → reply)</div>
+                    <div style={{ fontSize: 23, fontWeight: 700, color: "var(--primary-light)" }}>{ca.avgCompanyVelocity ? `${ca.avgCompanyVelocity}d` : "—"}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 2 }}>{ca.totalCompanyProspects} prospects across {ca.totalCompanies} companies</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Outcome Distribution + Company Size + Channel Effectiveness */}
+            <div className="analytics-grid-3">
+              <div className="card">
+                <div className="card-title">Outcome Distribution</div>
+                {Object.entries(ca.companyOutcomeDist).sort((a, b) => b[1] - a[1]).map(([status, cnt]) => {
+                  const pct = ca.totalCompanyProspects ? (cnt / ca.totalCompanyProspects) * 100 : 0;
+                  return (
+                    <div key={status} className="mb-8">
+                      <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[status]?.text || "var(--text-sec)" }}>{status}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
+                      <MiniBar pct={pct} color={STATUS_COLORS[status]?.text || "var(--text-dim)"} />
+                    </div>
+                  );
+                })}
               </div>
               <div className="card">
                 <div className="card-title">Company Size Distribution</div>
@@ -726,15 +888,65 @@ export default function Analytics({ onSelectProspect }) {
                       <div style={{ height: 4, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
                         <div style={{ height: "100%", width: `${ca.totalCompanies ? (b.count / ca.totalCompanies) * 100 : 0}%`, background: b.color, borderRadius: 2 }} />
                       </div>
-                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{b.prospects} prospects total</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{b.prospects} prospects · {b.replyRate}% reply</div>
                     </div>
                   ))}
                 </div>
               </div>
+              <div className="card">
+                <div className="card-title">Channel Effectiveness</div>
+                {ca.companyChannelStats.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No channel data yet</div> :
+                  ca.companyChannelStats.map((ch) => (
+                    <div key={ch.channel} className="mb-12">
+                      <div className="flex justify-between mb-4">
+                        <span style={{ fontSize: 14 }}>{CHANNEL_ICONS[ch.channel]} {ch.channel}</span>
+                        <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: ch.rate > 30 ? "var(--success)" : ch.rate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{ch.rate}%</span>
+                      </div>
+                      <MiniBar pct={ch.rate} color={ch.rate > 30 ? "var(--success)" : ch.rate > 15 ? "var(--warning)" : "var(--text-dim)"} />
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{ch.companiesReplied}/{ch.companies} companies replied · {ch.totalTp} touches</div>
+                    </div>
+                  ))}
+              </div>
             </div>
 
-            {/* Top Companies — 3 columns */}
+            {/* Follow Up Pipeline + Worst Performers */}
             <div className="analytics-grid-3">
+              <div className="card">
+                <div className="card-title">Follow Up Pipeline</div>
+                <div className="flex flex-col gap-16" style={{ paddingTop: 4 }}>
+                  {[
+                    { label: "Call Back", val: ca.totalCompanyCB, cos: ca.companiesWithCB, color: "var(--warning-alt)", bg: "var(--warning-bg)", desc: "Awaiting callback" },
+                    { label: "Nurture", val: ca.totalCompanyNurture, cos: ca.companiesWithNurture, color: "var(--accent-light)", bg: "var(--accent-bg)", desc: "Long-term nurture" },
+                  ].map((item) => (
+                    <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
+                      <div className="flex justify-between items-center mb-4">
+                        <span style={{ fontSize: 14, color: item.color, fontWeight: 600 }}>{item.label}</span>
+                        <span style={{ fontSize: 23, fontWeight: 700, color: item.color }}>{item.val}</span>
+                      </div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{item.desc} · {item.cos} {item.cos === 1 ? "company" : "companies"}</div>
+                      <div style={{ height: 3, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
+                        <div style={{ height: "100%", width: `${ca.totalCompanyProspects ? (item.val / ca.totalCompanyProspects) * 100 : 0}%`, background: item.color, borderRadius: 2 }} />
+                      </div>
+                    </div>
+                  ))}
+                  {ca.companiesInFollowUp.length > 0 && (
+                    <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 8 }}>TOP FOLLOW-UP COMPANIES</div>
+                      {ca.companiesInFollowUp.slice(0, 5).map((c) => (
+                        <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 6, marginBottom: 3, cursor: "pointer", background: "var(--surface)" }}
+                          onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="truncate" style={{ fontSize: 13, fontWeight: 600 }}>{c.company}</div>
+                          </div>
+                          <span className="mono" style={{ fontSize: 12, color: "var(--warning-alt)" }}>{c.callBack} CB</span>
+                          <span className="mono" style={{ fontSize: 12, color: "var(--accent-light)" }}>{c.nurture} N</span>
+                          {c.trials > 0 && <span className="mono" style={{ fontSize: 12, color: "var(--info-bright)" }}>{c.trials} T</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="card">
                 <div className="card-title">Top by Reply Rate</div>
                 {ca.topByReplyRate.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>Need 2+ prospects per company</div> :
@@ -751,6 +963,47 @@ export default function Analytics({ onSelectProspect }) {
                   ))}
               </div>
               <div className="card">
+                <div className="card-title">Worst by Dead Rate</div>
+                {ca.worstByDeadRate.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>No dead prospects yet</div> :
+                  ca.worstByDeadRate.map((c, i) => (
+                    <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                      onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.deadCount} dead</div>
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: c.deadRate > 50 ? "var(--danger)" : "var(--warning-alt)" }}>{c.deadRate}%</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Industry breakdown + Top by Engagement */}
+            <div className="analytics-grid-2">
+              <div className="card">
+                <div className="card-title">Companies by Industry</div>
+                <div style={{ overflowX: "auto" }}>
+                  <div className="flex flex-col">
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 50px 55px 50px 50px 40px 40px 40px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+                      {["Industry", "Cos", "Prsps", "Reply", "Mtgs", "NI", "CB", "Nurt"].map((h) => <div key={h} className="mono" style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".04em" }}>{h}</div>)}
+                    </div>
+                    {Object.entries(ca.companyByIndustry).sort((a, b) => b[1].count - a[1].count).map(([ind, d]) => (
+                      <div key={ind} style={{ display: "grid", gridTemplateColumns: "1fr 50px 55px 50px 50px 40px 40px 40px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                        <div style={{ fontSize: 13, color: "var(--text-sec)" }}>{ind}</div>
+                        <div className="mono" style={{ fontSize: 13, color: "var(--primary-light)", fontWeight: 600 }}>{d.count}</div>
+                        <div className="mono" style={{ fontSize: 13, color: "var(--text-muted)" }}>{d.prospects}</div>
+                        <div className="mono" style={{ fontSize: 13, color: "var(--success)" }}>{d.replied}</div>
+                        <div className="mono" style={{ fontSize: 13, color: "var(--accent)" }}>{d.meetings}</div>
+                        <div className="mono" style={{ fontSize: 13, color: d.notInterested > 0 ? "var(--danger)" : "var(--text-dim)" }}>{d.notInterested}</div>
+                        <div className="mono" style={{ fontSize: 13, color: d.callBack > 0 ? "var(--warning-alt)" : "var(--text-dim)" }}>{d.callBack}</div>
+                        <div className="mono" style={{ fontSize: 13, color: d.nurture > 0 ? "var(--accent-light)" : "var(--text-dim)" }}>{d.nurture}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="card">
                 <div className="card-title">Top by Engagement</div>
                 {ca.topByEngagement.map((c, i) => (
                   <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
@@ -758,66 +1011,11 @@ export default function Analytics({ onSelectProspect }) {
                     <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
-                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.avgTp} avg tp</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.avgTp} avg tp · {c.replyRate}% reply</div>
                     </div>
                     <span style={{ fontSize: 16, fontWeight: 700, color: "var(--primary-light)" }}>{c.totalTp} tp</span>
                   </div>
                 ))}
-              </div>
-              <div className="card">
-                <div className="card-title">Largest Accounts</div>
-                {ca.topBySize.map((c, i) => (
-                  <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
-                    onClick={() => drillList(`Company: ${c.company}`, c.members)}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
-                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.industry} · {c.replyRate}% reply</div>
-                    </div>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>{c.totalP}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Industry breakdown for companies */}
-            <div className="analytics-grid-2">
-              <div className="card">
-                <div className="card-title">Companies by Industry</div>
-                <div className="flex flex-col">
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
-                    {["Industry", "Cos", "Prospects", "Replies", "Mtgs"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
-                  </div>
-                  {Object.entries(ca.companyByIndustry).sort((a, b) => b[1].count - a[1].count).map(([ind, d]) => (
-                    <div key={ind} style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
-                      <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind}</div>
-                      <div className="mono" style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{d.count}</div>
-                      <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{d.prospects}</div>
-                      <div className="mono" style={{ fontSize: 14, color: "var(--success)" }}>{d.replied}</div>
-                      <div className="mono" style={{ fontSize: 14, color: "var(--accent)" }}>{d.meetings}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="card">
-                <div className="card-title">Company Health Alerts</div>
-                <div className="flex flex-col gap-12">
-                  {ca.companiesUntouched > 0 && (
-                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesUntouched}</div>
-                      <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with zero touchpoints</div>
-                    </div>
-                  )}
-                  {ca.companiesStale7 > 0 && (
-                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{ca.companiesStale7}</div>
-                      <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>companies stale 7+ days (no meetings/opps)</div>
-                    </div>
-                  )}
-                  {ca.companiesUntouched === 0 && ca.companiesStale7 === 0 && (
-                    <div style={{ textAlign: "center", padding: 20, color: "var(--success)", fontSize: 14 }}>All companies are being actively worked</div>
-                  )}
-                </div>
               </div>
             </div>
 
@@ -841,10 +1039,13 @@ export default function Analytics({ onSelectProspect }) {
                       <SortHeader col="company" label="Company" />
                       <SortHeader col="industry" label="Industry" />
                       <SortHeader col="prospects" label="Prospects" />
-                      <SortHeader col="touchpoints" label="Touchpoints" />
+                      <SortHeader col="touchpoints" label="Touches" />
                       <SortHeader col="replyRate" label="Reply %" />
-                      <SortHeader col="meetings" label="Meetings" />
-                      <SortHeader col="staleness" label="Avg Stale" />
+                      <SortHeader col="meetings" label="Mtgs" />
+                      <th style={{ whiteSpace: "nowrap" }}>NI</th>
+                      <th style={{ whiteSpace: "nowrap" }}>CB</th>
+                      <th style={{ whiteSpace: "nowrap" }}>Dead%</th>
+                      <SortHeader col="staleness" label="Stale" />
                       <th>Pipeline</th>
                     </tr>
                   </thead>
@@ -863,11 +1064,14 @@ export default function Analytics({ onSelectProspect }) {
                         <td style={{ fontSize: 13, color: "var(--text-muted)" }}>{c.industry}</td>
                         <td className="mono" style={{ fontSize: 14 }}>
                           {c.totalP}
-                          {c.untouched > 0 && <span style={{ fontSize: 11, color: "var(--danger)", marginLeft: 4 }}>({c.untouched} untouched)</span>}
+                          {c.untouched > 0 && <span style={{ fontSize: 11, color: "var(--danger)", marginLeft: 4 }}>({c.untouched})</span>}
                         </td>
-                        <td className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>{c.totalTp} <span style={{ color: "var(--text-dim)" }}>({c.avgTp}/p)</span></td>
+                        <td className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>{c.totalTp}</td>
                         <td className="mono" style={{ fontSize: 14, fontWeight: 600, color: c.replyRate > 30 ? "var(--success)" : c.replyRate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{c.replyRate}%</td>
                         <td className="mono" style={{ fontSize: 14, color: c.meetings > 0 ? "var(--accent)" : "var(--text-dim)" }}>{c.meetings}</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.notInterested > 0 ? "var(--danger)" : "var(--text-dim)" }}>{c.notInterested}</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.callBack > 0 ? "var(--warning-alt)" : "var(--text-dim)" }}>{c.callBack}</td>
+                        <td className="mono" style={{ fontSize: 14, fontWeight: 600, color: c.deadRate > 50 ? "var(--danger)" : c.deadRate > 25 ? "var(--warning-alt)" : "var(--text-dim)" }}>{c.deadRate}%</td>
                         <td className="mono" style={{ fontSize: 14, color: c.avgStale !== null ? (c.avgStale >= 14 ? "var(--danger)" : c.avgStale >= 7 ? "var(--warning-alt)" : "var(--success)") : "var(--text-dim)" }}>
                           {c.avgStale !== null ? `${c.avgStale}d` : "—"}
                         </td>
@@ -887,7 +1091,7 @@ export default function Analytics({ onSelectProspect }) {
                       </tr>
                     ))}
                     {filteredCompanies.length === 0 && (
-                      <tr><td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--text-dim)" }}>No companies match your search</td></tr>
+                      <tr><td colSpan={11} style={{ textAlign: "center", padding: 30, color: "var(--text-dim)" }}>No companies match your search</td></tr>
                     )}
                   </tbody>
                 </table>
