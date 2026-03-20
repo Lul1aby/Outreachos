@@ -639,14 +639,16 @@ export function StoreProvider({ children }) {
   const stats = useMemo(() => {
     const t = state.prospects.length;
     const meetings = state.prospects.filter((p) => p.status === "Meeting Booked").length;
-    const replied = state.prospects.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
+    const replyChannels = new Set(["Email", "LinkedIn"]);
+    const contactedViaEL = state.prospects.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel)));
+    const replied = contactedViaEL.filter((p) => p.touchpoints.some((tp) => replyChannels.has(tp.channel) && tp.status === "Replied")).length;
     const totalTp = state.prospects.reduce((a, p) => a + p.touchpoints.length, 0);
     const needsTouch3 = state.prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 3; }).length;
     const needsTouch7 = state.prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
     const won = state.prospects.filter((p) => p.status === "Opportunity").length;
     return {
       total: t, meetings, replied, totalTp, won, needsTouch3, needsTouch7,
-      replyRate: t ? Math.round((replied / t) * 100) : 0,
+      replyRate: contactedViaEL.length ? Math.round((replied / contactedViaEL.length) * 100) : 0,
       winRate: t ? Math.round((won / t) * 100) : 0,
     };
   }, [state.prospects]);

@@ -284,10 +284,10 @@ export default function Analytics({ onSelectProspect }) {
       return { name: c, total: touched.length, callBack: cb, nurture: nu, followUp: cb + nu, rate: touched.length ? Math.round(((cb + nu) / touched.length) * 100) : 0 };
     }).filter((r) => r.total > 0).sort((a, b) => b.followUp - a.followUp);
 
-    /* ── Channel reply rate ── */
-    const channelReply = CHANNELS.map((c) => {
+    /* ── Channel reply rate (Email & LinkedIn only) ── */
+    const channelReply = ["Email", "LinkedIn"].map((c) => {
       const touched = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
-      const r = touched.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const r = touched.filter((p) => p.touchpoints.some((t) => t.channel === c && t.status === "Replied")).length;
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 
