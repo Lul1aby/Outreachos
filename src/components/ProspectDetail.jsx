@@ -858,7 +858,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
                               </select>
                             </div>
                             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <input type="date" className="form-input" style={{ marginBottom: 0, width: "auto" }} value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} />
+                              <CalendarPicker value={editForm.date} onChange={(d) => setEditForm((f) => ({ ...f, date: d }))} />
                             </div>
                             <textarea className="form-textarea" rows={2} style={{ marginBottom: 0 }} value={editForm.note} placeholder="Note…" onChange={(e) => setEditForm((f) => ({ ...f, note: e.target.value }))} />
                             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -946,7 +946,7 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Date</div>
-                  <input type="date" className="form-input" value={cbDate} onChange={(e) => setCbDate(e.target.value)} style={{ width: 160 }} />
+                  <CalendarPicker value={cbDate} onChange={setCbDate} />
                 </div>
                 <div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Time</div>

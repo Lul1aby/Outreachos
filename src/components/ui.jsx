@@ -109,10 +109,19 @@ export function CalendarPicker({ value, onChange }) {
       const rect = btnRef.current.getBoundingClientRect();
       const dropW = 240, dropH = 280;
       const left = Math.min(rect.left, window.innerWidth - dropW - 8);
-      const top = rect.bottom + dropH > window.innerHeight
-        ? rect.top - dropH - 4   // flip above if no room below
-        : rect.bottom + 6;
-      setDropPos({ top, left });
+      // If dropdown would go below viewport, scroll the page to make room
+      if (rect.bottom + dropH > window.innerHeight) {
+        const scrollNeeded = rect.bottom + dropH - window.innerHeight + 20;
+        window.scrollBy({ top: scrollNeeded, behavior: "smooth" });
+        // Recalculate position after scroll settles
+        setTimeout(() => {
+          const r2 = btnRef.current.getBoundingClientRect();
+          setDropPos({ top: r2.bottom + 6, left: Math.min(r2.left, window.innerWidth - dropW - 8) });
+        }, 300);
+        setDropPos({ top: rect.bottom + 6, left });
+      } else {
+        setDropPos({ top: rect.bottom + 6, left });
+      }
     }
     setOpen((o) => !o);
   }

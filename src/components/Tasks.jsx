@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useStore } from "../store";
 import { CHANNELS, CHANNEL_ICONS, CHANNEL_OUTCOMES } from "../constants";
 import { todayStr, nowTimeStr, normalizeLinkedIn } from "../utils";
-import { Badge } from "./ui";
+import { Badge, CalendarPicker } from "./ui";
 
 export default function Tasks({ onSelect, onNavigate }) {
   const { tasksToday, dispatch } = useStore();
@@ -301,7 +301,7 @@ export default function Tasks({ onSelect, onNavigate }) {
                         <>
                           <div style={{ flex: "0 0 auto" }}>
                             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Date</div>
-                            <input type="date" className="form-input" value={cbDate} onChange={(e) => setCbDate(e.target.value)} style={{ marginBottom: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6 }} />
+                            <CalendarPicker value={cbDate} onChange={setCbDate} />
                           </div>
                           <div style={{ flex: "0 0 auto" }}>
                             <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Time</div>

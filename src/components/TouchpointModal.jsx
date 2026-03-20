@@ -87,12 +87,10 @@ export default function TouchpointModal({ prospectId, onClose }) {
           setForm((f) => ({ ...f, channel, status: CHANNEL_OUTCOMES[channel][0] }));
         }}
       />
-      <Input
-        label="Date"
-        type="date"
-        value={form.date}
-        onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-      />
+      <div className="form-group">
+        <label className="form-label">Date</label>
+        <CalendarPicker value={form.date} onChange={(d) => setForm((f) => ({ ...f, date: d }))} />
+      </div>
       <Select
         label="Outcome"
         options={CHANNEL_OUTCOMES[form.channel]}
