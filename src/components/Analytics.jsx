@@ -291,7 +291,7 @@ export default function Analytics({ onSelectProspect }) {
       return { name: c, touched: touched.length, replied: r, rate: touched.length ? Math.round((r / touched.length) * 100) : 0, totalTp: byChannel[c] };
     }).filter((c) => c.touched > 0).sort((a, b) => b.rate - a.rate);
 
-    /* ── Outcome breakdown per channel (NEW: shows exactly what happened on each channel) ── */
+    /* ── Outcome breakdown per channel — detailed stats ── */
     const channelOutcomes = CHANNELS.map((c) => {
       const tps = allTp.filter((t) => t.channel === c);
       if (!tps.length) return null;
@@ -299,6 +299,49 @@ export default function Analytics({ onSelectProspect }) {
       tps.forEach((t) => { const s = t.status || "No Outcome"; outcomes[s] = (outcomes[s] || 0) + 1; });
       const sorted = Object.entries(outcomes).sort((a, b) => b[1] - a[1]);
       return { channel: c, total: tps.length, outcomes: sorted };
+    }).filter(Boolean);
+
+    /* ── Per-channel deep analytics ── */
+    const replyChannels = new Set(["Email", "LinkedIn"]);
+    const channelDeep = CHANNELS.map((c) => {
+      const tps = allTp.filter((t) => t.channel === c);
+      if (!tps.length) return null;
+      const prospectsOnChannel = prospects.filter((p) => p.touchpoints.some((t) => t.channel === c));
+      const outcomeCounts = {};
+      tps.forEach((t) => { const s = t.status || "No Outcome"; outcomeCounts[s] = (outcomeCounts[s] || 0) + 1; });
+
+      // Unique prospects who got each outcome on this channel
+      const prospectsByOutcome = {};
+      prospectsOnChannel.forEach((p) => {
+        const seen = new Set();
+        p.touchpoints.filter((t) => t.channel === c).forEach((t) => {
+          const s = t.status || "No Outcome";
+          if (!seen.has(s)) { seen.add(s); prospectsByOutcome[s] = (prospectsByOutcome[s] || 0) + 1; }
+        });
+      });
+
+      // Reply rate only for Email/LinkedIn
+      let replyRate = null;
+      let repliedCount = 0;
+      if (replyChannels.has(c)) {
+        repliedCount = prospectsOnChannel.filter((p) => p.touchpoints.some((t) => t.channel === c && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
+        replyRate = prospectsOnChannel.length ? Math.round((repliedCount / prospectsOnChannel.length) * 100) : 0;
+      }
+
+      // Conversion: meetings booked from this channel
+      const meetingsFromChannel = tps.filter((t) => t.status === "Meeting Booked").length;
+      const niFromChannel = tps.filter((t) => t.status === "Not Interested").length;
+      const niRate = tps.length ? Math.round((niFromChannel / tps.length) * 100) : 0;
+
+      // Avg touches per prospect on this channel
+      const avgTouches = prospectsOnChannel.length ? Math.round((tps.length / prospectsOnChannel.length) * 10) / 10 : 0;
+
+      return {
+        channel: c, total: tps.length, prospects: prospectsOnChannel.length,
+        outcomeCounts, prospectsByOutcome, replyRate, repliedCount,
+        meetingsFromChannel, niFromChannel, niRate, avgTouches,
+        outcomes: Object.entries(outcomeCounts).sort((a, b) => b[1] - a[1]),
+      };
     }).filter(Boolean);
 
     /* ── Touchpoints → reply ── */
@@ -346,10 +389,11 @@ export default function Analytics({ onSelectProspect }) {
     const IND_COLORS = ["var(--primary)", "var(--accent)", "var(--info)", "var(--success)", "var(--warning)", "var(--warning-alt)", "var(--danger)"];
     const industryStats = INDUSTRIES.filter((i) => prospects.filter((p) => p.industry === i).length > 0).map((i, idx) => {
       const ind = prospects.filter((p) => p.industry === i);
-      const r = ind.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const indEL = ind.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
+      const r = indEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
       const m = ind.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       const ni = ind.filter((p) => p.status === "Not Interested").length;
-      return { name: i, total: ind.length, replied: r, meetings: m, notInterested: ni, replyRate: ind.length ? Math.round((r / ind.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
+      return { name: i, total: ind.length, replied: r, meetings: m, notInterested: ni, replyRate: indEL.length ? Math.round((r / indEL.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
     /* ── Touchpoint distribution buckets ── */
@@ -360,8 +404,9 @@ export default function Analytics({ onSelectProspect }) {
       { label: "15+ touches", filter: (p) => p.touchpoints.length > 15, color: "var(--warning-alt)" },
     ].map((b) => {
       const group = prospects.filter(b.filter);
-      const r = group.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
-      return { ...b, count: group.length, replyRate: group.length ? Math.round((r / group.length) * 100) : 0 };
+      const groupEL = group.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
+      const r = groupEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
+      return { ...b, count: group.length, replyRate: groupEL.length ? Math.round((r / groupEL.length) * 100) : 0 };
     });
 
     /* ── Stale prospects (NEW) ── */
@@ -386,8 +431,8 @@ export default function Analytics({ onSelectProspect }) {
       CHANNELS.forEach((c) => { byC[c] = tps.filter((t) => t.channel === c).length; });
       const prevByC = {};
       CHANNELS.forEach((c) => { prevByC[c] = prevTps.filter((t) => t.channel === c).length; });
-      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
-      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
+      const replies = tps.filter((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked")).length;
+      const prevReplies = prevTps.filter((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked")).length;
       const meetings = tps.filter((t) => t.status === "Meeting Booked").length;
       const prevMeetings = prevTps.filter((t) => t.status === "Meeting Booked").length;
       const opps = tps.filter((t) => t.status === "Opportunity").length;
@@ -453,10 +498,11 @@ export default function Analytics({ onSelectProspect }) {
     /* ── List performance (NEW) ── */
     const listStats = sourceLists.map((l) => {
       const lp = prospects.filter((p) => p.listName === l);
-      const r = lp.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const lpEL = lp.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
+      const r = lpEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
       const m = lp.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       const ni = lp.filter((p) => p.status === "Not Interested").length;
-      return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lp.length ? Math.round((r / lp.length) * 100) : 0 };
+      return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lpEL.length ? Math.round((r / lpEL.length) * 100) : 0 };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
     /* ── Company-level analytics ── */
@@ -473,7 +519,8 @@ export default function Analytics({ onSelectProspect }) {
       const totalTp = tps.length;
       const avgTp = totalP ? Math.round((totalTp / totalP) * 10) / 10 : 0;
       const contacted = members.filter((p) => p.touchpoints.length > 0).length;
-      const replied = members.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const membersEL = members.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
+      const replied = membersEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
       const meetings = members.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
       const opportunity = members.filter((p) => p.status === "Opportunity").length;
       const notInterested = members.filter((p) => p.status === "Not Interested").length;
@@ -486,7 +533,7 @@ export default function Analytics({ onSelectProspect }) {
       const connectedPos = members.filter((p) => p.status === "Connected +ve").length;
       const untouchedC = members.filter((p) => p.touchpoints.length === 0).length;
       const starredC = members.filter((p) => p.starred).length;
-      const replyRate = totalP ? Math.round((replied / totalP) * 100) : 0;
+      const replyRate = membersEL.length ? Math.round((replied / membersEL.length) * 100) : 0;
       const deadCount = notInterested + noResponse + wrongInvalid;
       const deadRate = totalP ? Math.round((deadCount / totalP) * 100) : 0;
       const industry = members[0]?.industry || "—";
@@ -550,7 +597,8 @@ export default function Analytics({ onSelectProspect }) {
     const totalCompanyCB = companyStats.reduce((a, c) => a + c.callBack, 0);
     const totalCompanyNurture = companyStats.reduce((a, c) => a + c.nurture, 0);
     const totalCompanyDead = companyStats.reduce((a, c) => a + c.deadCount, 0);
-    const overallCompanyReplyRate = totalCompanyProspects ? Math.round((totalCompanyReplied / totalCompanyProspects) * 100) : 0;
+    const totalCompanyEL = prospects.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn")).length;
+    const overallCompanyReplyRate = totalCompanyEL ? Math.round((totalCompanyReplied / totalCompanyEL) * 100) : 0;
     const overallCompanyDeadRate = totalCompanyProspects ? Math.round((totalCompanyDead / totalCompanyProspects) * 100) : 0;
 
     // Avg velocity across all companies
@@ -647,7 +695,7 @@ export default function Analytics({ onSelectProspect }) {
       callBack, nurture, trials, followUpByIndustry, followUpByChannel,
       rejByIndustry, rejByChannel, channelReply, channelOutcomes, byChannel,
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
-      last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets,
+      last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets, channelDeep,
       stale7, stale14, stale30, untouched, hotProspects, listStats, activityReview,
       companyAnalytics,
     };
@@ -1112,7 +1160,7 @@ export default function Analytics({ onSelectProspect }) {
           { label: "Total", val: data.total, color: "var(--primary)", filter: () => true },
           { label: "Touched", val: data.contacted, color: "var(--info)", filter: (p) => p.touchpoints.length > 0 },
           { label: "Untouched", val: data.untouched, color: "var(--text-dim)", filter: (p) => p.touchpoints.length === 0 },
-          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)", filter: (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Reply Rate", val: `${(() => { const rc = new Set(["Email", "LinkedIn"]); const el = prospects.filter((p) => p.touchpoints.some((t) => rc.has(t.channel))); const r = el.filter((p) => p.touchpoints.some((t) => rc.has(t.channel) && (t.status === "Replied" || t.status === "Meeting Booked"))).length; return el.length ? Math.round((r / el.length) * 100) : 0; })()}%`, color: "var(--success)", filter: (p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked")) },
           { label: "Meetings", val: data.meeting, color: "var(--accent)", filter: (p) => ["Meeting Booked", "Opportunity"].includes(p.status) },
           { label: "Opportunity", val: data.won, color: "var(--success-bright)", filter: (p) => p.status === "Opportunity" },
           { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", filter: (p) => p.status === "Call Back" },
@@ -1407,30 +1455,77 @@ export default function Analytics({ onSelectProspect }) {
         </div>
       </div>
 
-      {/* Channel Outcome Detail (NEW) */}
-      {data.channelOutcomes.length > 0 && (
+      {/* ── Per-Channel Deep Analytics ── */}
+      {data.channelDeep.length > 0 && (
         <div className="card">
-          <div className="card-title">Channel Outcome Breakdown — What Happened on Each Channel</div>
-          <div className="channel-eff-grid">
-            {data.channelOutcomes.map((co) => (
-              <div key={co.channel} className="channel-eff-card" style={{ padding: "14px 16px" }}>
-                <div style={{ fontSize: 18, marginBottom: 4 }}>{CHANNEL_ICONS[co.channel]}</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8 }}>{co.channel} <span className="mono" style={{ fontWeight: 400, color: "var(--text-dim)" }}>({co.total})</span></div>
-                {co.outcomes.map(([outcome, count]) => {
-                  const pct = Math.round((count / co.total) * 100);
-                  const c = STATUS_COLORS[outcome];
-                  return (
-                    <div key={outcome} className="mb-6">
-                      <div className="flex justify-between mb-2">
-                        <span style={{ fontSize: 13, color: c?.text || "var(--text-sec)" }}>{outcome}</span>
-                        <span className="mono" style={{ fontSize: 13, color: "var(--text-muted)" }}>{count} · {pct}%</span>
-                      </div>
-                      <MiniBar pct={pct} color={c?.text || "var(--text-dim)"} height={3} />
+          <div className="card-title">Channel Analytics — Detailed Performance per Channel</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            {data.channelDeep.map((ch) => {
+              const isReplyChannel = ch.replyRate !== null;
+              return (
+                <div key={ch.channel} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
+                  {/* Channel header */}
+                  <div className="flex items-center gap-8 mb-12">
+                    <div style={{ fontSize: 22 }}>{CHANNEL_ICONS[ch.channel]}</div>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{ch.channel}</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{ch.prospects} prospects · {ch.total} touches · {ch.avgTouches} avg</div>
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  </div>
+
+                  {/* KPI row */}
+                  <div style={{ display: "grid", gridTemplateColumns: isReplyChannel ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 14 }}>
+                    {isReplyChannel && (
+                      <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", textAlign: "center" }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: ch.replyRate > 25 ? "var(--success)" : ch.replyRate > 10 ? "var(--warning)" : "var(--text-dim)" }}>{ch.replyRate}%</div>
+                        <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>reply rate</div>
+                        <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>{ch.repliedCount}/{ch.prospects}</div>
+                      </div>
+                    )}
+                    <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", textAlign: "center" }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: ch.meetingsFromChannel > 0 ? "var(--accent)" : "var(--text-dim)" }}>{ch.meetingsFromChannel}</div>
+                      <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>meetings</div>
+                    </div>
+                    <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", textAlign: "center" }}>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: ch.niRate > 30 ? "var(--danger)" : ch.niRate > 15 ? "var(--warning-alt)" : "var(--text-dim)" }}>{ch.niRate}%</div>
+                      <div className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>rejection</div>
+                      <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)" }}>{ch.niFromChannel} NI</div>
+                    </div>
+                  </div>
+
+                  {/* Outcome breakdown */}
+                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 8 }}>Outcome Breakdown</div>
+                  {ch.outcomes.map(([outcome, count]) => {
+                    const pct = Math.round((count / ch.total) * 100);
+                    const c = STATUS_COLORS[outcome];
+                    return (
+                      <div key={outcome} style={{ marginBottom: 6 }}>
+                        <div className="flex justify-between" style={{ marginBottom: 3 }}>
+                          <span style={{ fontSize: 13, color: c?.text || "var(--text-sec)" }}>{outcome}</span>
+                          <span className="mono" style={{ fontSize: 13, color: "var(--text-muted)" }}>{count} · {pct}%</span>
+                        </div>
+                        <MiniBar pct={pct} color={c?.text || "var(--text-dim)"} height={4} />
+                      </div>
+                    );
+                  })}
+
+                  {/* Unique prospects per outcome */}
+                  <div className="mono" style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".05em", marginTop: 12, marginBottom: 6 }}>Prospects by Outcome</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {Object.entries(ch.prospectsByOutcome).sort((a, b) => b[1] - a[1]).map(([outcome, cnt]) => {
+                      const c = STATUS_COLORS[outcome];
+                      return (
+                        <span key={outcome} style={{
+                          fontSize: 12, padding: "3px 8px", borderRadius: 6,
+                          background: c?.bg || "var(--surface)", color: c?.text || "var(--text-sec)",
+                          border: `1px solid ${c?.border || "var(--border)"}`,
+                        }}>{outcome} {cnt}</span>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1499,19 +1594,19 @@ export default function Analytics({ onSelectProspect }) {
         </div>
       </div>
 
-      {/* Channel effectiveness */}
+      {/* Channel Reply Rate (Email & LinkedIn only) */}
       <div className="card">
-        <div className="card-title">Channel Effectiveness — Reply Rate by Channel</div>
+        <div className="card-title">Reply Rate — Email & LinkedIn</div>
         <div className="channel-eff-grid">
           {data.channelReply.map((c) => (
-            <div key={c.name} className="channel-eff-card" style={{ cursor: "pointer" }} onClick={() => drill(`Channel: ${c.name}`, (p) => p.touchpoints.some((t) => t.channel === c.name))}>
+            <div key={c.name} className="channel-eff-card" style={{ cursor: "pointer" }} onClick={() => drill(`Channel: ${c.name} (replied)`, (p) => p.touchpoints.some((t) => t.channel === c.name && (t.status === "Replied" || t.status === "Meeting Booked")))}>
               <div style={{ fontSize: 21, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
               <div style={{ fontSize: 21, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
               <div style={{ height: 40, background: "var(--border)", borderRadius: 4, display: "flex", alignItems: "flex-end", overflow: "hidden" }}>
                 <div style={{ width: "100%", height: `${c.rate}%`, background: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", opacity: 0.75 }} />
               </div>
-              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} touched</div>
+              <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginTop: 6 }}>{c.replied}/{c.touched} replied</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{c.totalTp} total touches</div>
             </div>
           ))}
