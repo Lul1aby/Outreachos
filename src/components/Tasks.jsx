@@ -14,6 +14,8 @@ export default function Tasks({ onSelect, onNavigate }) {
   const [completingKey, setCompletingKey] = useState(null);
   const [completeNote, setCompleteNote] = useState("");
   const [completeOutcome, setCompleteOutcome] = useState("");
+  const [cbDate, setCbDate] = useState(todayStr());
+  const [cbTime, setCbTime] = useState("10:00");
 
   /* ── Filters ── */
   const [filterChannel, setFilterChannel] = useState("All");
@@ -272,6 +274,8 @@ export default function Tasks({ onSelect, onNavigate }) {
                     setCompletingKey(taskKey);
                     setCompleteNote("");
                     setCompleteOutcome(outcomes[0] || "");
+                    setCbDate(todayStr());
+                    setCbTime("10:00");
                   }}>Done</button>
                 )}
               </div>
@@ -293,6 +297,18 @@ export default function Tasks({ onSelect, onNavigate }) {
                           {outcomes.map((o) => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </div>
+                      {completeOutcome === "Call Back" && (
+                        <>
+                          <div style={{ flex: "0 0 auto" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Date</div>
+                            <input type="date" className="form-input" value={cbDate} onChange={(e) => setCbDate(e.target.value)} style={{ marginBottom: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6 }} />
+                          </div>
+                          <div style={{ flex: "0 0 auto" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Callback Time</div>
+                            <input type="time" className="form-input" value={cbTime} onChange={(e) => setCbTime(e.target.value)} style={{ marginBottom: 0, fontSize: 13, padding: "5px 8px", borderRadius: 6 }} />
+                          </div>
+                        </>
+                      )}
                       <div style={{ flex: 1, minWidth: 200 }}>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Note</div>
                         <input
@@ -301,20 +317,24 @@ export default function Tasks({ onSelect, onNavigate }) {
                           placeholder="What happened? Key takeaways…"
                           value={completeNote}
                           onChange={(e) => setCompleteNote(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") e.target.closest("div[style]").querySelector("button.btn-success")?.click(); }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && completeOutcome !== "Call Back") e.target.closest("div[style]").querySelector("button.btn-success")?.click(); }}
                           style={{ marginBottom: 0, fontSize: 13, padding: "5px 10px", borderRadius: 6 }}
                           autoFocus
                         />
                       </div>
                       <button
                         className="btn btn-success btn-sm"
+                        disabled={completeOutcome === "Call Back" && (!cbDate || !cbTime)}
                         onClick={() => {
                           const tp = { channel: ch, date: today, time: nowTimeStr(), note: completeNote.trim(), status: completeOutcome };
-                          dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: p.id, touchpoint: tp, newStatus: completeOutcome } });
+                          const callback = completeOutcome === "Call Back" ? { date: cbDate, time: cbTime, note: completeNote.trim() } : null;
+                          dispatch({ type: "ADD_TOUCHPOINT", payload: { prospectId: p.id, touchpoint: tp, newStatus: completeOutcome, callback } });
                           if (task.step._isCallback) {
                             dispatch({ type: "COMPLETE_CALLBACK", payload: { prospectId: p.id, callbackId: task.callbackId } });
                           }
                           setCompletingKey(null);
+                          setCbDate(todayStr());
+                          setCbTime("10:00");
                         }}
                       >
                         Complete
