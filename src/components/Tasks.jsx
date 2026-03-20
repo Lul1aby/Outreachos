@@ -217,7 +217,7 @@ export default function Tasks({ onSelect, onNavigate }) {
           const p = task.prospect;
           const taskKey = `${task.enrollmentId}-${task.step.id}`;
           return (
-            <div key={taskKey} className={`task-row${isOverdue ? " overdue" : ""}`}>
+            <div key={taskKey} className={`task-row${isOverdue ? " overdue" : ""}`} style={{ cursor: "pointer" }} onClick={() => onSelect(p.id)}>
               <div className={`task-dot${isOverdue ? " overdue" : ""}`}>{CHANNEL_ICONS[task.step.channel]}</div>
               <div className="task-info">
                 <div className="task-header">
@@ -262,8 +262,7 @@ export default function Tasks({ onSelect, onNavigate }) {
                   {p.linkedin && <a href={normalizeLinkedIn(p.linkedin)} target="_blank" rel="noopener noreferrer" className="task-contact-link" style={{ background: "var(--border)", border: "1px solid var(--input-border)", color: "var(--text-sec)" }}>💼 LinkedIn</a>}
                 </div>
               </div>
-              <div className="task-actions">
-                <button className="btn btn-ghost btn-sm" onClick={() => onSelect(p.id)}>View</button>
+              <div className="task-actions" onClick={(e) => e.stopPropagation()}>
                 {completingKey === taskKey ? (
                   <button className="btn btn-ghost btn-sm" onClick={() => setCompletingKey(null)}>Cancel</button>
                 ) : (
@@ -281,7 +280,7 @@ export default function Tasks({ onSelect, onNavigate }) {
                 const ch = task.step.channel;
                 const outcomes = CHANNEL_OUTCOMES[ch] || [];
                 return (
-                  <div style={{ gridColumn: "1 / -1", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", marginTop: 6 }}>
+                  <div onClick={(e) => e.stopPropagation()} style={{ gridColumn: "1 / -1", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", marginTop: 6 }}>
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                       <div style={{ flex: "0 0 auto" }}>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4 }}>Outcome</div>

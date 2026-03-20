@@ -162,6 +162,14 @@ function reducer(state, action) {
           autoStatus = "Call Back";
         }
 
+        // Rule C: Status protection — weak/routine outcomes cannot downgrade meaningful statuses.
+        // e.g. a Call Back prospect who gets DNP/Busy should stay Call Back, not drop to DNP/Busy.
+        const WEAK_OUTCOMES = new Set(["DNP/Busy", "No Response"]);
+        const PROTECTED_STATUSES = new Set(["Call Back", "Connected +ve", "Replied", "Nurture", "Trials", "Meeting Booked", "Opportunity"]);
+        if (WEAK_OUTCOMES.has(autoStatus) && PROTECTED_STATUSES.has(p.status)) {
+          autoStatus = p.status;
+        }
+
         // If Call Back outcome with scheduled callback, add to callbacks array
         if (callback) {
           const callbacks = [...(p.callbacks || []), { id: nextId(), date: callback.date, time: callback.time, note: callback.note || "", done: false }];
