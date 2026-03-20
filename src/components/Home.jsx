@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useStore } from "../store";
 import { supabase } from "../supabase";
 import { STATUSES, STATUS_COLORS } from "../constants";
-import { daysSinceLast, greeting, stalenessColor, todayStr } from "../utils";
+import { daysSinceLast, greeting, stalenessColor, todayStr, isTerminalStatus } from "../utils";
 import { Badge } from "./ui";
 
 function ProspectRow({ p, onSelect, avatarBg = "linear-gradient(135deg, var(--primary), var(--accent))", avatarColor = "#fff", extra, showStar, dispatch }) {
@@ -54,7 +54,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
     const statusHot = prospects.filter((p) => !p.starred && ["Replied", "Meeting Booked"].includes(p.status));
     return [...starred, ...statusHot].slice(0, 8);
   }, [prospects]);
-  const needsAttention = useMemo(() => prospects.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 3; }).slice(0, 5), [prospects]);
+  const needsAttention = useMemo(() => prospects.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 3; }).slice(0, 5), [prospects]);
 
   const addedThisWeek = useMemo(() => {
     const week = new Date(); week.setDate(week.getDate() - 7);
@@ -69,7 +69,7 @@ export default function Home({ onNavigate, onSelect, onLogTouchpoint, onAdd }) {
       STATUSES.forEach((s) => { statusCounts[s] = members.filter((p) => p.status === s).length; });
       const replied = members.filter((p) => ["Replied", "Meeting Booked"].includes(p.status)).length;
       const meetings = members.filter((p) => p.status === "Meeting Booked").length;
-      const needsTouch = members.filter((p) => { const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
+      const needsTouch = members.filter((p) => { if (isTerminalStatus(p)) return false; const d = daysSinceLast(p); return d !== null && d >= 7; }).length;
       return { name, members, statusCounts, replied, meetings, needsTouch, replyRate: members.length ? Math.round((replied / members.length) * 100) : 0 };
     });
   }, [allLists, prospects]);
