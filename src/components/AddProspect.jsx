@@ -31,6 +31,7 @@ export default function AddProspect({ onClose }) {
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [csvMapping, setCsvMapping] = useState({});
   const [csvListName, setCsvListName] = useState("");
+  const [csvOutreachType, setCsvOutreachType] = useState("default"); // "default" or "email-linkedin"
   const [csvError, setCsvError] = useState("");
   const [crossUserDupes, setCrossUserDupes] = useState([]); // matches from /api/check-duplicates
   const [checkingDupes, setCheckingDupes] = useState(false);
@@ -118,7 +119,7 @@ export default function AddProspect({ onClose }) {
   function commitCsv() {
     const toImport = csvPreview.filter((_, i) => !excludedRows.has(i));
     if (toImport.length === 0) return;
-    dispatch({ type: "IMPORT_PROSPECTS", payload: toImport, meta: { listName: csvListName || null } });
+    dispatch({ type: "IMPORT_PROSPECTS", payload: toImport, meta: { listName: csvListName || null, outreachType: csvOutreachType } });
     onClose();
   }
 
@@ -151,7 +152,7 @@ export default function AddProspect({ onClose }) {
   }, [crossUserDupes]);
 
   function resetCsv() {
-    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName(""); setCrossUserDupes([]); setExcludedRows(new Set());
+    setCsvStep("upload"); setCsvRaw([]); setCsvHeaders([]); setCsvMapping({}); setCsvListName(""); setCsvOutreachType("default"); setCrossUserDupes([]); setExcludedRows(new Set());
   }
 
   const upd = (key) => (e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErrors(null); };
@@ -245,6 +246,42 @@ export default function AddProspect({ onClose }) {
                 )}
                 {!csvListName && <div style={{ fontSize: 14, color: "var(--warning-alt)", marginTop: 8 }}>⚠ Recommended — helps you filter and manage this batch later</div>}
               </div>
+
+              {/* Outreach type selector */}
+              <div className="card mb-20" style={{ padding: 16 }}>
+                <label className="form-label" style={{ color: "var(--primary-light)", fontWeight: 600 }}>
+                  📡 Outreach Type
+                </label>
+                <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                  <button
+                    onClick={() => setCsvOutreachType("default")}
+                    style={{
+                      flex: 1, padding: "10px 14px", borderRadius: 8, cursor: "pointer",
+                      border: csvOutreachType === "default" ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                      background: csvOutreachType === "default" ? "var(--primary-bg)" : "var(--surface-alt)",
+                      color: csvOutreachType === "default" ? "var(--primary-light)" : "var(--text-sec)",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>📞 Full Outreach</div>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>Calls + Emails + LinkedIn (7-day default)</div>
+                  </button>
+                  <button
+                    onClick={() => setCsvOutreachType("email-linkedin")}
+                    style={{
+                      flex: 1, padding: "10px 14px", borderRadius: 8, cursor: "pointer",
+                      border: csvOutreachType === "email-linkedin" ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                      background: csvOutreachType === "email-linkedin" ? "var(--primary-bg)" : "var(--surface-alt)",
+                      color: csvOutreachType === "email-linkedin" ? "var(--primary-light)" : "var(--text-sec)",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 2 }}>🌐 Email & LinkedIn Only</div>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>For international prospects — no calls</div>
+                  </button>
+                </div>
+              </div>
+
               <div className="csv-dropzone"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleCsvFile(f); }}
@@ -273,6 +310,7 @@ export default function AddProspect({ onClose }) {
               <div className="flex items-center gap-10 mb-16">
                 <div style={{ fontSize: 14, color: "var(--text-sec)" }}>Found <strong style={{ color: "var(--text)" }}>{csvRaw.length} rows</strong>. Match CSV columns to fields.</div>
                 {csvListName && <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--primary)" }}>📋 {csvListName}</span>}
+                {csvOutreachType === "email-linkedin" && <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--primary)" }}>🌐 Email & LinkedIn Only</span>}
               </div>
               <div className="flex flex-col gap-8 mb-20">
                 {CSV_FIELDS.map((f) => (
@@ -302,6 +340,7 @@ export default function AddProspect({ onClose }) {
               <div className="flex items-center gap-10 mb-6">
                 <div style={{ fontSize: 17, fontWeight: 700 }}>Review & Import</div>
                 {csvListName && <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--primary)" }}>📋 {csvListName}</span>}
+                {csvOutreachType === "email-linkedin" && <span className="filter-pill" style={{ background: "var(--primary-bg)", borderColor: "var(--primary)" }}>🌐 Email & LinkedIn Only</span>}
               </div>
 
               {/* Summary line */}

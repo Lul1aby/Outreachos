@@ -337,6 +337,13 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
         </td>
         <td>
           <div className="flex items-center gap-6">
+            <button
+              onClick={(e) => { e.stopPropagation(); dispatch({ type: "TOGGLE_STAR", payload: p.id }); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 15, lineHeight: 1, flexShrink: 0, filter: p.starred ? "none" : "grayscale(1) opacity(0.25)" }}
+              title={p.starred ? "Unstar" : "Star as hot"}
+            >
+              {p.starred ? "\u2B50" : "\u2606"}
+            </button>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc, flexShrink: 0, boxShadow: days !== null && days >= 7 ? `0 0 6px ${sc}` : "none" }} />
             <div style={{ fontWeight: 600, fontSize: 15 }}>{p.name}</div>
             {dupeInfo && (
@@ -377,6 +384,7 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
               </button>
             )}
             {!p.email && !p.phone && <span style={{ fontSize: 14, color: "var(--text-dim)" }}>—</span>}
+            {p.enrichment && <span style={{ fontSize: 10, background: "var(--accent-bg, var(--surface))", border: "1px solid var(--accent, var(--border))", borderRadius: 8, padding: "0px 5px", color: "var(--accent-light, var(--text-muted))" }} title="Enriched">✨</span>}
           </div>
         </td>
         <td>
@@ -461,32 +469,6 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
       )}
 
       {/* Overdue banner */}
-      {overdueProspects.length > 0 && (
-        <div className="overdue-banner">
-          <div className="overdue-header">
-            <div className="overdue-title">
-              <span>⏰</span> {overdueProspects.length} prospect{overdueProspects.length > 1 ? "s" : ""} haven't been touched in 28+ hours
-            </div>
-            <button onClick={() => dispatch({ type: "DISMISS_ALL_REMINDERS", payload: overdueProspects.map((p) => p.id) })} style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }}>Dismiss all</button>
-          </div>
-          <div className="overdue-chips">
-            {overdueProspects.slice(0, 8).map((p) => {
-              const h = hoursSinceLast(p);
-              const label = h >= 48 ? `${Math.floor(h / 24)}d ago` : `${h}h ago`;
-              return (
-                <div key={p.id} className="overdue-chip" onClick={() => onSelect(p.id)}>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
-                  <span style={{ fontSize: 14, color: "var(--text-sec)" }}>{p.company}</span>
-                  <span className="mono" style={{ fontSize: 14, color: "var(--warning-alt)", background: "var(--warning-bg)", borderRadius: 4, padding: "1px 6px" }}>{label}</span>
-                  <button onClick={(e) => { e.stopPropagation(); dispatch({ type: "DISMISS_REMINDER", payload: p.id }); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: 15, cursor: "pointer", lineHeight: 1, padding: 0 }}>×</button>
-                </div>
-              );
-            })}
-            {overdueProspects.length > 8 && <span style={{ fontSize: 14, color: "var(--text-muted)", alignSelf: "center" }}>+{overdueProspects.length - 8} more</span>}
-          </div>
-        </div>
-      )}
-
       {/* Search + filter toggle + group toggle */}
       <div className="filter-bar">
         {groupByCompany ? (
@@ -782,6 +764,26 @@ export default function Prospects({ initialFilters = {}, onSelect, onLogTouchpoi
           <div className="select-bar">
             <span style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{selectedIds.size} selected</span>
             <button className="btn btn-success btn-sm" onClick={() => { dispatch({ type: "COMPLETE_ALL_FOR_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); }}>⚡ Complete All Sequence Steps</button>
+            <button className="btn btn-sm" style={{ background: "var(--accent-bg, var(--surface))", border: "1px solid var(--accent, var(--border))", color: "var(--accent-light, var(--text))" }} onClick={async () => {
+              const toEnrich = prospects.filter((p) => selectedIds.has(p.id));
+              if (!window.confirm(`Enrich ${toEnrich.length} prospect${toEnrich.length > 1 ? "s" : ""}? This uses AI web search and may take a while.`)) return;
+              for (const p of toEnrich) {
+                try {
+                  const res = await fetch("/api/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: p.name, company: p.company, title: p.title, industry: p.industry, email: p.email, linkedin: p.linkedin }) });
+                  const data = await res.json();
+                  if (res.ok && data.enriched) {
+                    const updates = {};
+                    if (data.enriched.title && !p.title) updates.title = data.enriched.title;
+                    if (data.enriched.email && !p.email) updates.email = data.enriched.email;
+                    if (data.enriched.phone && !p.phone) updates.phone = data.enriched.phone;
+                    if (data.enriched.linkedin && !p.linkedin) updates.linkedin = data.enriched.linkedin;
+                    updates.enrichment = { ...data.enriched, enrichedAt: new Date().toISOString() };
+                    dispatch({ type: "UPDATE_PROSPECT", payload: { id: p.id, updates } });
+                  }
+                } catch { /* continue with next */ }
+              }
+              setSelectedIds(new Set());
+            }}>✨ Bulk Enrich</button>
             <button className="btn btn-sm" style={{ background: "var(--danger-bg)", border: "1px solid var(--danger-border)", color: "var(--danger)" }} onClick={() => { if (window.confirm(`Delete ${selectedIds.size} prospect${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) { dispatch({ type: "DELETE_PROSPECTS", payload: [...selectedIds] }); setSelectedIds(new Set()); } }}>🗑 Delete Selected</button>
             <button style={{ background: "none", border: "none", color: "var(--text-muted)", fontSize: 14, cursor: "pointer", fontFamily: "var(--font)" }} onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
             <span className="mono ml-auto" style={{ fontSize: 14, color: "var(--text-dim)" }}>Marks all pending sequence tasks as done</span>

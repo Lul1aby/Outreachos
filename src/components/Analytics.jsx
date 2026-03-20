@@ -89,10 +89,73 @@ function AdminSourceSelector({ selectedUsers, setSelectedUsers, adminAllData, ow
   );
 }
 
-export default function Analytics() {
+/* ── Drilldown Modal: shows prospect list behind any clicked metric ── */
+function DrilldownModal({ title, prospects, onClose, onSelectProspect }) {
+  const [search, setSearch] = useState("");
+  const filtered = search.trim()
+    ? prospects.filter((p) => `${p.name} ${p.company} ${p.title || ""}`.toLowerCase().includes(search.toLowerCase()))
+    : prospects;
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200 }} onClick={onClose} />
+      <div style={{
+        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 201,
+        background: "var(--card-bg, var(--surface-raised))", border: "1px solid var(--border)", borderRadius: 14,
+        width: "min(680px, 92vw)", maxHeight: "80vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+      }}>
+        <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{title}</div>
+            <div className="mono" style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>{prospects.length} prospect{prospects.length !== 1 ? "s" : ""}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: "4px 8px", fontFamily: "var(--font)" }}>×</button>
+        </div>
+        {prospects.length > 5 && (
+          <div style={{ padding: "8px 20px 0", flexShrink: 0 }}>
+            <input type="text" placeholder="Search name, company…" value={search} onChange={(e) => setSearch(e.target.value)}
+              className="form-input" style={{ marginBottom: 0, fontSize: 13, padding: "6px 10px", borderRadius: 6, width: "100%" }} />
+          </div>
+        )}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "8px 12px 12px" }}>
+          {filtered.length === 0 && <div style={{ textAlign: "center", padding: 20, color: "var(--text-dim)", fontSize: 14 }}>No matches</div>}
+          {filtered.map((p) => (
+            <div key={p.id || p.name + p.company} onClick={() => { if (onSelectProspect) { onSelectProspect(p.id); } }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 8,
+                cursor: onSelectProspect ? "pointer" : "default", marginBottom: 2,
+                background: "var(--surface)", border: "1px solid transparent", transition: "border-color .1s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = "var(--primary)"}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+            >
+              <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                {(p.name || "?")[0]}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }} className="truncate">{p.name}</div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }} className="truncate">{p.company}{p.title ? ` · ${p.title}` : ""}</div>
+              </div>
+              <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 10, background: STATUS_COLORS[p.status]?.bg, color: STATUS_COLORS[p.status]?.text, border: `1px solid ${STATUS_COLORS[p.status]?.border}`, whiteSpace: "nowrap", flexShrink: 0 }}>{p.status}</span>
+              <span className="mono" style={{ fontSize: 12, color: "var(--text-dim)", flexShrink: 0 }}>{p.touchpoints.length} tp</span>
+              {onSelectProspect && <span style={{ fontSize: 14, color: "var(--text-dim)", flexShrink: 0 }}>→</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function Analytics({ onSelectProspect }) {
   const { state, allLists, user } = useStore();
   const [selectedList, setSelectedList] = useState("__all__");
   const [reviewPeriod, setReviewPeriod] = useState("daily");
+  const [drilldown, setDrilldown] = useState(null); // { title, prospects }
+  const [analyticsView, setAnalyticsView] = useState("prospect"); // "prospect" | "company"
+  const [companySortBy, setCompanySortBy] = useState("prospects"); // sort key for company table
+  const [companySortDir, setCompanySortDir] = useState("desc");
+  const [companySearch, setCompanySearch] = useState("");
 
   /* ── Admin data source ── */
   const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -323,8 +386,8 @@ export default function Analytics() {
       CHANNELS.forEach((c) => { byC[c] = tps.filter((t) => t.channel === c).length; });
       const prevByC = {};
       CHANNELS.forEach((c) => { prevByC[c] = prevTps.filter((t) => t.channel === c).length; });
-      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
-      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity", "Connected +ve"].includes(t.status)).length;
+      const replies = tps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
+      const prevReplies = prevTps.filter((t) => ["Replied", "Meeting Booked", "Opportunity"].includes(t.status)).length;
       const meetings = tps.filter((t) => t.status === "Meeting Booked").length;
       const prevMeetings = prevTps.filter((t) => t.status === "Meeting Booked").length;
       const opps = tps.filter((t) => t.status === "Opportunity").length;
@@ -396,6 +459,108 @@ export default function Analytics() {
       return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lp.length ? Math.round((r / lp.length) * 100) : 0 };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
+    /* ── Company-level analytics ── */
+    const companyMap = new Map();
+    prospects.forEach((p) => {
+      const key = p.company || "Unknown";
+      if (!companyMap.has(key)) companyMap.set(key, []);
+      companyMap.get(key).push(p);
+    });
+
+    const companyStats = [...companyMap.entries()].map(([company, members]) => {
+      const totalP = members.length;
+      const tps = members.flatMap((p) => p.touchpoints);
+      const totalTp = tps.length;
+      const avgTp = totalP ? Math.round((totalTp / totalP) * 10) / 10 : 0;
+      const replied = members.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const meetings = members.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const opportunity = members.filter((p) => p.status === "Opportunity").length;
+      const notInterested = members.filter((p) => p.status === "Not Interested").length;
+      const callBackC = members.filter((p) => p.status === "Call Back").length;
+      const nurtureC = members.filter((p) => p.status === "Nurture").length;
+      const untouchedC = members.filter((p) => p.touchpoints.length === 0).length;
+      const starredC = members.filter((p) => p.starred).length;
+      const replyRate = totalP ? Math.round((replied / totalP) * 100) : 0;
+      const industry = members[0]?.industry || "—";
+
+      // Channels used
+      const channelSet = new Set(tps.map((t) => t.channel));
+      const channelsUsed = [...channelSet];
+
+      // Status breakdown
+      const statusBreakdown = {};
+      members.forEach((p) => { statusBreakdown[p.status] = (statusBreakdown[p.status] || 0) + 1; });
+
+      // Staleness: max days since last touch across all members
+      const stalenesses = members.map((p) => daysSinceLast(p)).filter((d) => d !== null);
+      const maxStale = stalenesses.length ? Math.max(...stalenesses) : null;
+      const avgStale = stalenesses.length ? Math.round(stalenesses.reduce((a, b) => a + b, 0) / stalenesses.length) : null;
+
+      // Last activity date
+      const allDates = tps.map((t) => t.date).sort();
+      const lastActivityDate = allDates.length ? allDates[allDates.length - 1] : null;
+
+      return {
+        company, totalP, totalTp, avgTp, replied, meetings, opportunity, notInterested,
+        callBack: callBackC, nurture: nurtureC, untouched: untouchedC, starred: starredC,
+        replyRate, industry, channelsUsed, statusBreakdown,
+        maxStale, avgStale, lastActivityDate, members,
+      };
+    });
+
+    // Aggregates
+    const totalCompanies = companyStats.length;
+    const avgProspectsPerCompany = totalCompanies ? Math.round((total / totalCompanies) * 10) / 10 : 0;
+    const companiesWithMeetings = companyStats.filter((c) => c.meetings > 0).length;
+    const companiesWithReplies = companyStats.filter((c) => c.replied > 0).length;
+    const companiesUntouched = companyStats.filter((c) => c.untouched === c.totalP).length;
+    const companiesStale7 = companyStats.filter((c) => c.avgStale !== null && c.avgStale >= 7 && c.meetings === 0 && c.opportunity === 0).length;
+
+    // Top companies by reply rate (min 2 prospects)
+    const topByReplyRate = [...companyStats].filter((c) => c.totalP >= 2).sort((a, b) => b.replyRate - a.replyRate).slice(0, 5);
+    // Top by engagement (most touchpoints)
+    const topByEngagement = [...companyStats].sort((a, b) => b.totalTp - a.totalTp).slice(0, 5);
+    // Most prospects
+    const topBySize = [...companyStats].sort((a, b) => b.totalP - a.totalP).slice(0, 5);
+
+    // Company industry distribution
+    const companyByIndustry = {};
+    companyStats.forEach((c) => {
+      const ind = c.industry || "—";
+      if (!companyByIndustry[ind]) companyByIndustry[ind] = { count: 0, prospects: 0, replied: 0, meetings: 0 };
+      companyByIndustry[ind].count++;
+      companyByIndustry[ind].prospects += c.totalP;
+      companyByIndustry[ind].replied += c.replied;
+      companyByIndustry[ind].meetings += c.meetings;
+    });
+
+    // Company funnel
+    const companyFunnel = [
+      { label: "Total Companies", val: totalCompanies, color: "var(--primary)", pct: 100 },
+      { label: "With Activity", val: companyStats.filter((c) => c.totalTp > 0).length, color: "var(--info)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.totalTp > 0).length / totalCompanies) * 100) : 0 },
+      { label: "With Replies", val: companiesWithReplies, color: "var(--success)", pct: totalCompanies ? Math.round((companiesWithReplies / totalCompanies) * 100) : 0 },
+      { label: "With Meetings", val: companiesWithMeetings, color: "var(--accent)", pct: totalCompanies ? Math.round((companiesWithMeetings / totalCompanies) * 100) : 0 },
+      { label: "With Opportunity", val: companyStats.filter((c) => c.opportunity > 0).length, color: "var(--success-bright)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.opportunity > 0).length / totalCompanies) * 100) : 0 },
+    ];
+
+    // Company size distribution
+    const companySizeBuckets = [
+      { label: "1 prospect", filter: (c) => c.totalP === 1, color: "var(--info)" },
+      { label: "2–3 prospects", filter: (c) => c.totalP >= 2 && c.totalP <= 3, color: "var(--accent)" },
+      { label: "4–6 prospects", filter: (c) => c.totalP >= 4 && c.totalP <= 6, color: "var(--warning)" },
+      { label: "7+ prospects", filter: (c) => c.totalP >= 7, color: "var(--warning-alt)" },
+    ].map((b) => {
+      const group = companyStats.filter(b.filter);
+      return { ...b, count: group.length, prospects: group.reduce((a, c) => a + c.totalP, 0) };
+    });
+
+    const companyAnalytics = {
+      companyStats, totalCompanies, avgProspectsPerCompany,
+      companiesWithMeetings, companiesWithReplies, companiesUntouched, companiesStale7,
+      topByReplyRate, topByEngagement, topBySize,
+      companyByIndustry, companyFunnel, companySizeBuckets,
+    };
+
     return {
       total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg, wrongInvalid,
       callBack, nurture, trials, followUpByIndustry, followUpByChannel,
@@ -403,8 +568,17 @@ export default function Analytics() {
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
       last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets,
       stale7, stale14, stale30, untouched, hotProspects, listStats, activityReview,
+      companyAnalytics,
     };
   }, [prospects, sourceLists]);
+
+  const drill = useCallback((title, filterFn) => {
+    setDrilldown({ title, prospects: prospects.filter(filterFn) });
+  }, [prospects]);
+
+  const drillList = useCallback((title, list) => {
+    setDrilldown({ title, prospects: list });
+  }, []);
 
   if (adminLoading && !adminAllData) {
     return (
@@ -437,12 +611,25 @@ export default function Analytics() {
       <div className="flex items-center justify-between flex-wrap gap-12">
         <div>
           <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>Analytics Dashboard</div>
-          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.companyAnalytics.totalCompanies} companies · {data.allTp.length} touchpoints</div>
         </div>
         <div className="flex items-center gap-8 flex-wrap">
           {isAdmin && (
             <AdminSourceSelector selectedUsers={selectedUsers} setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }} adminAllData={adminAllData} ownEmail={user?.email} ownProspectCount={state.prospects.length} />
           )}
+          {/* View toggle */}
+          <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <button onClick={() => setAnalyticsView("prospect")} style={{
+              padding: "6px 14px", fontSize: 13, fontWeight: analyticsView === "prospect" ? 700 : 400, cursor: "pointer",
+              background: analyticsView === "prospect" ? "var(--primary)" : "var(--surface)", color: analyticsView === "prospect" ? "#fff" : "var(--text-muted)",
+              border: "none", transition: "all .15s",
+            }}>👤 Prospects</button>
+            <button onClick={() => setAnalyticsView("company")} style={{
+              padding: "6px 14px", fontSize: 13, fontWeight: analyticsView === "company" ? 700 : 400, cursor: "pointer",
+              background: analyticsView === "company" ? "var(--primary)" : "var(--surface)", color: analyticsView === "company" ? "#fff" : "var(--text-muted)",
+              border: "none", borderLeft: "1px solid var(--border)", transition: "all .15s",
+            }}>🏢 Companies</button>
+          </div>
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
           <select className="form-select" style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }} value={selectedList} onChange={(e) => setSelectedList(e.target.value)}>
             <option value="__all__">All Lists</option>
@@ -454,21 +641,282 @@ export default function Analytics() {
         </div>
       </div>
 
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ═══  COMPANY VIEW  ═══════════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {analyticsView === "company" && (() => {
+        const ca = data.companyAnalytics;
+
+        // Sort + filter company table
+        const toggleCompanySort = (col) => {
+          if (companySortBy === col) setCompanySortDir((d) => d === "asc" ? "desc" : "asc");
+          else { setCompanySortBy(col); setCompanySortDir("desc"); }
+        };
+        const q = companySearch.toLowerCase();
+        const filteredCompanies = ca.companyStats
+          .filter((c) => !q || c.company.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q))
+          .sort((a, b) => {
+            let av, bv;
+            if (companySortBy === "company") { av = a.company.toLowerCase(); bv = b.company.toLowerCase(); }
+            else if (companySortBy === "prospects") { av = a.totalP; bv = b.totalP; }
+            else if (companySortBy === "touchpoints") { av = a.totalTp; bv = b.totalTp; }
+            else if (companySortBy === "replyRate") { av = a.replyRate; bv = b.replyRate; }
+            else if (companySortBy === "meetings") { av = a.meetings; bv = b.meetings; }
+            else if (companySortBy === "staleness") { av = a.avgStale ?? 9999; bv = b.avgStale ?? 9999; }
+            else if (companySortBy === "industry") { av = a.industry.toLowerCase(); bv = b.industry.toLowerCase(); }
+            else { av = a.totalP; bv = b.totalP; }
+            if (av < bv) return companySortDir === "asc" ? -1 : 1;
+            if (av > bv) return companySortDir === "asc" ? 1 : -1;
+            return 0;
+          });
+
+        const SortHeader = ({ col, label, style }) => (
+          <th onClick={() => toggleCompanySort(col)} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", ...style }}>
+            {label}
+            <span style={{ marginLeft: 4, opacity: companySortBy === col ? 1 : 0.3, fontSize: 11 }}>
+              {companySortBy === col ? (companySortDir === "asc" ? "▲" : "▼") : "⇅"}
+            </span>
+          </th>
+        );
+
+        return (
+          <>
+            {/* Company KPI strip */}
+            <div className="analytics-kpi-row">
+              {[
+                { label: "Companies", val: ca.totalCompanies, color: "var(--primary)" },
+                { label: "Avg Prospects", val: ca.avgProspectsPerCompany, color: "var(--info)" },
+                { label: "With Replies", val: ca.companiesWithReplies, color: "var(--success)" },
+                { label: "With Meetings", val: ca.companiesWithMeetings, color: "var(--accent)" },
+                { label: "Fully Untouched", val: ca.companiesUntouched, color: "var(--danger)" },
+                { label: "Stale 7d+", val: ca.companiesStale7, color: "var(--warning-alt)" },
+              ].map((k) => (
+                <div key={k.label} className="analytics-kpi">
+                  <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
+                  <div className="analytics-kpi-label">{k.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Company Funnel + Size Distribution */}
+            <div className="analytics-grid-2">
+              <div className="card">
+                <div className="card-title">Company Conversion Funnel</div>
+                <div className="flex flex-col gap-10">
+                  {ca.companyFunnel.map((f) => (
+                    <div key={f.label} className="funnel-row">
+                      <div className="funnel-label">{f.label}</div>
+                      <div className="funnel-bar">
+                        <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
+                        <div className="funnel-bar-text">{f.val}</div>
+                      </div>
+                      <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Company Size Distribution</div>
+                <div className="touch-dist-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+                  {ca.companySizeBuckets.map((b) => (
+                    <div key={b.label} className="touch-dist-card">
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{b.count === 1 ? "company" : "companies"}</div>
+                      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
+                        <div style={{ height: "100%", width: `${ca.totalCompanies ? (b.count / ca.totalCompanies) * 100 : 0}%`, background: b.color, borderRadius: 2 }} />
+                      </div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{b.prospects} prospects total</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Companies — 3 columns */}
+            <div className="analytics-grid-3">
+              <div className="card">
+                <div className="card-title">Top by Reply Rate</div>
+                {ca.topByReplyRate.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>Need 2+ prospects per company</div> :
+                  ca.topByReplyRate.map((c, i) => (
+                    <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                      onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.industry}</div>
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: c.replyRate > 30 ? "var(--success)" : c.replyRate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{c.replyRate}%</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="card">
+                <div className="card-title">Top by Engagement</div>
+                {ca.topByEngagement.map((c, i) => (
+                  <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                    onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.avgTp} avg tp</div>
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--primary-light)" }}>{c.totalTp} tp</span>
+                  </div>
+                ))}
+              </div>
+              <div className="card">
+                <div className="card-title">Largest Accounts</div>
+                {ca.topBySize.map((c, i) => (
+                  <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                    onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.industry} · {c.replyRate}% reply</div>
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>{c.totalP}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Industry breakdown for companies */}
+            <div className="analytics-grid-2">
+              <div className="card">
+                <div className="card-title">Companies by Industry</div>
+                <div className="flex flex-col">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+                    {["Industry", "Cos", "Prospects", "Replies", "Mtgs"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+                  </div>
+                  {Object.entries(ca.companyByIndustry).sort((a, b) => b[1].count - a[1].count).map(([ind, d]) => (
+                    <div key={ind} style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                      <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{d.count}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{d.prospects}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--success)" }}>{d.replied}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--accent)" }}>{d.meetings}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Company Health Alerts</div>
+                <div className="flex flex-col gap-12">
+                  {ca.companiesUntouched > 0 && (
+                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesUntouched}</div>
+                      <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with zero touchpoints</div>
+                    </div>
+                  )}
+                  {ca.companiesStale7 > 0 && (
+                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{ca.companiesStale7}</div>
+                      <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>companies stale 7+ days (no meetings/opps)</div>
+                    </div>
+                  )}
+                  {ca.companiesUntouched === 0 && ca.companiesStale7 === 0 && (
+                    <div style={{ textAlign: "center", padding: 20, color: "var(--success)", fontSize: 14 }}>All companies are being actively worked</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Full Company Table */}
+            <div className="card">
+              <div className="flex items-center justify-between flex-wrap gap-12 mb-16">
+                <div className="card-title" style={{ marginBottom: 0 }}>All Companies ({filteredCompanies.length})</div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search company, industry…"
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                  style={{ marginBottom: 0, fontSize: 13, maxWidth: 240, padding: "5px 10px", borderRadius: 6 }}
+                />
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <SortHeader col="company" label="Company" />
+                      <SortHeader col="industry" label="Industry" />
+                      <SortHeader col="prospects" label="Prospects" />
+                      <SortHeader col="touchpoints" label="Touchpoints" />
+                      <SortHeader col="replyRate" label="Reply %" />
+                      <SortHeader col="meetings" label="Meetings" />
+                      <SortHeader col="staleness" label="Avg Stale" />
+                      <th>Pipeline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompanies.map((c) => (
+                      <tr key={c.company} style={{ cursor: "pointer" }} onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {c.starred > 0 && <span style={{ fontSize: 13 }}>{"\u2B50"}</span>}
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 14 }}>{c.company}</div>
+                              <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>{c.channelsUsed.map((ch) => CHANNEL_ICONS[ch]).join(" ")}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 13, color: "var(--text-muted)" }}>{c.industry}</td>
+                        <td className="mono" style={{ fontSize: 14 }}>
+                          {c.totalP}
+                          {c.untouched > 0 && <span style={{ fontSize: 11, color: "var(--danger)", marginLeft: 4 }}>({c.untouched} untouched)</span>}
+                        </td>
+                        <td className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>{c.totalTp} <span style={{ color: "var(--text-dim)" }}>({c.avgTp}/p)</span></td>
+                        <td className="mono" style={{ fontSize: 14, fontWeight: 600, color: c.replyRate > 30 ? "var(--success)" : c.replyRate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{c.replyRate}%</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.meetings > 0 ? "var(--accent)" : "var(--text-dim)" }}>{c.meetings}</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.avgStale !== null ? (c.avgStale >= 14 ? "var(--danger)" : c.avgStale >= 7 ? "var(--warning-alt)" : "var(--success)") : "var(--text-dim)" }}>
+                          {c.avgStale !== null ? `${c.avgStale}d` : "—"}
+                        </td>
+                        <td style={{ minWidth: 120 }}>
+                          <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", background: "var(--border)" }}>
+                            {Object.entries(c.statusBreakdown).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
+                              const pct = (count / c.totalP) * 100;
+                              return pct > 0 ? <div key={status} title={`${status}: ${count}`} style={{ width: `${pct}%`, background: STATUS_COLORS[status]?.text || "var(--text-dim)" }} /> : null;
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                            {Object.entries(c.statusBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([status, count]) => (
+                              <span key={status} className="mono" style={{ fontSize: 10, color: STATUS_COLORS[status]?.text || "var(--text-dim)" }}>{count} {status.split(" ")[0]}</span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredCompanies.length === 0 && (
+                      <tr><td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--text-dim)" }}>No companies match your search</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ═══  PROSPECT VIEW (original)  ═══════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {analyticsView === "prospect" && <>
+
       {/* KPI strip */}
       <div className="analytics-kpi-row">
         {[
-          { label: "Total", val: data.total, color: "var(--primary)" },
-          { label: "Touched", val: data.contacted, color: "var(--info)" },
-          { label: "Untouched", val: data.untouched, color: "var(--text-dim)" },
-          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)" },
-          { label: "Meetings", val: data.meeting, color: "var(--accent)" },
-          { label: "Opportunity", val: data.won, color: "var(--success-bright)" },
-          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
-          { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
-          { label: "Not Interested", val: data.notInt, color: "var(--danger)" },
-          { label: "Avg Velocity", val: data.avgVelocity ? `${data.avgVelocity}d` : "—", color: "var(--warning)" },
+          { label: "Total", val: data.total, color: "var(--primary)", filter: () => true },
+          { label: "Touched", val: data.contacted, color: "var(--info)", filter: (p) => p.touchpoints.length > 0 },
+          { label: "Untouched", val: data.untouched, color: "var(--text-dim)", filter: (p) => p.touchpoints.length === 0 },
+          { label: "Reply Rate", val: `${data.total ? Math.round((data.replied / data.total) * 100) : 0}%`, color: "var(--success)", filter: (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Meetings", val: data.meeting, color: "var(--accent)", filter: (p) => ["Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Opportunity", val: data.won, color: "var(--success-bright)", filter: (p) => p.status === "Opportunity" },
+          { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", filter: (p) => p.status === "Call Back" },
+          { label: "Nurture", val: data.nurture, color: "var(--accent-light)", filter: (p) => p.status === "Nurture" },
+          { label: "Not Interested", val: data.notInt, color: "var(--danger)", filter: (p) => p.status === "Not Interested" },
+          { label: "Avg Velocity", val: data.avgVelocity ? `${data.avgVelocity}d` : "—", color: "var(--warning)", filter: (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status) },
         ].map((k) => (
-          <div key={k.label} className="analytics-kpi">
+          <div key={k.label} className="analytics-kpi" style={{ cursor: "pointer" }} onClick={() => drill(k.label, k.filter)}>
             <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
             <div className="analytics-kpi-label">{k.label}</div>
           </div>
@@ -479,25 +927,29 @@ export default function Analytics() {
       {(data.stale7 > 0 || data.untouched > 0) && (
         <div className="flex gap-12 flex-wrap">
           {data.untouched > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+              onClick={() => drill("Untouched Prospects", (p) => p.touchpoints.length === 0)}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.untouched}</div>
               <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>prospects never contacted</div>
             </div>
           )}
           {data.stale7 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33", cursor: "pointer" }}
+              onClick={() => drill("Stale 7+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 7 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{data.stale7}</div>
               <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>stale 7+ days (active pipeline)</div>
             </div>
           )}
           {data.stale14 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33", cursor: "pointer" }}
+              onClick={() => drill("Stale 14+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 14 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "#f97316" }}>{data.stale14}</div>
               <div style={{ fontSize: 13, color: "#f97316", opacity: 0.9 }}>stale 14+ days</div>
             </div>
           )}
           {data.stale30 > 0 && (
-            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+            <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+              onClick={() => drill("Stale 30+ Days", (p) => { const d = daysSinceLast(p); return d !== null && d >= 30 && !["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity"].includes(p.status); })}>
               <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{data.stale30}</div>
               <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>stale 30+ days — needs attention</div>
             </div>
@@ -651,16 +1103,25 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Conversion Funnel</div>
           <div className="flex flex-col gap-10">
-            {data.funnelSteps.map((f) => (
-              <div key={f.label} className="funnel-row">
-                <div className="funnel-label">{f.label}</div>
-                <div className="funnel-bar">
-                  <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
-                  <div className="funnel-bar-text">{f.val}</div>
+            {data.funnelSteps.map((f) => {
+              const funnelFilters = {
+                "Total": () => true,
+                "Touched": (p) => p.touchpoints.length > 0,
+                "Replied": (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status),
+                "Meeting": (p) => ["Meeting Booked", "Opportunity"].includes(p.status),
+                "Opportunity": (p) => p.status === "Opportunity",
+              };
+              return (
+                <div key={f.label} className="funnel-row" style={{ cursor: "pointer" }} onClick={() => drill(`Funnel: ${f.label}`, funnelFilters[f.label] || (() => true))}>
+                  <div className="funnel-label">{f.label}</div>
+                  <div className="funnel-bar">
+                    <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
+                    <div className="funnel-bar-text">{f.val}</div>
+                  </div>
+                  <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
                 </div>
-                <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
-              </div>
-            ))}
+              );
+            })}
             <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
               {[
                 { label: "No Response", val: data.noResp, color: "var(--warning)" },
@@ -669,12 +1130,13 @@ export default function Analytics() {
                 { label: "Call Back", val: data.callBack, color: "var(--warning-alt)" },
                 { label: "Nurture", val: data.nurture, color: "var(--accent-light)" },
               ].map((x) => (
-                <div key={x.label} className="flex flex-col gap-4">
+                <div key={x.label} className="flex flex-col gap-4" style={{ cursor: "pointer" }} onClick={() => drill(x.label, (p) => p.status === x.label)}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
                 </div>
               ))}
-              <div className="ml-auto flex flex-col gap-4">
+              <div className="ml-auto flex flex-col gap-4" style={{ cursor: "pointer" }}
+                onClick={() => drill("Dead (NI + No Response + Wrong)", (p) => ["Not Interested", "No Response", "Wrong/Invalid"].includes(p.status))}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{data.total ? Math.round((data.closedNeg / data.total) * 100) : 0}%</div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
               </div>
@@ -732,7 +1194,7 @@ export default function Analytics() {
             if (!cnt) return null;
             const pct = data.total ? (cnt / data.total) * 100 : 0;
             return (
-              <div key={s} className="mb-8">
+              <div key={s} className="mb-8" style={{ cursor: "pointer" }} onClick={() => drill(`Status: ${s}`, (p) => p.status === s)}>
                 <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[s].text }}>{s}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
                 <MiniBar pct={pct} color={STATUS_COLORS[s].text} />
               </div>
@@ -817,7 +1279,8 @@ export default function Analytics() {
               { label: "Nurture", val: data.nurture, color: "var(--accent-light)", bg: "var(--accent-bg)", desc: "Long-term nurture" },
               { label: "Trials", val: data.trials, color: "var(--info-bright)", bg: "var(--info-bg)", desc: "In trial phase" },
             ].map((item) => (
-              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33` }}>
+              <div key={item.label} style={{ padding: "12px 16px", borderRadius: 8, background: item.bg, border: `1px solid ${item.color}33`, cursor: "pointer" }}
+                onClick={() => drill(item.label, (p) => p.status === item.label)}>
                 <div className="flex justify-between items-center mb-4">
                   <span style={{ fontSize: 14, color: item.color, fontWeight: 600 }}>{item.label}</span>
                   <span style={{ fontSize: 23, fontWeight: 700, color: item.color }}>{item.val}</span>
@@ -837,7 +1300,7 @@ export default function Analytics() {
         <div className="card-title">Channel Effectiveness — Reply Rate by Channel</div>
         <div className="channel-eff-grid">
           {data.channelReply.map((c) => (
-            <div key={c.name} className="channel-eff-card">
+            <div key={c.name} className="channel-eff-card" style={{ cursor: "pointer" }} onClick={() => drill(`Channel: ${c.name}`, (p) => p.touchpoints.some((t) => t.channel === c.name))}>
               <div style={{ fontSize: 21, marginBottom: 6 }}>{CHANNEL_ICONS[c.name]}</div>
               <div style={{ fontSize: 21, fontWeight: 700, color: c.rate > 30 ? "#34d399" : c.rate > 15 ? "#fbbf24" : "#f87171", marginBottom: 2 }}>{c.rate}%</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 8 }}>reply rate</div>
@@ -893,7 +1356,8 @@ export default function Analytics() {
               {["Industry", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
             </div>
             {data.industryStats.map((ind) => (
-              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+              <div key={ind.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center", cursor: "pointer" }}
+                onClick={() => drill(`Industry: ${ind.name}`, (p) => p.industry === ind.name)}>
                 <div className="flex items-center gap-6"><div style={{ width: 7, height: 7, borderRadius: 2, background: ind.color, flexShrink: 0 }} /><span style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind.name}</span></div>
                 <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ind.total}</div>
                 <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ind.replyRate > 30 ? "#34d399" : ind.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ind.replyRate}%</div>
@@ -912,7 +1376,8 @@ export default function Analytics() {
             <div className="card-title">Hot Prospects — Closest to Conversion</div>
             <div className="flex flex-col gap-8">
               {data.hotProspects.map((p) => (
-                <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)" }}>
+                <div key={p.id || p.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", cursor: onSelectProspect ? "pointer" : "default" }}
+                  onClick={() => onSelectProspect && onSelectProspect(p.id)}>
                   <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, var(--primary), var(--accent))", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
                     {(p.name || "?")[0]}
                   </div>
@@ -935,7 +1400,8 @@ export default function Analytics() {
                 {["List", "#", "Reply", "Mtg", "NI"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
               </div>
               {data.listStats.map((ls) => (
-                <div key={ls.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                <div key={ls.name} style={{ display: "grid", gridTemplateColumns: "1fr 35px 45px 35px 35px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center", cursor: "pointer" }}
+                  onClick={() => drill(`List: ${ls.name}`, (p) => p.listName === ls.name)}>
                   <div className="truncate" style={{ fontSize: 14, color: "var(--text-sec)" }}>{ls.name}</div>
                   <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{ls.total}</div>
                   <div className="mono" style={{ fontSize: 14, fontWeight: 600, color: ls.replyRate > 30 ? "#34d399" : ls.replyRate > 15 ? "#fbbf24" : "#f87171" }}>{ls.replyRate}%</div>
@@ -953,7 +1419,7 @@ export default function Analytics() {
         <div className="card-title">Touchpoints Distribution — How Many Touches Before Outcome</div>
         <div className="touch-dist-grid">
           {data.buckets.map((b) => (
-            <div key={b.label} className="touch-dist-card">
+            <div key={b.label} className="touch-dist-card" style={{ cursor: "pointer" }} onClick={() => drill(b.label, b.filter)}>
               <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
               <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)", marginBottom: 10 }}>prospects</div>
@@ -968,6 +1434,18 @@ export default function Analytics() {
           ))}
         </div>
       </div>
+
+      </>}
+
+      {/* Drilldown modal */}
+      {drilldown && (
+        <DrilldownModal
+          title={drilldown.title}
+          prospects={drilldown.prospects}
+          onClose={() => setDrilldown(null)}
+          onSelectProspect={onSelectProspect ? (id) => { setDrilldown(null); onSelectProspect(id); } : null}
+        />
+      )}
     </div>
   );
 }
