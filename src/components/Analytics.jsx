@@ -152,6 +152,10 @@ export default function Analytics({ onSelectProspect }) {
   const [selectedList, setSelectedList] = useState("__all__");
   const [reviewPeriod, setReviewPeriod] = useState("daily");
   const [drilldown, setDrilldown] = useState(null); // { title, prospects }
+  const [analyticsView, setAnalyticsView] = useState("prospect"); // "prospect" | "company"
+  const [companySortBy, setCompanySortBy] = useState("prospects"); // sort key for company table
+  const [companySortDir, setCompanySortDir] = useState("desc");
+  const [companySearch, setCompanySearch] = useState("");
 
   /* ── Admin data source ── */
   const adminEmails = (import.meta.env.VITE_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -455,6 +459,108 @@ export default function Analytics({ onSelectProspect }) {
       return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lp.length ? Math.round((r / lp.length) * 100) : 0 };
     }).sort((a, b) => b.replyRate - a.replyRate);
 
+    /* ── Company-level analytics ── */
+    const companyMap = new Map();
+    prospects.forEach((p) => {
+      const key = p.company || "Unknown";
+      if (!companyMap.has(key)) companyMap.set(key, []);
+      companyMap.get(key).push(p);
+    });
+
+    const companyStats = [...companyMap.entries()].map(([company, members]) => {
+      const totalP = members.length;
+      const tps = members.flatMap((p) => p.touchpoints);
+      const totalTp = tps.length;
+      const avgTp = totalP ? Math.round((totalTp / totalP) * 10) / 10 : 0;
+      const replied = members.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const meetings = members.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const opportunity = members.filter((p) => p.status === "Opportunity").length;
+      const notInterested = members.filter((p) => p.status === "Not Interested").length;
+      const callBackC = members.filter((p) => p.status === "Call Back").length;
+      const nurtureC = members.filter((p) => p.status === "Nurture").length;
+      const untouchedC = members.filter((p) => p.touchpoints.length === 0).length;
+      const starredC = members.filter((p) => p.starred).length;
+      const replyRate = totalP ? Math.round((replied / totalP) * 100) : 0;
+      const industry = members[0]?.industry || "—";
+
+      // Channels used
+      const channelSet = new Set(tps.map((t) => t.channel));
+      const channelsUsed = [...channelSet];
+
+      // Status breakdown
+      const statusBreakdown = {};
+      members.forEach((p) => { statusBreakdown[p.status] = (statusBreakdown[p.status] || 0) + 1; });
+
+      // Staleness: max days since last touch across all members
+      const stalenesses = members.map((p) => daysSinceLast(p)).filter((d) => d !== null);
+      const maxStale = stalenesses.length ? Math.max(...stalenesses) : null;
+      const avgStale = stalenesses.length ? Math.round(stalenesses.reduce((a, b) => a + b, 0) / stalenesses.length) : null;
+
+      // Last activity date
+      const allDates = tps.map((t) => t.date).sort();
+      const lastActivityDate = allDates.length ? allDates[allDates.length - 1] : null;
+
+      return {
+        company, totalP, totalTp, avgTp, replied, meetings, opportunity, notInterested,
+        callBack: callBackC, nurture: nurtureC, untouched: untouchedC, starred: starredC,
+        replyRate, industry, channelsUsed, statusBreakdown,
+        maxStale, avgStale, lastActivityDate, members,
+      };
+    });
+
+    // Aggregates
+    const totalCompanies = companyStats.length;
+    const avgProspectsPerCompany = totalCompanies ? Math.round((total / totalCompanies) * 10) / 10 : 0;
+    const companiesWithMeetings = companyStats.filter((c) => c.meetings > 0).length;
+    const companiesWithReplies = companyStats.filter((c) => c.replied > 0).length;
+    const companiesUntouched = companyStats.filter((c) => c.untouched === c.totalP).length;
+    const companiesStale7 = companyStats.filter((c) => c.avgStale !== null && c.avgStale >= 7 && c.meetings === 0 && c.opportunity === 0).length;
+
+    // Top companies by reply rate (min 2 prospects)
+    const topByReplyRate = [...companyStats].filter((c) => c.totalP >= 2).sort((a, b) => b.replyRate - a.replyRate).slice(0, 5);
+    // Top by engagement (most touchpoints)
+    const topByEngagement = [...companyStats].sort((a, b) => b.totalTp - a.totalTp).slice(0, 5);
+    // Most prospects
+    const topBySize = [...companyStats].sort((a, b) => b.totalP - a.totalP).slice(0, 5);
+
+    // Company industry distribution
+    const companyByIndustry = {};
+    companyStats.forEach((c) => {
+      const ind = c.industry || "—";
+      if (!companyByIndustry[ind]) companyByIndustry[ind] = { count: 0, prospects: 0, replied: 0, meetings: 0 };
+      companyByIndustry[ind].count++;
+      companyByIndustry[ind].prospects += c.totalP;
+      companyByIndustry[ind].replied += c.replied;
+      companyByIndustry[ind].meetings += c.meetings;
+    });
+
+    // Company funnel
+    const companyFunnel = [
+      { label: "Total Companies", val: totalCompanies, color: "var(--primary)", pct: 100 },
+      { label: "With Activity", val: companyStats.filter((c) => c.totalTp > 0).length, color: "var(--info)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.totalTp > 0).length / totalCompanies) * 100) : 0 },
+      { label: "With Replies", val: companiesWithReplies, color: "var(--success)", pct: totalCompanies ? Math.round((companiesWithReplies / totalCompanies) * 100) : 0 },
+      { label: "With Meetings", val: companiesWithMeetings, color: "var(--accent)", pct: totalCompanies ? Math.round((companiesWithMeetings / totalCompanies) * 100) : 0 },
+      { label: "With Opportunity", val: companyStats.filter((c) => c.opportunity > 0).length, color: "var(--success-bright)", pct: totalCompanies ? Math.round((companyStats.filter((c) => c.opportunity > 0).length / totalCompanies) * 100) : 0 },
+    ];
+
+    // Company size distribution
+    const companySizeBuckets = [
+      { label: "1 prospect", filter: (c) => c.totalP === 1, color: "var(--info)" },
+      { label: "2–3 prospects", filter: (c) => c.totalP >= 2 && c.totalP <= 3, color: "var(--accent)" },
+      { label: "4–6 prospects", filter: (c) => c.totalP >= 4 && c.totalP <= 6, color: "var(--warning)" },
+      { label: "7+ prospects", filter: (c) => c.totalP >= 7, color: "var(--warning-alt)" },
+    ].map((b) => {
+      const group = companyStats.filter(b.filter);
+      return { ...b, count: group.length, prospects: group.reduce((a, c) => a + c.totalP, 0) };
+    });
+
+    const companyAnalytics = {
+      companyStats, totalCompanies, avgProspectsPerCompany,
+      companiesWithMeetings, companiesWithReplies, companiesUntouched, companiesStale7,
+      topByReplyRate, topByEngagement, topBySize,
+      companyByIndustry, companyFunnel, companySizeBuckets,
+    };
+
     return {
       total, allTp, statusCounts, funnelSteps, dropOffs, noResp, notInt, closedNeg, wrongInvalid,
       callBack, nurture, trials, followUpByIndustry, followUpByChannel,
@@ -462,6 +568,7 @@ export default function Analytics({ onSelectProspect }) {
       avgTpToReply, avgTpAll, avgVelocity, meeting, won, contacted, replied,
       last30, maxAct, maxAdded, weeklyActivity, industryStats, buckets,
       stale7, stale14, stale30, untouched, hotProspects, listStats, activityReview,
+      companyAnalytics,
     };
   }, [prospects, sourceLists]);
 
@@ -504,12 +611,25 @@ export default function Analytics({ onSelectProspect }) {
       <div className="flex items-center justify-between flex-wrap gap-12">
         <div>
           <div style={{ fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 2 }}>Analytics Dashboard</div>
-          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.allTp.length} touchpoints logged</div>
+          <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{data.total} prospects · {data.companyAnalytics.totalCompanies} companies · {data.allTp.length} touchpoints</div>
         </div>
         <div className="flex items-center gap-8 flex-wrap">
           {isAdmin && (
             <AdminSourceSelector selectedUsers={selectedUsers} setSelectedUsers={(s) => { setSelectedUsers(s); setSelectedList("__all__"); }} adminAllData={adminAllData} ownEmail={user?.email} ownProspectCount={state.prospects.length} />
           )}
+          {/* View toggle */}
+          <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+            <button onClick={() => setAnalyticsView("prospect")} style={{
+              padding: "6px 14px", fontSize: 13, fontWeight: analyticsView === "prospect" ? 700 : 400, cursor: "pointer",
+              background: analyticsView === "prospect" ? "var(--primary)" : "var(--surface)", color: analyticsView === "prospect" ? "#fff" : "var(--text-muted)",
+              border: "none", transition: "all .15s",
+            }}>👤 Prospects</button>
+            <button onClick={() => setAnalyticsView("company")} style={{
+              padding: "6px 14px", fontSize: 13, fontWeight: analyticsView === "company" ? 700 : 400, cursor: "pointer",
+              background: analyticsView === "company" ? "var(--primary)" : "var(--surface)", color: analyticsView === "company" ? "#fff" : "var(--text-muted)",
+              border: "none", borderLeft: "1px solid var(--border)", transition: "all .15s",
+            }}>🏢 Companies</button>
+          </div>
           <span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>List:</span>
           <select className="form-select" style={{ marginBottom: 0, minWidth: 160, fontSize: 14 }} value={selectedList} onChange={(e) => setSelectedList(e.target.value)}>
             <option value="__all__">All Lists</option>
@@ -520,6 +640,267 @@ export default function Analytics({ onSelectProspect }) {
           </button>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ═══  COMPANY VIEW  ═══════════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {analyticsView === "company" && (() => {
+        const ca = data.companyAnalytics;
+
+        // Sort + filter company table
+        const toggleCompanySort = (col) => {
+          if (companySortBy === col) setCompanySortDir((d) => d === "asc" ? "desc" : "asc");
+          else { setCompanySortBy(col); setCompanySortDir("desc"); }
+        };
+        const q = companySearch.toLowerCase();
+        const filteredCompanies = ca.companyStats
+          .filter((c) => !q || c.company.toLowerCase().includes(q) || c.industry.toLowerCase().includes(q))
+          .sort((a, b) => {
+            let av, bv;
+            if (companySortBy === "company") { av = a.company.toLowerCase(); bv = b.company.toLowerCase(); }
+            else if (companySortBy === "prospects") { av = a.totalP; bv = b.totalP; }
+            else if (companySortBy === "touchpoints") { av = a.totalTp; bv = b.totalTp; }
+            else if (companySortBy === "replyRate") { av = a.replyRate; bv = b.replyRate; }
+            else if (companySortBy === "meetings") { av = a.meetings; bv = b.meetings; }
+            else if (companySortBy === "staleness") { av = a.avgStale ?? 9999; bv = b.avgStale ?? 9999; }
+            else if (companySortBy === "industry") { av = a.industry.toLowerCase(); bv = b.industry.toLowerCase(); }
+            else { av = a.totalP; bv = b.totalP; }
+            if (av < bv) return companySortDir === "asc" ? -1 : 1;
+            if (av > bv) return companySortDir === "asc" ? 1 : -1;
+            return 0;
+          });
+
+        const SortHeader = ({ col, label, style }) => (
+          <th onClick={() => toggleCompanySort(col)} style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", ...style }}>
+            {label}
+            <span style={{ marginLeft: 4, opacity: companySortBy === col ? 1 : 0.3, fontSize: 11 }}>
+              {companySortBy === col ? (companySortDir === "asc" ? "▲" : "▼") : "⇅"}
+            </span>
+          </th>
+        );
+
+        return (
+          <>
+            {/* Company KPI strip */}
+            <div className="analytics-kpi-row">
+              {[
+                { label: "Companies", val: ca.totalCompanies, color: "var(--primary)" },
+                { label: "Avg Prospects", val: ca.avgProspectsPerCompany, color: "var(--info)" },
+                { label: "With Replies", val: ca.companiesWithReplies, color: "var(--success)" },
+                { label: "With Meetings", val: ca.companiesWithMeetings, color: "var(--accent)" },
+                { label: "Fully Untouched", val: ca.companiesUntouched, color: "var(--danger)" },
+                { label: "Stale 7d+", val: ca.companiesStale7, color: "var(--warning-alt)" },
+              ].map((k) => (
+                <div key={k.label} className="analytics-kpi">
+                  <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
+                  <div className="analytics-kpi-label">{k.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Company Funnel + Size Distribution */}
+            <div className="analytics-grid-2">
+              <div className="card">
+                <div className="card-title">Company Conversion Funnel</div>
+                <div className="flex flex-col gap-10">
+                  {ca.companyFunnel.map((f) => (
+                    <div key={f.label} className="funnel-row">
+                      <div className="funnel-label">{f.label}</div>
+                      <div className="funnel-bar">
+                        <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
+                        <div className="funnel-bar-text">{f.val}</div>
+                      </div>
+                      <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Company Size Distribution</div>
+                <div className="touch-dist-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+                  {ca.companySizeBuckets.map((b) => (
+                    <div key={b.label} className="touch-dist-card">
+                      <div style={{ fontSize: 14, color: "var(--text-muted)", marginBottom: 6 }}>{b.label}</div>
+                      <div style={{ fontSize: 28, fontWeight: 700, color: b.color, letterSpacing: "-0.03em" }}>{b.count}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-dim)" }}>{b.count === 1 ? "company" : "companies"}</div>
+                      <div style={{ height: 4, background: "var(--border)", borderRadius: 2, marginTop: 8 }}>
+                        <div style={{ height: "100%", width: `${ca.totalCompanies ? (b.count / ca.totalCompanies) * 100 : 0}%`, background: b.color, borderRadius: 2 }} />
+                      </div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>{b.prospects} prospects total</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Companies — 3 columns */}
+            <div className="analytics-grid-3">
+              <div className="card">
+                <div className="card-title">Top by Reply Rate</div>
+                {ca.topByReplyRate.length === 0 ? <div style={{ fontSize: 14, color: "var(--text-dim)" }}>Need 2+ prospects per company</div> :
+                  ca.topByReplyRate.map((c, i) => (
+                    <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                      onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                        <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.industry}</div>
+                      </div>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: c.replyRate > 30 ? "var(--success)" : c.replyRate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{c.replyRate}%</span>
+                    </div>
+                  ))}
+              </div>
+              <div className="card">
+                <div className="card-title">Top by Engagement</div>
+                {ca.topByEngagement.map((c, i) => (
+                  <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                    onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.totalP} prospects · {c.avgTp} avg tp</div>
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--primary-light)" }}>{c.totalTp} tp</span>
+                  </div>
+                ))}
+              </div>
+              <div className="card">
+                <div className="card-title">Largest Accounts</div>
+                {ca.topBySize.map((c, i) => (
+                  <div key={c.company} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "var(--surface)", marginBottom: 4, cursor: "pointer" }}
+                    onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-dim)", width: 18, textAlign: "center" }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600 }}>{c.company}</div>
+                      <div className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>{c.industry} · {c.replyRate}% reply</div>
+                    </div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>{c.totalP}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Industry breakdown for companies */}
+            <div className="analytics-grid-2">
+              <div className="card">
+                <div className="card-title">Companies by Industry</div>
+                <div className="flex flex-col">
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "4px 0", borderBottom: "1px solid var(--border)", marginBottom: 6 }}>
+                    {["Industry", "Cos", "Prospects", "Replies", "Mtgs"].map((h) => <div key={h} className="mono" style={{ fontSize: 12, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</div>)}
+                  </div>
+                  {Object.entries(ca.companyByIndustry).sort((a, b) => b[1].count - a[1].count).map(([ind, d]) => (
+                    <div key={ind} style={{ display: "grid", gridTemplateColumns: "1fr 60px 60px 60px 60px", gap: 4, padding: "7px 0", borderBottom: "1px solid var(--surface)", alignItems: "center" }}>
+                      <div style={{ fontSize: 14, color: "var(--text-sec)" }}>{ind}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--primary-light)", fontWeight: 600 }}>{d.count}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{d.prospects}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--success)" }}>{d.replied}</div>
+                      <div className="mono" style={{ fontSize: 14, color: "var(--accent)" }}>{d.meetings}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card">
+                <div className="card-title">Company Health Alerts</div>
+                <div className="flex flex-col gap-12">
+                  {ca.companiesUntouched > 0 && (
+                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesUntouched}</div>
+                      <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with zero touchpoints</div>
+                    </div>
+                  )}
+                  {ca.companiesStale7 > 0 && (
+                    <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{ca.companiesStale7}</div>
+                      <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>companies stale 7+ days (no meetings/opps)</div>
+                    </div>
+                  )}
+                  {ca.companiesUntouched === 0 && ca.companiesStale7 === 0 && (
+                    <div style={{ textAlign: "center", padding: 20, color: "var(--success)", fontSize: 14 }}>All companies are being actively worked</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Full Company Table */}
+            <div className="card">
+              <div className="flex items-center justify-between flex-wrap gap-12 mb-16">
+                <div className="card-title" style={{ marginBottom: 0 }}>All Companies ({filteredCompanies.length})</div>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search company, industry…"
+                  value={companySearch}
+                  onChange={(e) => setCompanySearch(e.target.value)}
+                  style={{ marginBottom: 0, fontSize: 13, maxWidth: 240, padding: "5px 10px", borderRadius: 6 }}
+                />
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <SortHeader col="company" label="Company" />
+                      <SortHeader col="industry" label="Industry" />
+                      <SortHeader col="prospects" label="Prospects" />
+                      <SortHeader col="touchpoints" label="Touchpoints" />
+                      <SortHeader col="replyRate" label="Reply %" />
+                      <SortHeader col="meetings" label="Meetings" />
+                      <SortHeader col="staleness" label="Avg Stale" />
+                      <th>Pipeline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCompanies.map((c) => (
+                      <tr key={c.company} style={{ cursor: "pointer" }} onClick={() => drillList(`Company: ${c.company}`, c.members)}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {c.starred > 0 && <span style={{ fontSize: 13 }}>{"\u2B50"}</span>}
+                            <div>
+                              <div style={{ fontWeight: 600, fontSize: 14 }}>{c.company}</div>
+                              <div className="mono" style={{ fontSize: 12, color: "var(--text-dim)" }}>{c.channelsUsed.map((ch) => CHANNEL_ICONS[ch]).join(" ")}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 13, color: "var(--text-muted)" }}>{c.industry}</td>
+                        <td className="mono" style={{ fontSize: 14 }}>
+                          {c.totalP}
+                          {c.untouched > 0 && <span style={{ fontSize: 11, color: "var(--danger)", marginLeft: 4 }}>({c.untouched} untouched)</span>}
+                        </td>
+                        <td className="mono" style={{ fontSize: 14, color: "var(--text-sec)" }}>{c.totalTp} <span style={{ color: "var(--text-dim)" }}>({c.avgTp}/p)</span></td>
+                        <td className="mono" style={{ fontSize: 14, fontWeight: 600, color: c.replyRate > 30 ? "var(--success)" : c.replyRate > 15 ? "var(--warning)" : "var(--text-muted)" }}>{c.replyRate}%</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.meetings > 0 ? "var(--accent)" : "var(--text-dim)" }}>{c.meetings}</td>
+                        <td className="mono" style={{ fontSize: 14, color: c.avgStale !== null ? (c.avgStale >= 14 ? "var(--danger)" : c.avgStale >= 7 ? "var(--warning-alt)" : "var(--success)") : "var(--text-dim)" }}>
+                          {c.avgStale !== null ? `${c.avgStale}d` : "—"}
+                        </td>
+                        <td style={{ minWidth: 120 }}>
+                          <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", background: "var(--border)" }}>
+                            {Object.entries(c.statusBreakdown).sort((a, b) => b[1] - a[1]).map(([status, count]) => {
+                              const pct = (count / c.totalP) * 100;
+                              return pct > 0 ? <div key={status} title={`${status}: ${count}`} style={{ width: `${pct}%`, background: STATUS_COLORS[status]?.text || "var(--text-dim)" }} /> : null;
+                            })}
+                          </div>
+                          <div style={{ display: "flex", gap: 4, marginTop: 4, flexWrap: "wrap" }}>
+                            {Object.entries(c.statusBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([status, count]) => (
+                              <span key={status} className="mono" style={{ fontSize: 10, color: STATUS_COLORS[status]?.text || "var(--text-dim)" }}>{count} {status.split(" ")[0]}</span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredCompanies.length === 0 && (
+                      <tr><td colSpan={8} style={{ textAlign: "center", padding: 30, color: "var(--text-dim)" }}>No companies match your search</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* ═══  PROSPECT VIEW (original)  ═══════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {analyticsView === "prospect" && <>
 
       {/* KPI strip */}
       <div className="analytics-kpi-row">
@@ -1053,6 +1434,8 @@ export default function Analytics({ onSelectProspect }) {
           ))}
         </div>
       </div>
+
+      </>}
 
       {/* Drilldown modal */}
       {drilldown && (
