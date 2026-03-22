@@ -2,7 +2,7 @@ import { createContext, useContext, useReducer, useEffect, useMemo, useState, us
 import { get, set } from "idb-keyval";
 import { supabase } from "./supabase";
 import { DEFAULT_SEQUENCE, EMAIL_LINKEDIN_SEQUENCE } from "./constants";
-import { nextId, todayStr, daysSinceLast, hoursSinceLast, isTerminalStatus } from "./utils";
+import { nextId, todayStr, daysSinceLast, hoursSinceLast, isTerminalStatus, addBusinessDays, formatDateLocal } from "./utils";
 
 const STORAGE_KEY_PREFIX = "outreach-os-data";
 const LS_KEY = "outreach-os-data"; // used only for one-time migration from localStorage
@@ -205,9 +205,9 @@ function reducer(state, action) {
           .filter((step) => {
             if (en.completedSteps.includes(step.id)) return false;
             const [y, m, d] = baseDate.split("-").map(Number);
-            const due = new Date(y, m - 1, d);
-            due.setDate(due.getDate() + (step.day - dayOffset));
-            const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
+            const base = new Date(y, m - 1, d);
+            const due = addBusinessDays(base, step.day - dayOffset);
+            const dueStr = formatDateLocal(due);
             if (dueStr > today) return false;
             // Direct channel match
             if (step.channel === touchpoint.channel) return true;
@@ -584,9 +584,9 @@ export function StoreProvider({ children }) {
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
         const [sy, sm, sd] = baseDate.split("-").map(Number);
-        const due = new Date(sy, sm - 1, sd); // local date — avoids UTC off-by-one
-        due.setDate(due.getDate() + (step.day - dayOffset));
-        const dueStr = `${due.getFullYear()}-${String(due.getMonth()+1).padStart(2,"0")}-${String(due.getDate()).padStart(2,"0")}`;
+        const base = new Date(sy, sm - 1, sd);
+        const due = addBusinessDays(base, step.day - dayOffset);
+        const dueStr = formatDateLocal(due);
         if (dueStr <= today) {
           // LinkedIn follow-up steps require an accepted connection.
           // If not connected, swap to Email fallback so the rep still has an action.

@@ -2,12 +2,42 @@
 let _idCounter = Date.now();
 export function nextId() { return ++_idCounter; }
 
-export function todayStr() { return new Date().toISOString().slice(0, 10); }
+export function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 export function nowTimeStr() { return new Date().toTimeString().slice(0, 5); }
 
 /* ── Time helpers ── */
 
 const TERMINAL = new Set(["Not Interested", "Wrong/Invalid", "Meeting Booked", "Opportunity", "Nurture", "Trials"]);
+
+/**
+ * Add N business days (skipping Sat/Sun) to a Date object.
+ * If the start date itself is a weekend, it first advances to Monday.
+ * Returns a new Date.
+ */
+export function addBusinessDays(date, days) {
+  const result = new Date(date);
+  // If starting on a weekend, move to Monday first
+  if (result.getDay() === 0) result.setDate(result.getDate() + 1); // Sun → Mon
+  else if (result.getDay() === 6) result.setDate(result.getDate() + 2); // Sat → Mon
+
+  let remaining = days;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    const dow = result.getDay();
+    if (dow !== 0 && dow !== 6) remaining--; // skip weekends
+  }
+  return result;
+}
+
+/**
+ * Format a Date as YYYY-MM-DD using local timezone.
+ */
+export function formatDateLocal(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
 
 export function lastTouchDate(prospect) {
   const dates = prospect.touchpoints.map(t => t.date).sort();
