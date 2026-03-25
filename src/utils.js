@@ -19,13 +19,17 @@ const TERMINAL = new Set(["Not Interested", "Wrong/Invalid", "Meeting Booked", "
  */
 export function addBusinessDays(date, days) {
   const result = new Date(date);
-  if (isNaN(result.getTime())) return new Date(); // safety: invalid date
+  if (isNaN(result.getTime())) return new Date();
   // If starting on a weekend, move to Monday first
-  if (result.getDay() === 0) result.setDate(result.getDate() + 1); // Sun → Mon
-  else if (result.getDay() === 6) result.setDate(result.getDate() + 2); // Sat → Mon
+  if (result.getDay() === 0) result.setDate(result.getDate() + 1);
+  else if (result.getDay() === 6) result.setDate(result.getDate() + 2);
 
-  if (!days || days <= 0) return result; // 0 or negative — just return the (possibly weekend-adjusted) base
-  let remaining = days;
+  if (!days || days <= 0) return result;
+
+  // O(1) math: every 5 business days = 7 calendar days
+  const fullWeeks = Math.floor(days / 5);
+  let remaining = days % 5;
+  result.setDate(result.getDate() + fullWeeks * 7);
   while (remaining > 0) {
     result.setDate(result.getDate() + 1);
     const dow = result.getDay();
