@@ -560,6 +560,10 @@ export function StoreProvider({ children }) {
 
   /* Derived: tasks due today / overdue */
   const tasksToday = useMemo(() => {
+    try { return _computeTasks(); } catch (e) { console.error("tasksToday error:", e); return []; }
+  }, [state.enrollments, state.sequences, state.prospects, today]);
+
+  function _computeTasks() {
     const tasks = [];
     state.enrollments.forEach((en) => {
       const seq = state.sequences.find((s) => s.id === en.sequenceId);
@@ -626,7 +630,7 @@ export function StoreProvider({ children }) {
     });
 
     return tasks.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [state.enrollments, state.sequences, state.prospects, today]);
+  }
 
   /* Derived: prospects untouched 28h+ */
   const overdueProspects = useMemo(
