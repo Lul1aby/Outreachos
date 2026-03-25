@@ -201,6 +201,7 @@ function reducer(state, action) {
 
         // Find pending steps due today or earlier whose channel matches the logged touchpoint
         // LinkedIn steps with requiresLinkedInConnection that are swapped to Email also match Email touchpoints
+        if (!baseDate) return en;
         const matchingStep = seq.steps
           .filter((step) => {
             if (en.completedSteps.includes(step.id)) return false;
@@ -581,6 +582,7 @@ export function StoreProvider({ children }) {
       // Check LinkedIn connection status for this prospect
       const linkedInAccepted = prospect.touchpoints.some((t) => t.channel === "LinkedIn" && t.status === "Accepted");
 
+      if (!baseDate) return;
       seq.steps.forEach((step) => {
         if (en.completedSteps.includes(step.id)) return;
         const [sy, sm, sd] = baseDate.split("-").map(Number);
