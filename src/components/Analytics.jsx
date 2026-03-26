@@ -194,31 +194,73 @@ export default function Analytics({ onSelectProspect }) {
   const downloadReport = useCallback(() => {
     const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
 
-    // Build per-company NI summary: collect all notes from NI touchpoints + prospect notes
+    // Build per-company NI summary
     const companyNISummary = {};
     src.forEach((p) => {
       const key = p.company || "Unknown";
       if (!companyNISummary[key]) companyNISummary[key] = [];
-      // Collect notes from Not Interested touchpoints
       p.touchpoints.forEach((t) => {
         if (t.status === "Not Interested" && t.note?.trim()) {
           companyNISummary[key].push(`[${p.name} - ${t.channel} ${t.date}] ${t.note.trim()}`);
         }
       });
-      // Also include prospect-level notes if status is NI
       if (p.status === "Not Interested" && p.notes?.trim()) {
         companyNISummary[key].push(`[${p.name} - notes] ${p.notes.trim()}`);
       }
     });
 
+    // Build per-company NI analysis
+    const companyNIAnalysis = {};
+    src.forEach((p) => {
+      const key = p.company || "Unknown";
+      if (!companyNIAnalysis[key]) companyNIAnalysis[key] = { total: 0, ni: 0, reasons: [] };
+      companyNIAnalysis[key].total++;
+      if (p.status === "Not Interested") {
+        companyNIAnalysis[key].ni++;
+        // Collect reason keywords from NI touchpoint notes
+        p.touchpoints.forEach((t) => {
+          if (t.status === "Not Interested" && t.note?.trim()) companyNIAnalysis[key].reasons.push(t.note.trim());
+        });
+        if (p.notes?.trim()) companyNIAnalysis[key].reasons.push(p.notes.trim());
+      }
+    });
+
     const rows = [
-      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used", "Notes", "Company NI Summary"],
+      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created",
+       "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used",
+       "Prospect Notes", "All Touchpoint Notes", "NI Touchpoint Notes",
+       "Company NI Summary", "Company NI Rate", "Company NI Analysis"],
       ...src.map((p) => {
         const days = daysSinceLast(p);
-        const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.date : "";
+        const sorted = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)) : [];
+        const lastTouch = sorted.length ? sorted.at(-1)?.date : "";
         const channels = [...new Set(p.touchpoints.map((t) => t.channel))].join("; ");
+
+        // All touchpoint notes combined
+        const allTpNotes = p.touchpoints
+          .filter((t) => t.note?.trim())
+          .map((t) => `[${t.channel} ${t.status} ${t.date}] ${t.note.trim()}`)
+          .join(" | ");
+
+        // NI-specific touchpoint notes
+        const niTpNotes = p.touchpoints
+          .filter((t) => t.status === "Not Interested" && t.note?.trim())
+          .map((t) => `[${t.channel} ${t.date}] ${t.note.trim()}`)
+          .join(" | ");
+
         const niSummary = (companyNISummary[p.company || "Unknown"] || []).join(" | ");
-        return [p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "", p.email || "", p.phone || "", p.linkedin || "", fmtDate(p.createdAt), p.touchpoints.length, lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "", channels, p.notes || "", niSummary];
+        const analysis = companyNIAnalysis[p.company || "Unknown"];
+        const niRate = analysis ? `${analysis.ni}/${analysis.total} (${analysis.total ? Math.round(analysis.ni / analysis.total * 100) : 0}%)` : "";
+        const niAnalysis = analysis && analysis.reasons.length ? `NI Rate: ${niRate}. Reasons: ${analysis.reasons.join("; ")}` : niRate ? `NI Rate: ${niRate}. No reasons recorded.` : "";
+
+        return [
+          p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "",
+          p.email || "", p.phone || "", p.linkedin || "",
+          fmtDate(p.createdAt), p.touchpoints.length,
+          lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "", channels,
+          p.notes || "", allTpNotes, niTpNotes,
+          niSummary, niRate, niAnalysis,
+        ];
       }),
     ];
     const csv = rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
