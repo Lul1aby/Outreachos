@@ -700,8 +700,16 @@ export default function ProspectDetail({ prospectId, onClose, onLogTouchpoint })
 
       {/* Notes */}
       {prospect.notes && (
-        <div className="detail-notes">
-          <span className="detail-section-label" style={{ display: "block", marginBottom: 4 }}>Notes</span>
+        <div className="detail-notes" style={{ position: "relative" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <span className="detail-section-label">Notes</span>
+            <button
+              className="btn btn-danger btn-sm btn-icon"
+              title="Delete notes"
+              style={{ padding: "2px 7px", fontSize: 13 }}
+              onClick={() => { if (window.confirm("Delete all notes for this prospect?")) dispatch({ type: "UPDATE_PROSPECT", payload: { id: prospect.id, updates: { notes: "" } } }); }}
+            >×</button>
+          </div>
           {prospect.notes}
         </div>
       )}
