@@ -193,13 +193,32 @@ export default function Analytics({ onSelectProspect }) {
 
   const downloadReport = useCallback(() => {
     const src = selectedList === "__all__" ? sourceProspects : sourceProspects.filter((p) => p.listName === selectedList);
+
+    // Build per-company NI summary: collect all notes from NI touchpoints + prospect notes
+    const companyNISummary = {};
+    src.forEach((p) => {
+      const key = p.company || "Unknown";
+      if (!companyNISummary[key]) companyNISummary[key] = [];
+      // Collect notes from Not Interested touchpoints
+      p.touchpoints.forEach((t) => {
+        if (t.status === "Not Interested" && t.note?.trim()) {
+          companyNISummary[key].push(`[${p.name} - ${t.channel} ${t.date}] ${t.note.trim()}`);
+        }
+      });
+      // Also include prospect-level notes if status is NI
+      if (p.status === "Not Interested" && p.notes?.trim()) {
+        companyNISummary[key].push(`[${p.name} - notes] ${p.notes.trim()}`);
+      }
+    });
+
     const rows = [
-      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used", "Notes"],
+      ["Name", "Company", "Title", "Industry", "Status", "List", "Email", "Phone", "LinkedIn", "Created", "Touchpoints", "Last Touch Date", "Days Since Last Touch", "Channels Used", "Notes", "Company NI Summary"],
       ...src.map((p) => {
         const days = daysSinceLast(p);
         const lastTouch = p.touchpoints.length ? [...p.touchpoints].sort((a, b) => a.date.localeCompare(b.date)).at(-1)?.date : "";
         const channels = [...new Set(p.touchpoints.map((t) => t.channel))].join("; ");
-        return [p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "", p.email || "", p.phone || "", p.linkedin || "", fmtDate(p.createdAt), p.touchpoints.length, lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "", channels, p.notes || ""];
+        const niSummary = (companyNISummary[p.company || "Unknown"] || []).join(" | ");
+        return [p.name, p.company, p.title || "", p.industry || "", p.status, p.listName || "", p.email || "", p.phone || "", p.linkedin || "", fmtDate(p.createdAt), p.touchpoints.length, lastTouch ? fmtDate(lastTouch) : "", days !== null ? days : "", channels, p.notes || "", niSummary];
       }),
     ];
     const csv = rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
@@ -814,18 +833,19 @@ export default function Analytics({ onSelectProspect }) {
             {/* Company KPI strip — expanded with all outcomes */}
             <div className="analytics-kpi-row">
               {[
-                { label: "Companies", val: ca.totalCompanies, color: "var(--primary)" },
-                { label: "Avg Prospects", val: ca.avgProspectsPerCompany, color: "var(--info)" },
-                { label: "Reply Rate", val: `${ca.overallCompanyReplyRate}%`, color: "var(--success)" },
-                { label: "With Meetings", val: ca.companiesWithMeetings, color: "var(--accent)" },
-                { label: "With Opps", val: ca.companiesWithOpps, color: "var(--success-bright)" },
-                { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)" },
-                { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)" },
-                { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)" },
-                { label: "Dead Rate", val: `${ca.overallCompanyDeadRate}%`, color: "var(--danger-bright)" },
-                { label: "Avg Velocity", val: ca.avgCompanyVelocity ? `${ca.avgCompanyVelocity}d` : "—", color: "var(--warning)" },
+                { label: "Companies", val: ca.totalCompanies, color: "var(--primary)", filter: () => true },
+                { label: "Avg Prospects", val: ca.avgProspectsPerCompany, color: "var(--info)", filter: null },
+                { label: "Reply Rate", val: `${ca.overallCompanyReplyRate}%`, color: "var(--success)", filter: (c) => c.replied > 0 },
+                { label: "With Meetings", val: ca.companiesWithMeetings, color: "var(--accent)", filter: (c) => c.meetings > 0 },
+                { label: "With Opps", val: ca.companiesWithOpps, color: "var(--success-bright)", filter: (c) => c.opportunity > 0 },
+                { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)", filter: (c) => c.notInterested > 0 },
+                { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)", filter: (c) => c.callBack > 0 },
+                { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)", filter: (c) => c.nurture > 0 },
+                { label: "Dead Rate", val: `${ca.overallCompanyDeadRate}%`, color: "var(--danger-bright)", filter: (c) => c.deadCount > 0 },
+                { label: "Avg Velocity", val: ca.avgCompanyVelocity ? `${ca.avgCompanyVelocity}d` : "—", color: "var(--warning)", filter: null },
               ].map((k) => (
-                <div key={k.label} className="analytics-kpi">
+                <div key={k.label} className="analytics-kpi" style={{ cursor: k.filter ? "pointer" : "default" }}
+                  onClick={() => k.filter && drillList(k.label, ca.companyStats.filter(k.filter).flatMap((c) => c.members))}>
                   <div className="analytics-kpi-val" style={{ color: k.color }}>{k.val}</div>
                   <div className="analytics-kpi-label">{k.label}</div>
                 </div>
@@ -836,19 +856,22 @@ export default function Analytics({ onSelectProspect }) {
             {(ca.companiesUntouched > 0 || ca.companiesStale7 > 0 || ca.companiesWithNI > 0) && (
               <div className="flex gap-12 flex-wrap">
                 {ca.companiesUntouched > 0 && (
-                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+                    onClick={() => drillList("Untouched Companies", ca.companyStats.filter((c) => c.untouched === c.totalP).flatMap((c) => c.members))}>
                     <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesUntouched}</div>
                     <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with zero touchpoints</div>
                   </div>
                 )}
                 {ca.companiesStale7 > 0 && (
-                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33" }}>
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--warning-bg)", border: "1px solid var(--warning-alt)33", cursor: "pointer" }}
+                    onClick={() => drillList("Stale 7+ Days", ca.companyStats.filter((c) => c.avgStale !== null && c.avgStale >= 7 && c.meetings === 0 && c.opportunity === 0).flatMap((c) => c.members))}>
                     <div style={{ fontSize: 24, fontWeight: 700, color: "var(--warning-alt)" }}>{ca.companiesStale7}</div>
                     <div style={{ fontSize: 13, color: "var(--warning-alt)", opacity: 0.9 }}>companies stale 7+ days</div>
                   </div>
                 )}
                 {ca.companiesWithNI > 0 && (
-                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)" }}>
+                  <div style={{ flex: 1, minWidth: 200, padding: "12px 16px", borderRadius: 10, background: "var(--danger-bg)", border: "1px solid var(--danger-border)", cursor: "pointer" }}
+                    onClick={() => drillList("Not Interested Companies", ca.companyStats.filter((c) => c.notInterested > 0).flatMap((c) => c.members))}>
                     <div style={{ fontSize: 24, fontWeight: 700, color: "var(--danger)" }}>{ca.companiesWithNI}</div>
                     <div style={{ fontSize: 13, color: "var(--danger)", opacity: 0.9 }}>companies with Not Interested</div>
                   </div>
@@ -861,8 +884,17 @@ export default function Analytics({ onSelectProspect }) {
               <div className="card">
                 <div className="card-title">Company Conversion Funnel</div>
                 <div className="flex flex-col gap-10">
-                  {ca.companyFunnel.map((f) => (
-                    <div key={f.label} className="funnel-row">
+                  {ca.companyFunnel.map((f) => {
+                    const funnelFilters = {
+                      "Total Companies": () => true,
+                      "With Activity": (c) => c.totalTp > 0,
+                      "With Replies": (c) => c.replied > 0,
+                      "With Meetings": (c) => c.meetings > 0,
+                      "With Opportunity": (c) => c.opportunity > 0,
+                    };
+                    return (
+                    <div key={f.label} className="funnel-row" style={{ cursor: "pointer" }}
+                      onClick={() => drillList(`Funnel: ${f.label}`, ca.companyStats.filter(funnelFilters[f.label] || (() => true)).flatMap((c) => c.members))}>
                       <div className="funnel-label">{f.label}</div>
                       <div className="funnel-bar">
                         <div className="funnel-bar-fill" style={{ width: `${f.pct}%`, background: f.color }} />
@@ -870,20 +902,23 @@ export default function Analytics({ onSelectProspect }) {
                       </div>
                       <div className="funnel-pct" style={{ color: f.color }}>{f.pct}%</div>
                     </div>
-                  ))}
+                    );
+                  })}
                   <div className="flex gap-20 pt-12 border-t mt-8" style={{ flexWrap: "wrap" }}>
                     {[
-                      { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)" },
-                      { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)" },
-                      { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)" },
-                      { label: "Dead", val: ca.totalCompanyDead, color: "var(--danger-bright)" },
+                      { label: "Not Interested", val: ca.totalCompanyNI, color: "var(--danger)", filter: (c) => c.notInterested > 0 },
+                      { label: "Call Back", val: ca.totalCompanyCB, color: "var(--warning-alt)", filter: (c) => c.callBack > 0 },
+                      { label: "Nurture", val: ca.totalCompanyNurture, color: "var(--accent-light)", filter: (c) => c.nurture > 0 },
+                      { label: "Dead", val: ca.totalCompanyDead, color: "var(--danger-bright)", filter: (c) => c.deadCount > 0 },
                     ].map((x) => (
-                      <div key={x.label} className="flex flex-col gap-4">
+                      <div key={x.label} className="flex flex-col gap-4" style={{ cursor: "pointer" }}
+                        onClick={() => drillList(x.label, ca.companyStats.filter(x.filter).flatMap((c) => c.members))}>
                         <div style={{ fontSize: 15, fontWeight: 700, color: x.color }}>{x.val}</div>
                         <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{x.label}</div>
                       </div>
                     ))}
-                    <div className="ml-auto flex flex-col gap-4">
+                    <div className="ml-auto flex flex-col gap-4" style={{ cursor: "pointer" }}
+                      onClick={() => drillList("Dead Companies", ca.companyStats.filter((c) => c.deadCount > 0).flatMap((c) => c.members))}>
                       <div style={{ fontSize: 15, fontWeight: 700, color: "var(--danger-bright)" }}>{ca.overallCompanyDeadRate}%</div>
                       <div className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>dead rate</div>
                     </div>
@@ -919,7 +954,8 @@ export default function Analytics({ onSelectProspect }) {
                 {Object.entries(ca.companyOutcomeDist).sort((a, b) => b[1] - a[1]).map(([status, cnt]) => {
                   const pct = ca.totalCompanyProspects ? (cnt / ca.totalCompanyProspects) * 100 : 0;
                   return (
-                    <div key={status} className="mb-8">
+                    <div key={status} className="mb-8" style={{ cursor: "pointer" }}
+                      onClick={() => drill(`Status: ${status}`, (p) => p.status === status)}>
                       <div className="flex justify-between mb-4"><span style={{ fontSize: 14, color: STATUS_COLORS[status]?.text || "var(--text-sec)" }}>{status}</span><span className="mono" style={{ fontSize: 14, color: "var(--text-muted)" }}>{cnt} · {Math.round(pct)}%</span></div>
                       <MiniBar pct={pct} color={STATUS_COLORS[status]?.text || "var(--text-dim)"} />
                     </div>
