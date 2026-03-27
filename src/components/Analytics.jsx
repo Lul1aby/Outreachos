@@ -291,7 +291,7 @@ export default function Analytics({ onSelectProspect }) {
     /* ── Funnel ── */
     const contacted = prospects.filter((p) => p.touchpoints.length > 0).length;
     const replied = prospects.filter((p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status)).length;
-    const meeting = prospects.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+    const meeting = prospects.filter((p) => p.status === "Meeting Booked").length;
     const won = prospects.filter((p) => p.status === "Opportunity").length;
     const notInt = prospects.filter((p) => p.status === "Not Interested").length;
     const noResp = prospects.filter((p) => p.status === "No Response").length;
@@ -453,7 +453,7 @@ export default function Analytics({ onSelectProspect }) {
       const ind = prospects.filter((p) => p.industry === i);
       const indEL = ind.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
       const r = indEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
-      const m = ind.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const m = ind.filter((p) => p.status === "Meeting Booked").length;
       const ni = ind.filter((p) => p.status === "Not Interested").length;
       return { name: i, total: ind.length, replied: r, meetings: m, notInterested: ni, replyRate: indEL.length ? Math.round((r / indEL.length) * 100) : 0, color: IND_COLORS[idx % IND_COLORS.length] };
     }).sort((a, b) => b.replyRate - a.replyRate);
@@ -562,7 +562,7 @@ export default function Analytics({ onSelectProspect }) {
       const lp = prospects.filter((p) => p.listName === l);
       const lpEL = lp.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
       const r = lpEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
-      const m = lp.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const m = lp.filter((p) => p.status === "Meeting Booked").length;
       const ni = lp.filter((p) => p.status === "Not Interested").length;
       return { name: l, total: lp.length, replied: r, meetings: m, notInterested: ni, replyRate: lpEL.length ? Math.round((r / lpEL.length) * 100) : 0 };
     }).sort((a, b) => b.replyRate - a.replyRate);
@@ -583,7 +583,7 @@ export default function Analytics({ onSelectProspect }) {
       const contacted = members.filter((p) => p.touchpoints.length > 0).length;
       const membersEL = members.filter((p) => p.touchpoints.some((t) => t.channel === "Email" || t.channel === "LinkedIn"));
       const replied = membersEL.filter((p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked"))).length;
-      const meetings = members.filter((p) => ["Meeting Booked", "Opportunity"].includes(p.status)).length;
+      const meetings = members.filter((p) => p.status === "Meeting Booked").length;
       const opportunity = members.filter((p) => p.status === "Opportunity").length;
       const notInterested = members.filter((p) => p.status === "Not Interested").length;
       const noResponse = members.filter((p) => p.status === "No Response").length;
@@ -1240,7 +1240,7 @@ export default function Analytics({ onSelectProspect }) {
           { label: "Touched", val: data.contacted, color: "var(--info)", filter: (p) => p.touchpoints.length > 0 },
           { label: "Untouched", val: data.untouched, color: "var(--text-dim)", filter: (p) => p.touchpoints.length === 0 },
           { label: "Reply Rate", val: `${(() => { const rc = new Set(["Email", "LinkedIn"]); const el = prospects.filter((p) => p.touchpoints.some((t) => rc.has(t.channel))); const r = el.filter((p) => p.touchpoints.some((t) => rc.has(t.channel) && (t.status === "Replied" || t.status === "Meeting Booked"))).length; return el.length ? Math.round((r / el.length) * 100) : 0; })()}%`, color: "var(--success)", filter: (p) => p.touchpoints.some((t) => (t.channel === "Email" || t.channel === "LinkedIn") && (t.status === "Replied" || t.status === "Meeting Booked")) },
-          { label: "Meetings", val: data.meeting, color: "var(--accent)", filter: (p) => ["Meeting Booked", "Opportunity"].includes(p.status) },
+          { label: "Meetings", val: data.meeting, color: "var(--accent)", filter: (p) => p.status === "Meeting Booked" },
           { label: "Opportunity", val: data.won, color: "var(--success-bright)", filter: (p) => p.status === "Opportunity" },
           { label: "Call Back", val: data.callBack, color: "var(--warning-alt)", filter: (p) => p.status === "Call Back" },
           { label: "Nurture", val: data.nurture, color: "var(--accent-light)", filter: (p) => p.status === "Nurture" },
@@ -1439,7 +1439,7 @@ export default function Analytics({ onSelectProspect }) {
                 "Total": () => true,
                 "Touched": (p) => p.touchpoints.length > 0,
                 "Replied": (p) => ["Replied", "Meeting Booked", "Opportunity"].includes(p.status),
-                "Meeting": (p) => ["Meeting Booked", "Opportunity"].includes(p.status),
+                "Meeting": (p) => p.status === "Meeting Booked",
                 "Opportunity": (p) => p.status === "Opportunity",
               };
               return (
