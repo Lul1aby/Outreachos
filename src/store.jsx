@@ -91,9 +91,17 @@ function reducer(state, action) {
         ...p, id: nextId(), createdAt: todayStr(), touchpoints: [], status: p.status || "Not Started",
         ...(outreachType === "email-linkedin" ? { outreachType: "email-linkedin" } : {}),
       }));
-      const seq = outreachType === "email-linkedin"
-        ? state.sequences.find((s) => s.isEmailLinkedIn)
-        : state.sequences.find((s) => s.isDefault);
+      // Determine which sequence to enroll into
+      let seq = null;
+      if (action.meta?.sequenceId === "none") {
+        seq = null; // No cadence
+      } else if (action.meta?.sequenceId) {
+        seq = state.sequences.find((s) => s.id === action.meta.sequenceId) || null;
+      } else {
+        seq = outreachType === "email-linkedin"
+          ? state.sequences.find((s) => s.isEmailLinkedIn)
+          : state.sequences.find((s) => s.isDefault);
+      }
       const newE = seq
         ? newP.map((p) => ({ id: nextId(), prospectId: p.id, sequenceId: seq.id, startDate: todayStr(), completedSteps: [] }))
         : [];
