@@ -33,14 +33,9 @@ function mergeLoaded(parsed) {
   const hasEmailLinkedIn = sequences.some((s) => s.isEmailLinkedIn);
   if (!hasEmailLinkedIn) sequences.push(EMAIL_LINKEDIN_SEQUENCE);
 
-  // Clean up enrollments: remove completedSteps that reference deleted step IDs
-  const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
-  const enrollments = (parsed.enrollments || []).map((en) => {
-    const validIds = seqMap.get(en.sequenceId);
-    if (!validIds) return en;
-    const cleaned = en.completedSteps.filter((id) => validIds.has(id));
-    return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
-  });
+  // Preserve enrollments as-is — do NOT strip completedSteps, since step IDs are stable.
+  // Only strip if a sequence was completely removed (no matching sequenceId).
+  const enrollments = (parsed.enrollments || []).map((en) => ({ ...en, completedSteps: en.completedSteps || [] }));
 
   return {
     ...defaultState,
@@ -379,21 +374,14 @@ function reducer(state, action) {
       return defaultState;
 
     case "SYNC_DEFAULT_SEQUENCE": {
-      // Force-sync stored default sequence with code definition and clean all enrollments
+      // Force-sync stored default sequence with code definition — do NOT touch enrollments/completedSteps
       let sequences = state.sequences.map((s) =>
         s.isDefault ? { ...s, steps: DEFAULT_SEQUENCE.steps, name: DEFAULT_SEQUENCE.name, description: DEFAULT_SEQUENCE.description }
         : s.isEmailLinkedIn ? { ...s, steps: EMAIL_LINKEDIN_SEQUENCE.steps, name: EMAIL_LINKEDIN_SEQUENCE.name, description: EMAIL_LINKEDIN_SEQUENCE.description }
         : s
       );
       if (!sequences.some((s) => s.isEmailLinkedIn)) sequences = [...sequences, EMAIL_LINKEDIN_SEQUENCE];
-      const seqMap = new Map(sequences.map((s) => [s.id, new Set(s.steps.map((st) => st.id))]));
-      const enrollments = state.enrollments.map((en) => {
-        const validIds = seqMap.get(en.sequenceId);
-        if (!validIds) return en;
-        const cleaned = en.completedSteps.filter((id) => validIds.has(id));
-        return cleaned.length !== en.completedSteps.length ? { ...en, completedSteps: cleaned } : en;
-      });
-      return { ...state, sequences, enrollments };
+      return { ...state, sequences };
     }
 
     default:
